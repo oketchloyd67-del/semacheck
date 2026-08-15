@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || 'postgresql://semacheck_db_user:0jDp7ErVFWZ88B1rbecuEiRb4u0v5zIF@dpg-da082uvlk1mc73fcanh0-a.singapore-postgres.render.com/semacheck_db?sslmode=require',
   database: process.env.DB_NAME || 'semacheck',
   password: process.env.DB_PASSWORD,
   port: parseInt(process.env.DB_PORT || '5432', 10),
