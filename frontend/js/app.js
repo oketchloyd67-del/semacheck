@@ -1,5 +1,5 @@
 // js/app.js
-const API_BASE = 'http://localhost:4800/api';
+const API_BASE = 'https://semacheck.onrender.com/api';
 
 // ---------------- session helpers ----------------
 function getToken() { return sessionStorage.getItem('semacheck_token'); }

@@ -1,0 +1,9 @@
+{
+  "name": "semacheck-frontend",
+  "version": "1.0.0",
+  "description": "SemaCheck - Verify before you pay",
+  "main": "index.html",
+  "scripts": {
+    "build": "echo 'No build step needed'"
+  }
+}
