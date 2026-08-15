@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SemaCheck — Verify Before You Trust It</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="container">
+    <div class="brand"><span class="dot"></span> SemaCheck</div>
+    <div class="nav-links">
+      <a href="#search">Search</a>
+      <a href="#how">How it works</a>
+      <a href="#jobs">For job owners</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <div class="nav-actions" id="navAuthArea">
+      <button class="btn btn-outline" id="openLogin">Log in</button>
+      <button class="btn btn-primary" id="openSignup">Sign up</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container">
+    <h1>Verify a number, Paybill, or job offer before it costs you anything.</h1>
+    <p>SemaCheck checks Kenya's own scam reports plus what the rest of the internet says, so you know if it's legit before you send money or your ID.</p>
+
+    <div class="search-card" id="search">
+      <div class="tabs">
+        <div class="tab active" data-type="paybill">Paybill</div>
+        <div class="tab" data-type="phone">Phone number</div>
+        <div class="tab" data-type="job_offer">Job offer</div>
+      </div>
+      <div class="search-row">
+        <input type="text" id="searchInput" placeholder="e.g. 400200">
+        <button class="btn btn-primary" id="searchBtn">Search</button>
+      </div>
+      <div class="tier-row">
+        <div class="tier selected" data-tier="50"><b>KES 50</b>Basic verdict</div>
+        <div class="tier" data-tier="100"><b>KES 100</b>+ summary</div>
+        <div class="tier" data-tier="150"><b>KES 150</b>Full evidence</div>
+      </div>
+      <p class="search-hint">You'll need an account to search. Results already checked by someone else load instantly and don't need a second lookup.</p>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="container">
+    <h2 class="section-title">How a search works</h2>
+    <p class="section-sub">Every result blends SemaCheck's own report database with a live check of what's currently being said about it online.</p>
+    <div class="how-steps">
+      <div class="how-step"><div class="how-num">1</div><b>Enter it</b><p style="color:var(--text-muted);font-size:0.88rem;margin-top:6px">Paybill, phone number, or paste the job offer text.</p></div>
+      <div class="how-step"><div class="how-num">2</div><b>Pick a tier</b><p style="color:var(--text-muted);font-size:0.88rem;margin-top:6px">Pay via M-Pesa — from KES 50 for a quick verdict.</p></div>
+      <div class="how-step"><div class="how-num">3</div><b>We check everywhere</b><p style="color:var(--text-muted);font-size:0.88rem;margin-top:6px">Our database + a live web search, merged into one verdict.</p></div>
+      <div class="how-step"><div class="how-num">4</div><b>Get your answer</b><p style="color:var(--text-muted);font-size:0.88rem;margin-top:6px">Legit, suspicious, or scam — with the evidence behind it.</p></div>
+    </div>
+  </div>
+</section>
+
+<section style="background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="container">
+    <h2 class="section-title">What SemaCheck catches</h2>
+    <div class="grid-3">
+      <div class="card"><div class="icon-badge">💳</div><h3>Fake Paybill numbers</h3><p>Confirm a till or Paybill is registered to a real, licensed business before you pay.</p></div>
+      <div class="card"><div class="icon-badge">📱</div><h3>Impersonation calls & texts</h3><p>Check a number against thousands of reported scam patterns.</p></div>
+      <div class="card"><div class="icon-badge">💼</div><h3>Fake job offers</h3><p>Paste the offer text — we flag "registration fee" and other known scam patterns instantly.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="jobs">
+  <div class="container" style="display:flex;align-items:center;justify-content:space-between;gap:30px;flex-wrap:wrap;">
+    <div style="max-width:520px;">
+      <h2 class="section-title">Hiring? Post jobs job-seekers can trust.</h2>
+      <p class="section-sub" style="margin-bottom:0;">Job-owner accounts get a dashboard to post openings (reviewed by our team before they go live) for KES 459/month. Requires business registration and KRA PIN.</p>
+    </div>
+    <button class="btn btn-amber" id="openSignupJobOwner">Register as a job owner</button>
+  </div>
+</section>
+
+<section id="contact">
+  <div class="container">
+    <div class="contact-box">
+      <div>
+        <h2>Need something changed, or have a request?</h2>
+        <p>This box goes straight to our management team's email — it's the only support channel we run, so nothing gets lost in a queue.</p>
+      </div>
+      <div class="contact-form">
+        <div id="contactAlert"></div>
+        <input type="email" id="contactEmail" placeholder="Your email address">
+        <textarea id="contactMessage" placeholder="What would you like us to know?"></textarea>
+        <button class="btn btn-primary btn-block" id="contactSendBtn">Send message</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    SemaCheck &middot; Kenya's citizen scam &amp; fraud verification platform &middot; <a href="privacy.html" style="color:#cfd9ea;">Privacy Policy</a>
+  </div>
+</footer>
+
+<!-- ============ LOGIN MODAL ============ -->
+<div class="modal-overlay" id="loginOverlay">
+  <div class="modal">
+    <button class="modal-close" data-close>&times;</button>
+    <h2>Welcome back</h2>
+    <p class="sub">Log in to search, or check your job-owner dashboard.</p>
+    <div id="loginAlert"></div>
+    <div class="field">
+      <label>Email or phone number</label>
+      <input type="text" id="loginId" placeholder="you@email.com or 07XXXXXXXX">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary btn-block" id="loginSubmit"><span id="loginBtnLabel">Log in</span></button>
+    <p class="modal-foot">No account yet? <button data-switch-to="signup">Sign up</button></p>
+  </div>
+</div>
+
+<!-- ============ SIGNUP MODAL ============ -->
+<div class="modal-overlay" id="signupOverlay">
+  <div class="modal">
+    <button class="modal-close" data-close>&times;</button>
+    <h2>Create your account</h2>
+    <p class="sub">Takes about a minute. You'll need your ID number for faster verification.</p>
+    <div id="signupAlert"></div>
+
+    <div class="type-toggle">
+      <button type="button" class="active" data-account-type="regular">Regular user</button>
+      <button type="button" data-account-type="job_owner">Job owner</button>
+    </div>
+
+    <div class="field">
+      <label>Full name</label>
+      <input type="text" id="suFullName" placeholder="As it appears on your ID">
+    </div>
+    <div class="field">
+      <label>Email address</label>
+      <input type="email" id="suGmail" placeholder="you@gmail.com">
+      <div class="field-msg" id="suGmailMsg"></div>
+    </div>
+    <div class="field">
+      <label>Phone number (M-Pesa)</label>
+      <input type="text" id="suPhone" placeholder="07XXXXXXXX">
+      <div class="field-msg" id="suPhoneMsg"></div>
+    </div>
+    <div class="field">
+      <label>National ID number</label>
+      <input type="text" id="suNationalId" placeholder="e.g. 30112233">
+    </div>
+    <div class="field">
+      <label>Upload a photo or scan of your ID</label>
+      <input type="file" id="suIdDocument" accept=".jpg,.jpeg,.png,.webp,.pdf">
+      <div class="field-msg" id="suIdDocMsg">JPG, PNG, or PDF, under 8MB. An admin manually reviews this against the name and ID number you entered — usually within 24 hours. You can use the platform while it's pending.</div>
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="suPassword" placeholder="Create a password">
+      <div class="strength-meter">
+        <div class="strength-bar" id="strengthBar"><div></div><div></div><div></div><div></div></div>
+        <div class="strength-label" id="strengthLabel"></div>
+        <div class="strength-feedback" id="strengthFeedback"></div>
+      </div>
+    </div>
+
+    <div class="jobowner-fields" id="jobOwnerFields">
+      <div class="field">
+        <label>Business name</label>
+        <input type="text" id="suBusinessName" placeholder="Registered business name">
+      </div>
+      <div class="field">
+        <label>Business registration number</label>
+        <input type="text" id="suBusinessReg" placeholder="e.g. BN-2024-XXXXXX">
+      </div>
+      <div class="field">
+        <label>KRA PIN</label>
+        <input type="text" id="suKraPin" placeholder="e.g. A012345678Z">
+      </div>
+    </div>
+
+    <div class="field" style="display:flex;align-items:flex-start;gap:10px;margin-top:16px;">
+      <input type="checkbox" id="suConsent" style="width:auto;margin-top:3px;flex-shrink:0;">
+      <label for="suConsent" style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">
+        I agree to the <a href="privacy.html" target="_blank" style="color:var(--teal);font-weight:600;">Privacy Policy</a>
+        and consent to SemaCheck processing my personal data, including my
+        national ID number, as described there.
+      </label>
+    </div>
+    <div class="field-msg err" id="suConsentMsg" style="display:none;">You need to agree to the Privacy Policy to create an account.</div>
+
+    <button class="btn btn-primary btn-block" style="margin-top:6px" id="signupSubmit"><span id="signupBtnLabel">Create account</span></button>
+    <p class="modal-foot">Already have an account? <button data-switch-to="login">Log in</button></p>
+  </div>
+</div>
+
+<script src="js/validation.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

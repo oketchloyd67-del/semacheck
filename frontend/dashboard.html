@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — SemaCheck</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="dash-header">
+  <div class="container">
+    <div class="brand" style="color:#fff;"><span class="dot"></span> SemaCheck</div>
+    <div>
+      <span id="dashUserName" style="margin-right:14px;color:#cfd9ea;"></span>
+      <button class="btn btn-outline" id="dashLogout">Log out</button>
+    </div>
+  </div>
+</div>
+
+<div class="container" style="padding-top:30px;padding-bottom:60px;">
+  <div id="dashAlert"></div>
+
+  <div class="stat-row">
+    <div class="stat-card"><div class="num" id="statPending">–</div><div class="label">Pending review</div></div>
+    <div class="stat-card"><div class="num" id="statApproved">–</div><div class="label">Approved &amp; live</div></div>
+    <div class="stat-card"><div class="num" id="statRejected">–</div><div class="label">Rejected</div></div>
+  </div>
+
+  <div class="dash-grid">
+    <div>
+      <div class="card" style="margin-bottom:22px;">
+        <h3>Post a new job</h3>
+        <p style="margin-bottom:14px;">Every posting is reviewed by an admin before it goes live — this keeps SemaCheck trustworthy for job seekers.</p>
+        <div id="postJobAlert"></div>
+        <div class="field"><label>Job title</label><input type="text" id="jobTitle" placeholder="e.g. Sales Associate"></div>
+        <div class="field"><label>Company name</label><input type="text" id="jobCompany" placeholder="Your business name"></div>
+        <div class="field"><label>Location</label><input type="text" id="jobLocation" placeholder="e.g. Nairobi, Westlands"></div>
+        <div class="field"><label>Contact phone</label><input type="text" id="jobPhone" placeholder="07XXXXXXXX"></div>
+        <div class="field"><label>Description</label><input type="text" id="jobDescription" placeholder="Role, requirements, how to apply"></div>
+        <button class="btn btn-primary" id="postJobBtn">Submit for review</button>
+      </div>
+
+      <div class="card">
+        <h3>Your postings</h3>
+        <div id="jobList" style="margin-top:14px;"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="countdown-card" id="subCard">
+        <div style="font-size:0.85rem;color:#b9c6dd;">Subscription</div>
+        <div class="days" id="subDays">–</div>
+        <div style="font-size:0.85rem;color:#b9c6dd;margin-bottom:16px;">days remaining</div>
+        <button class="btn btn-amber btn-block" id="subscribeBtn">Subscribe — KES 459/30 days</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/validation.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>

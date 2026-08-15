@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — SemaCheck</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../frontend/css/style.css">
+<meta name="robots" content="noindex, nofollow">
+</head>
+<body>
+
+<div class="dash-header">
+  <div class="container">
+    <div class="brand" style="color:#fff;"><span class="dot"></span> SemaCheck Admin</div>
+    <div>
+      <span id="adminNameLabel" style="margin-right:14px;color:#cfd9ea;font-size:0.9rem;"></span>
+      <button class="btn btn-outline" id="adminLogout">Log out</button>
+    </div>
+  </div>
+</div>
+
+<div class="admin-topbar">
+  <span style="font-weight:700;">Menu</span>
+  <button id="mobileMenuToggle">☰ Sections</button>
+</div>
+
+<div class="admin-shell">
+  <aside class="admin-sidebar" id="adminSidebar">
+    <button class="admin-tab-btn active" data-tab="overview">📊 Overview</button>
+    <button class="admin-tab-btn" data-tab="registrations">🪪 Registrations <span class="badge" id="badgeIdPending" style="display:none;"></span></button>
+    <button class="admin-tab-btn" data-tab="users">👥 All accounts</button>
+    <button class="admin-tab-btn" data-tab="jobs">💼 Jobs <span class="badge" id="badgeJobsPending" style="display:none;"></span></button>
+    <button class="admin-tab-btn" data-tab="messages">✉️ Contact messages</button>
+    <button class="admin-tab-btn" data-tab="settings">⚙️ Settings</button>
+  </aside>
+
+  <main class="admin-main">
+    <div id="globalAlert"></div>
+
+    <!-- ---------------- OVERVIEW ---------------- -->
+    <section class="admin-tab-panel active" id="tab-overview">
+      <div class="section-heading"><h2>Overview</h2></div>
+      <div class="stat-row" style="grid-template-columns:repeat(6,1fr);">
+        <div class="stat-card"><div class="num" id="statUsers">–</div><div class="label">Total users</div></div>
+        <div class="stat-card"><div class="num" id="statSearches">–</div><div class="label">Total searches</div></div>
+        <div class="stat-card"><div class="num" id="statPending">–</div><div class="label">Jobs pending</div></div>
+        <div class="stat-card"><div class="num" id="statSubs">–</div><div class="label">Active subscriptions</div></div>
+        <div class="stat-card"><div class="num" id="statContact">–</div><div class="label">Contact msgs (unsent)</div></div>
+        <div class="stat-card"><div class="num" id="statIdPending">–</div><div class="label">ID reviews pending</div></div>
+      </div>
+      <div class="card" style="margin-top:22px;">
+        <h3>Quick actions</h3>
+        <div class="action-btns" style="margin-top:12px;">
+          <button class="btn btn-primary" data-goto-tab="registrations">Review new registrations</button>
+          <button class="btn btn-ghost" data-goto-tab="jobs">Review pending jobs</button>
+          <button class="btn btn-ghost" data-goto-tab="users">Browse all accounts</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------------- REGISTRATIONS (ID verification) ---------------- -->
+    <section class="admin-tab-panel" id="tab-registrations">
+      <div class="section-heading"><h2>Registrations — ID verification</h2></div>
+      <div class="filter-bar">
+        <select id="regStatusFilter">
+          <option value="pending">Pending review</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div id="registrationsList"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+    </section>
+
+    <!-- ---------------- ALL ACCOUNTS ---------------- -->
+    <section class="admin-tab-panel" id="tab-users">
+      <div class="section-heading"><h2>All accounts</h2></div>
+      <div class="filter-bar">
+        <input type="text" id="userSearchInput" placeholder="Search by name, email, phone, or ID number">
+        <select id="userTypeFilter">
+          <option value="">All account types</option>
+          <option value="regular">Regular users</option>
+          <option value="job_owner">Job owners</option>
+        </select>
+        <select id="userStatusFilter">
+          <option value="">Any verification status</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <button class="btn btn-ghost" id="userFilterBtn">Filter</button>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table" id="usersTable">
+          <thead><tr><th>Name</th><th>Type</th><th>Email</th><th>Phone</th><th>ID number</th><th>Verification</th><th>Joined</th></tr></thead>
+          <tbody id="usersTableBody"><tr><td colspan="7" style="color:var(--text-muted);">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ---------------- JOBS ---------------- -->
+    <section class="admin-tab-panel" id="tab-jobs">
+      <div class="section-heading"><h2>Job postings</h2></div>
+      <div class="filter-bar">
+        <select id="jobStatusFilter">
+          <option value="pending">Pending approval</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div id="jobsList"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+    </section>
+
+    <!-- ---------------- CONTACT MESSAGES ---------------- -->
+    <section class="admin-tab-panel" id="tab-messages">
+      <div class="section-heading"><h2>Contact messages</h2></div>
+      <div id="messagesList"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+    </section>
+
+    <!-- ---------------- SETTINGS ---------------- -->
+    <section class="admin-tab-panel" id="tab-settings">
+      <div class="section-heading"><h2>Settings — change your credentials</h2></div>
+      <div class="card settings-form">
+        <div id="settingsAlert"></div>
+        <div class="field"><label>Full name</label><input type="text" id="setFullName" placeholder="Leave blank to keep unchanged"></div>
+        <div class="field"><label>Email address</label><input type="email" id="setEmail" placeholder="Leave blank to keep unchanged"></div>
+        <div class="field"><label>New password</label><input type="password" id="setNewPassword" placeholder="Leave blank to keep unchanged"></div>
+        <div class="field"><label>Current password <span style="font-weight:400;color:var(--text-muted);">(required to confirm any change)</span></label><input type="password" id="setCurrentPassword" placeholder="••••••••"></div>
+        <button class="btn btn-primary btn-block" id="saveSettingsBtn">Save changes</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="modal-overlay" id="docPreviewOverlay">
+  <div class="modal" style="max-width:560px;">
+    <button class="modal-close" data-close>&times;</button>
+    <h2>Uploaded ID document</h2>
+    <div id="docPreviewBody" style="margin-top:14px;"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="userDetailOverlay">
+  <div class="modal" style="max-width:520px;">
+    <button class="modal-close" data-close>&times;</button>
+    <div id="userDetailBody" style="margin-top:6px;"></div>
+  </div>
+</div>
+
+<script src="js/admin.js"></script>
+</body>
+</html>

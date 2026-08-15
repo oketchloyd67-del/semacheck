@@ -1,0 +1,124 @@
+# ============================================
+# SEMACHECK - .gitignore
+# ============================================
+
+# ── Environment Variables (CRITICAL - NEVER COMMIT!) ──
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+*.env
+
+# ── Node.js Dependencies ──
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ── Logs ──
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+
+# ── Operating System Files ──
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+*.tmp
+*.temp
+
+# ── IDE/Editor Files ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.~*
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+*.iml
+
+# ── Database Files (if using local DB) ──
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+data/*.sqlite
+*.db-journal
+
+# ── Backup Files ──
+*.backup
+*.bak
+*-backup.json
+*-backup.js
+*-backup.css
+*.old
+*.orig
+
+# ── Local Storage Backup ──
+localStorage-backup.json
+*-localstorage.json
+
+# ── Build & Distribution ──
+dist/
+build/
+out/
+*.min.js
+*.min.css
+
+# ── Coverage Files ──
+coverage/
+.nyc_output/
+
+# ── Server Files ──
+*.pid
+*.seed
+*.pid.lock
+
+# ── API Keys & Secrets ──
+secrets.json
+api-keys.json
+*.secret.json
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.csr
+
+# ── Docker ──
+docker-compose.override.yml
+.dockerignore
+
+# ── Testing ──
+test-results/
+*.test.js
+*.spec.js
+
+# ── Uploads (if you have file uploads) ──
+uploads/
+uploads/*
+!uploads/.gitkeep
+
+# ── Redis ──
+dump.rdb
+
+# ── Misc ──
+*.pid
+*.seed
+*.pid.lock
