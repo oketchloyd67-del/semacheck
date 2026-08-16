@@ -6,12 +6,15 @@
 <title>Dashboard — SemaCheck</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<meta name="google-site-verification" content="iNR9VWGViIdrMkusJTIqT84mATPGZ9ekELoPHcjsgbA" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 </head>
 <body>
 
 <div class="dash-header">
   <div class="container">
-    <div class="brand" style="color:#fff;"><span class="dot"></span> SemaCheck</div>
+    <div class="brand" style="color:#fff;"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"> SemaCheck</div>
     <div>
       <span id="dashUserName" style="margin-right:14px;color:#cfd9ea;"></span>
       <button class="btn btn-outline" id="dashLogout">Log out</button>
@@ -21,6 +24,7 @@
 
 <div class="container" style="padding-top:30px;padding-bottom:60px;">
   <div id="dashAlert"></div>
+  <div id="suspendedBanner" style="display:none;margin-bottom:16px;" class="alert alert-err"></div>
 
   <div class="stat-row">
     <div class="stat-card"><div class="num" id="statPending">–</div><div class="label">Pending review</div></div>
@@ -54,6 +58,21 @@
         <div class="days" id="subDays">–</div>
         <div style="font-size:0.85rem;color:#b9c6dd;margin-bottom:16px;">days remaining</div>
         <button class="btn btn-amber btn-block" id="subscribeBtn">Subscribe — KES 459/30 days</button>
+      </div>
+
+      <div class="payment-progress-card" id="paymentProgressCard" style="display:none;margin-top:16px;">
+        <div class="pp-circular" id="ppCircular"></div>
+        <div class="pp-status-text" id="ppStatusText">Waiting for M-Pesa confirmation…</div>
+        <p class="pp-hint" id="ppHint">Check your phone and enter your M-Pesa PIN. This usually takes a few seconds.</p>
+
+        <div class="manual-code-box" id="manualCodeBox" style="display:none;">
+          <p><b>Money already left your phone but nothing's happening here?</b> Enter the M-Pesa confirmation code from your SMS.</p>
+          <div class="search-row">
+            <input type="text" id="manualCodeInput" placeholder="e.g. QAR7XJ2KLM">
+            <button class="btn btn-amber" id="manualCodeSubmit">Confirm payment</button>
+          </div>
+          <div id="manualCodeAlert"></div>
+        </div>
       </div>
     </div>
   </div>

@@ -1,7 +1,7 @@
 // admin/js/admin.js — uses a separate token key/namespace from the
 // public-site frontend so an admin session can never be confused
 // with, or accessed via, a regular user's session.
-const API_BASE = 'http://localhost:4800/api';
+const API_BASE = 'https://semacheck.onrender.com/api';
 
 function getAdminToken() { return sessionStorage.getItem('semacheck_admin_token'); }
 function setAdminToken(t) { sessionStorage.setItem('semacheck_admin_token', t); }

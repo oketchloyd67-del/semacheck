@@ -47,6 +47,7 @@ approval workflow, and a single email-based support channel.
 - `backend/services/tuma.js` handles authentication (exchanging your Tuma API key for a short-lived JWT, cached until near expiry) and STK Push requests
 - `POST /api/payments/tuma/callback` receives Tuma's payment status webhook and updates the relevant `payments` row — same flow for pay-per-search and the job-owner subscription
 - Trade-off worth knowing: Tuma is a third party sitting between you and Safaricom, so you're trusting their uptime and terms alongside Safaricom's — worth reading Tuma's pricing/terms before going live with real volume
+- The frontend never assumes a payment succeeded just because the STK push was sent — it polls `GET /api/payments/status/:paymentId` (every 2.5s, up to 45s) and only unlocks the search/subscription once the status genuinely flips to `success` from Tuma's callback. A visible progress bar tracks this wait. If the callback never lands (dropped webhook, delayed network, etc.) but the user's money did leave their phone, they can paste the M-Pesa confirmation code from their SMS into a fallback box, which hits `POST /api/payments/:paymentId/confirm-manual` — this trusts the user-provided code rather than independently re-verifying it against Safaricom (no such lookup is publicly available), so every manually confirmed payment is flagged in `raw_callback_json` for reconciliation against your real M-Pesa statement.
 
 **Security:**
 - Passwords hashed with bcrypt (cost 12)
@@ -55,6 +56,27 @@ approval workflow, and a single email-based support channel.
 - Tiered rate limiting: general browsing, auth attempts, search, and payments each have their own ceiling
 - Admin routes live under a separate, unlinked path with a separate JWT secret
 - ID document uploads: filename randomized on disk (never trusts the user's original filename), type-checked (JPG/PNG/WEBP/PDF only), size-capped at 8MB, served only through an authenticated admin route
+
+**Email verification (OTP) — required before login:**
+- Signup no longer logs you straight in — it creates the account (unverified) and emails a 6-digit code
+- `POST /api/auth/verify-otp` checks it (10-minute expiry, 5 attempts max) and, on success, logs you in immediately
+- `POST /api/auth/resend-otp` for a fresh code
+- Login is blocked with a 403 + `requiresOtp` flag until the account is verified — the frontend catches this and reopens the OTP modal automatically, whether you're verifying right after signup or coming back later to log in
+- Confirm-password field added to signup, checked client-side before submission
+
+**One-time-use M-Pesa codes:**
+- The manual M-Pesa-code fallback (see "Payments" below) is now genuinely single-use: a partial unique index on `payments.mpesa_receipt WHERE status='success'` means the same code can never confirm two different payments, whether it's entered manually twice or a duplicate webhook fires
+- Trying to reuse a code returns a clear "already used" error with a button to start a fresh payment, instead of silently failing or double-unlocking
+
+**Job visibility gated by subscription — automatic, immediate suspension:**
+- `GET /api/jobs/approved` only returns jobs whose owner currently has an active, unexpired subscription — enforced with a live `JOIN LATERAL` on every request, not a cached flag
+- This means suspension is instant: the moment `expires_at` passes, the very next search excludes that owner's jobs, with nothing to manually flip. The moment they renew, the same query includes them again automatically
+- The job owner's own dashboard shows this honestly: an approved job displays "live in search" or "suspended — renew to reactivate" depending on current subscription status, plus a banner when postings exist but are currently hidden
+
+**Renewal reminders — email + WhatsApp, 5/3/1 days before expiry:**
+- `backend/jobs/subscriptionMaintenance.js` sends each reminder exactly once (tracked via `reminder_5_sent_at` / `reminder_3_sent_at` / `reminder_1_sent_at`), and flips lapsed subscriptions from `active` to `expired` for accurate admin/dashboard display
+- Run it via `npm run reminders` on a daily cron (recommended for production), or leave the in-process fallback scheduler in `server.js` running (fires once ~30s after boot, then every 24h — fine for getting started, but a real process can restart/redeploy and reset that timer, so don't rely on it alone at scale)
+- WhatsApp reminders use Meta's WhatsApp Business Cloud API via `services/whatsappService.js` — needs a WhatsApp Business Account and an **approved message template** (WhatsApp doesn't allow free-form business-initiated messages) before it can send anything real
 
 ## Getting started
 

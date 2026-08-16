@@ -28,6 +28,7 @@ button { font-family: inherit; cursor: pointer; }
 .navbar { position: sticky; top: 0; z-index: 40; background: var(--navy); color: #fff; }
 .navbar .container { display: flex; align-items: center; justify-content: space-between; height: 68px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.25rem; letter-spacing: -0.3px; }
+.brand-logo { height: 34px; width: auto; display: block; }
 .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 4px rgba(15,163,163,0.25); }
 .nav-links { display: flex; gap: 28px; align-items: center; }
 .nav-links a { font-size: 0.95rem; color: #cfd9ea; }
@@ -62,6 +63,17 @@ button { font-family: inherit; cursor: pointer; }
 .tier b { display: block; font-size: 1rem; }
 .tier.selected { border-color: var(--teal); background: rgba(15,163,163,0.08); }
 .search-hint { font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; }
+
+/* ---- Payment progress + manual confirmation fallback ---- */
+.payment-progress-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 26px 22px; margin-top: 16px; max-width: 640px; text-align: center; }
+.pp-circular { width: 54px; height: 54px; border-radius: 50%; border: 5px solid var(--border); border-top-color: var(--teal); margin: 0 auto 16px; animation: spin 0.9s linear infinite; }
+.pp-circular.done { border: 5px solid var(--legit-green); border-top-color: var(--legit-green); animation: none; display: flex; align-items: center; justify-content: center; }
+.pp-circular.done::after { content: '✓'; color: var(--legit-green); font-size: 1.5rem; font-weight: 800; }
+.pp-status-text { font-weight: 700; font-size: 0.95rem; color: var(--navy); margin-bottom: 4px; }
+.pp-hint { font-size: 0.82rem; color: var(--text-muted); }
+.manual-code-box { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--border); text-align: left; }
+.manual-code-box p { font-size: 0.86rem; margin-bottom: 10px; }
+.manual-code-box .search-row input { text-transform: uppercase; }
 
 /* ---- Sections ---- */
 section { padding: 64px 0; }
@@ -124,6 +136,8 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
 .modal-foot { text-align: center; font-size: 0.85rem; color: var(--text-muted); margin-top: 16px; }
 .modal-foot button { background: none; border: none; color: var(--teal); font-weight: 700; }
 
+.otp-input { text-align: center; font-size: 1.6rem; letter-spacing: 0.5rem; font-weight: 700; padding: 14px 12px !important; }
+
 .alert { padding: 10px 14px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 14px; }
 .alert-err { background: rgba(214,69,92,0.1); color: var(--scam-red); }
 .alert-ok { background: rgba(35,164,106,0.1); color: var(--legit-green); }
@@ -146,6 +160,7 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
 .status-pending { background: rgba(224,162,39,0.15); color: var(--suspicious-amber); }
 .status-approved { background: rgba(35,164,106,0.12); color: var(--legit-green); }
 .status-rejected { background: rgba(214,69,92,0.12); color: var(--scam-red); }
+.status-suspended { background: rgba(224,162,39,0.15); color: var(--suspicious-amber); }
 
 /* ---- Admin tabs / responsive layout ---- */
 .admin-shell { display: flex; min-height: calc(100vh - 68px); }
