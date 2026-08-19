@@ -5,10 +5,10 @@ const bcrypt = require('bcryptjs');
 const OTP_LENGTH = 6;
 const OTP_TTL_MINUTES = 10;
 const OTP_MAX_ATTEMPTS = 5;
-const OTP_BCRYPT_COST = 8; // lower than password cost (12) — OTPs are short-lived, low-value, and hashed/checked far more frequently
+const OTP_BCRYPT_COST = 8; 
 
 function generateOtp() {
-  // Cryptographically random 6-digit code, zero-padded.
+  
   const n = crypto.randomInt(0, 1_000_000);
   return String(n).padStart(OTP_LENGTH, '0');
 }

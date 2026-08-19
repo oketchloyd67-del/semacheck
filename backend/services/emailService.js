@@ -1,6 +1,3 @@
-// services/emailService.js
-// The contact dialogue box is the ONLY support channel — a message
-// typed on the site is emailed straight to management via SMTP.
 const nodemailer = require('nodemailer');
 
 let transporter = null;

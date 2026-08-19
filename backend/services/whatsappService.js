@@ -1,18 +1,3 @@
-// services/whatsappService.js
-//
-// Sends subscription-renewal reminders over WhatsApp. Built against
-// Meta's WhatsApp Business Cloud API (the standard way to send
-// templated WhatsApp messages programmatically) — you'll need a
-// WhatsApp Business Account and an approved message template before
-// this can send anything for real. See:
-// https://developers.facebook.com/docs/whatsapp/cloud-api/get-started
-//
-// WhatsApp requires pre-approved message templates for any
-// business-initiated message (you can't just send free-form text the
-// way you can with SMS/email) — so WHATSAPP_TEMPLATE_NAME below must
-// match a template you've created and had approved in Meta Business
-// Manager. Without real credentials configured, this fails loudly and
-// honestly rather than pretending a message was sent.
 
 const axios = require('axios');
 
