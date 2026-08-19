@@ -12,7 +12,6 @@ const { generateOtp, hashOtp, verifyOtp, otpExpiryDate, OTP_MAX_ATTEMPTS } = req
 const { sendOtpEmail } = require('../services/emailService');
 const { uploadIdDocument } = require('../middleware/upload');
 const fs = require('fs');
-const path = require('path');
 
 const router = express.Router();
 const SESSION_DAYS = parseInt(process.env.SESSION_DAYS || '7', 10);
@@ -40,12 +39,6 @@ router.post('/password-strength', (req, res) => {
 });
 
 // ---- signup ----
-//
-// Multipart form (not JSON) because it now carries the ID document photo
-// alongside the regular fields. uploadIdDocument runs first so req.body
-// and req.file are populated by the time the handler runs; on any
-// validation failure below, we make sure to delete the file we just
-// saved to disk rather than leaving an orphaned upload behind.
 
 router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
   const {
@@ -100,10 +93,6 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
     const otp = generateOtp();
     const otpHash = await hashOtp(otp);
 
-    // Only job owners go through manual ID/business review — their
-    // approval gates whether their job postings can ever go live.
-    // Regular users just search; there's nothing for an admin to approve,
-    // so their account starts pre-approved and never enters the review queue.
     const initialVerificationStatus = accountType === 'job_owner' ? 'pending' : 'approved';
 
     const { rows } = await pool.query(
@@ -118,45 +107,28 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
     );
     const user = rows[0];
 
-    // In auth.js - signup route
-console.log('=== OTP DEBUG START ===');
-console.log('BREVO_API_KEY exists:', !!process.env.BREVO_API_KEY);
-console.log('Sending OTP to email:', user.email);
-console.log('OTP code:', otp);
-console.log('=== OTP DEBUG END ===');
+    // SINGLE OTP SEND - ONLY ONE ATTEMPT
+    console.log('Sending OTP to email:', user.email);
+    console.log('OTP code:', otp);
 
-    // Send OTP email - catch and log errors but don't fail the signup
     let otpSent = false;
     let emailError = null;
+
     try {
-      await sendOtpEmail({ toEmail: user.email, fullName: user.full_name, code: otp });
+      const result = await sendOtpEmail({
+        toEmail: user.email,
+        fullName: user.full_name,
+        code: otp
+      });
       otpSent = true;
-      console.log('OTP email sent to:', user.email);
+      console.log('OTP email sent successfully to:', user.email);
+      console.log('MessageId:', result?.messageId || 'unknown');
     } catch (e) {
       emailError = e.message;
-      console.error('OTP email failed but account was created:', e.message);
+      console.error('OTP email failed:');
+      console.error('Error name:', e.name);
+      console.error('Error message:', e.message);
     }
-
-    // In the signup route, around line 130
-
-console.log('Attempting to send OTP email to:', user.email);
-console.log('OTP code generated:', otp);
-
-try {
-  const result = await sendOtpEmail({
-    toEmail: user.email,
-    fullName: user.full_name,
-    code: otp
-  });
-  otpSent = true;
-  console.log('OTP email sent successfully:', result);
-} catch (e) {
-  emailError = e.message;
-  console.error('OTP email failed:');
-  console.error('Error name:', e.name);
-  console.error('Error message:', e.message);
-  console.error('Error stack:', e.stack);
-}
 
     if (otpSent) {
       res.status(201).json({
@@ -209,8 +181,6 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
       [user.id]
     );
 
-    // Smooth UX: log the user straight in now that their email is confirmed,
-    // instead of making them re-enter their password immediately after.
     const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
     const { rows: sessionRows } = await pool.query(
       `INSERT INTO sessions (user_id, ip_address, user_agent, expires_at) VALUES ($1,$2,$3,$4) RETURNING id`,
@@ -235,7 +205,6 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     if (!email) return res.status(400).json({ error: 'Enter your email.' });
     const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [String(email).trim().toLowerCase()]);
     const user = rows[0];
-    // Same response whether or not the account exists, to avoid leaking registered emails.
     if (!user || user.email_verified) {
       return res.json({ message: 'If that account needs verification, a new code has been sent.' });
     }
@@ -278,8 +247,6 @@ router.post('/login', authLimiter, async (req, res) => {
     );
     const user = rows[0];
 
-    // Constant-shape response whether or not the user exists, to avoid
-    // leaking which emails/phones are registered.
     const dummyHash = '$2a$12$C6UzMDM.H6dfI/f/IKcEeOoJ6/Q3s4v9K1S8kX6qzxKvZ3z6z6z6a';
     const ok = await bcrypt.compare(password, user ? user.password_hash : dummyHash);
     if (!user || !ok) return res.status(401).json({ error: 'Incorrect credentials.' });
@@ -318,9 +285,7 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 });
 
-// ---- logout: this is what makes a public/shared computer safe. The
-// session row is flipped inactive immediately, so the token in the
-// browser (even if someone finds it in history/cache) is worthless. ----
+// ---- logout ----
 
 router.post('/logout', requireAuth, async (req, res) => {
   await pool.query(
