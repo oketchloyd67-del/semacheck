@@ -8,6 +8,7 @@
     "start:cluster": "node cluster.js",
     "migrate": "node db/migrate.js",
     "seed": "node db/seed.js",
+    "build": "npm run migrate",
     "reminders": "node jobs/subscriptionMaintenance.js"
   },
   "dependencies": {
