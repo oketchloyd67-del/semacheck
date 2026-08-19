@@ -130,6 +130,27 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
       console.error('OTP email failed but account was created:', e.message);
     }
 
+    // In the signup route, around line 130
+
+console.log('Attempting to send OTP email to:', user.email);
+console.log('OTP code generated:', otp);
+
+try {
+  const result = await sendOtpEmail({
+    toEmail: user.email,
+    fullName: user.full_name,
+    code: otp
+  });
+  otpSent = true;
+  console.log('OTP email sent successfully:', result);
+} catch (e) {
+  emailError = e.message;
+  console.error('OTP email failed:');
+  console.error('Error name:', e.name);
+  console.error('Error message:', e.message);
+  console.error('Error stack:', e.stack);
+}
+
     if (otpSent) {
       res.status(201).json({
         message: 'Account created. A verification code has been sent to your email.',
