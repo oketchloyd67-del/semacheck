@@ -82,6 +82,11 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     started_at        TIMESTAMPTZ,
     expires_at        TIMESTAMPTZ,
    
+    reminder_30_sent_at TIMESTAMPTZ,
+    reminder_25_sent_at TIMESTAMPTZ,
+    reminder_20_sent_at TIMESTAMPTZ,
+    reminder_15_sent_at TIMESTAMPTZ,
+    reminder_10_sent_at TIMESTAMPTZ,
     reminder_5_sent_at TIMESTAMPTZ,
     reminder_3_sent_at TIMESTAMPTZ,
     reminder_1_sent_at TIMESTAMPTZ,
