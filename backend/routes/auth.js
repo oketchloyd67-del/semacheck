@@ -118,25 +118,32 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
     );
     const user = rows[0];
 
+    // Send OTP email - catch and log errors but don't fail the signup
+    let otpSent = false;
+    let emailError = null;
     try {
       await sendOtpEmail({ toEmail: user.email, fullName: user.full_name, code: otp });
+      otpSent = true;
+      console.log('OTP email sent to:', user.email);
     } catch (e) {
-      // Account exists either way — surface this honestly so the user
-      // can use "resend code" once SMTP is actually configured, instead
-      // of being silently stuck.
-      return res.status(201).json({
-        message: 'Account created, but the verification email could not be sent right now. Use "Resend code" once you\'re ready, or contact support.',
-        user,
-        requiresOtp: true,
-        emailError: e.message,
-      });
+      emailError = e.message;
+      console.error('OTP email failed but account was created:', e.message);
     }
 
-    res.status(201).json({
-      message: `Account created. We've sent a 6-digit verification code to ${user.email} — enter it to activate your account.`,
-      user,
-      requiresOtp: true,
-    });
+    if (otpSent) {
+      res.status(201).json({
+        message: 'Account created. A verification code has been sent to your email.',
+        user,
+        requiresOtp: true,
+      });
+    } else {
+      res.status(201).json({
+        message: 'Account created, but the verification email could not be sent. Use the "Resend code" option to receive your code.',
+        user,
+        requiresOtp: true,
+        emailError: emailError,
+      });
+    }
   } catch (err) {
     cleanupUpload();
     console.error('Signup error:', err);
@@ -184,7 +191,7 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
     const token = jwt.sign({ sessionId: sessionRows[0].id, userId: user.id }, process.env.JWT_SECRET, { expiresIn: `${SESSION_DAYS}d` });
 
     res.json({
-      message: 'Email verified! You\'re logged in.',
+      message: 'Email verified. You are logged in.',
       token,
       user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email },
     });
@@ -211,8 +218,18 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
       `UPDATE users SET otp_code_hash = $1, otp_expires_at = $2, otp_attempts = 0 WHERE id = $3`,
       [otpHash, otpExpiryDate(), user.id]
     );
-    await sendOtpEmail({ toEmail: user.email, fullName: user.full_name, code: otp });
-    res.json({ message: 'If that account needs verification, a new code has been sent.' });
+    
+    try {
+      await sendOtpEmail({ toEmail: user.email, fullName: user.full_name, code: otp });
+      console.log('Resend OTP sent to:', user.email);
+      res.json({ message: 'A new verification code has been sent to your email.' });
+    } catch (emailError) {
+      console.error('Resend OTP email failed:', emailError.message);
+      res.json({ 
+        message: 'Could not send the email right now. Please try again later or contact support.',
+        warning: emailError.message
+      });
+    }
   } catch (err) {
     console.error('Resend OTP error:', err);
     res.status(500).json({ error: 'Could not resend code. Please try again.' });
