@@ -118,6 +118,13 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
     );
     const user = rows[0];
 
+    // In auth.js - signup route
+console.log('=== OTP DEBUG START ===');
+console.log('BREVO_API_KEY exists:', !!process.env.BREVO_API_KEY);
+console.log('Sending OTP to email:', user.email);
+console.log('OTP code:', otp);
+console.log('=== OTP DEBUG END ===');
+
     // Send OTP email - catch and log errors but don't fail the signup
     let otpSent = false;
     let emailError = null;
