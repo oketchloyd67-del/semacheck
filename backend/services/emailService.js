@@ -11,15 +11,12 @@ function getTransporter() {
   if (transporter) return transporter;
 
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.warn('SMTP is not fully configured. Missing one or more required variables:');
-    if (!process.env.SMTP_HOST) console.warn('  - SMTP_HOST is missing');
-    if (!process.env.SMTP_USER) console.warn('  - SMTP_USER is missing');
-    if (!process.env.SMTP_PASS) console.warn('  - SMTP_PASS is missing (app password)');
+    console.warn('SMTP is not fully configured.');
     return null;
   }
 
   try {
-    const smtpPort = parseInt(process.env.SMTP_PORT || '465', 10);
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
     const isSecure = process.env.SMTP_SECURE === 'true';
 
     transporter = nodemailer.createTransport({
@@ -39,7 +36,6 @@ function getTransporter() {
       connectionTimeout: 30000,
     });
 
-    // Verify the connection
     transporter.verify(function(error, success) {
       if (error) {
         console.error('SMTP connection error:', error.message);
