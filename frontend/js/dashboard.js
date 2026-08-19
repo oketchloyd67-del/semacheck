@@ -1,5 +1,5 @@
 // js/dashboard.js
-const API_BASE = 'https://semacheck.onrender.com/api';
+const API_BASE = 'http://localhost:4800/api';
 
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
 function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }
@@ -11,7 +11,7 @@ async function api(path, options = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   let data = {};
-  try { data = await res.json(); } catch { /* no body */ }
+  try { data = await res.json(); } catch {  }
   if (!res.ok) {
     const err = new Error(data.error || 'Something went wrong.');
     Object.assign(err, data);
@@ -104,13 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  /**
-   * Same circular-loader polling pattern as the homepage search flow
-   * (frontend/js/app.js): waits for Tuma's callback to actually mark the
-   * payment successful before proceeding, instead of assuming success
-   * right after the STK push was merely sent. Falls back to a manual
-   * M-Pesa-code box if it times out.
-   */
+
   async function waitForPaymentThenRun({ paymentId, initialMessage, onConfirmed }) {
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');
@@ -169,7 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             showFallback('Payment failed or was cancelled.', 'If you completed the M-Pesa prompt anyway, use the box below to confirm manually.');
           }
         } catch (err) {
-          // transient poll failure — keep trying until timeout
+         
         }
       }, POLL_EVERY_MS);
     });

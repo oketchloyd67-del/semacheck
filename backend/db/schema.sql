@@ -15,6 +15,12 @@ CREATE TABLE IF NOT EXISTS users (
     phone               VARCHAR(15) UNIQUE NOT NULL,          -- normalized 2547XXXXXXXX
     national_id         VARCHAR(20) UNIQUE NOT NULL,
     password_hash       TEXT NOT NULL,
+    -- Email verification via one-time code sent at signup (see routes/auth.js
+    -- /signup, /verify-otp, /resend-otp). Login is blocked until verified.
+    email_verified       BOOLEAN NOT NULL DEFAULT FALSE,
+    otp_code_hash         TEXT,
+    otp_expires_at         TIMESTAMPTZ,
+    otp_attempts            SMALLINT NOT NULL DEFAULT 0,
     -- ID verification is manual, not automatic: the user uploads a photo
     -- of their ID at signup and an admin reviews it against the name they
     -- gave (see routes/admin.js "ID verifications" endpoints).
@@ -96,6 +102,12 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     mpesa_receipt     VARCHAR(40),
     started_at        TIMESTAMPTZ,
     expires_at        TIMESTAMPTZ,
+    -- Renewal reminder tracking (see jobs/subscriptionReminders.js) — each
+    -- column is stamped once that specific reminder has been sent, so the
+    -- daily reminder job never sends the same one twice.
+    reminder_5_sent_at TIMESTAMPTZ,
+    reminder_3_sent_at TIMESTAMPTZ,
+    reminder_1_sent_at TIMESTAMPTZ,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -123,6 +135,14 @@ CREATE TABLE IF NOT EXISTS payments (
 
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
 CREATE INDEX IF NOT EXISTS idx_payments_checkout ON payments(tuma_checkout_request_id);
+-- A single M-Pesa code can only ever confirm ONE successful payment —
+-- whether that confirmation came from Tuma's real callback or a user's
+-- manual code entry (see routes/payments.js /confirm-manual). This is
+-- what makes a manually-entered code a true one-time-use voucher: once
+-- it has unlocked one result, pasting the same code into a different
+-- payment is rejected at the database level.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_receipt_unique
+    ON payments(mpesa_receipt) WHERE status = 'success' AND mpesa_receipt IS NOT NULL;
 
 -- ============================================================
 -- JOBS — job owner postings, held for admin approval before they

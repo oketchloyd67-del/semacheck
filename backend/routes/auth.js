@@ -8,6 +8,8 @@ const { authLimiter } = require('../middleware/rateLimiter');
 const {
   isValidEmail, normalizeKenyanPhone, isValidNationalId, isValidKraPin, scorePasswordStrength,
 } = require('../utils/validators');
+const { generateOtp, hashOtp, verifyOtp, otpExpiryDate, OTP_MAX_ATTEMPTS } = require('../utils/otp');
+const { sendOtpEmail } = require('../services/emailService');
 const { uploadIdDocument } = require('../middleware/upload');
 const fs = require('fs');
 const path = require('path');
@@ -70,7 +72,7 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
     if (!isValidEmail(email)) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid email address.' }); }
     const normalizedPhone = normalizeKenyanPhone(phone);
     if (!normalizedPhone) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid Kenyan phone number.' }); }
-    if (!isValidNationalId(nationalId)) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid national ID number (7-9 digits).' }); }
+    if (!isValidNationalId(nationalId)) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid national ID number (7-8 digits).' }); }
     if (!idDocumentFile) { cleanupUpload(); return res.status(400).json({ error: 'Upload a clear photo or scan of your national ID.' }); }
 
     const strength = scorePasswordStrength(password || '');
@@ -95,26 +97,125 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const otp = generateOtp();
+    const otpHash = await hashOtp(otp);
+
+    // Only job owners go through manual ID/business review — their
+    // approval gates whether their job postings can ever go live.
+    // Regular users just search; there's nothing for an admin to approve,
+    // so their account starts pre-approved and never enters the review queue.
+    const initialVerificationStatus = accountType === 'job_owner' ? 'pending' : 'approved';
 
     const { rows } = await pool.query(
-      `INSERT INTO users (account_type, full_name, email, phone, national_id, password_hash, id_document_filename, id_verification_status, business_name, business_reg_number, kra_pin, privacy_consent_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9,$10,now())
+      `INSERT INTO users (account_type, full_name, email, phone, national_id, password_hash, id_document_filename, id_verification_status, business_name, business_reg_number, kra_pin, privacy_consent_at, otp_code_hash, otp_expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now(),$12,$13)
        RETURNING id, account_type, full_name, email, phone, id_verification_status, created_at`,
       [
         accountType, fullName.trim(), email.trim().toLowerCase(), normalizedPhone, nationalId.trim(),
-        passwordHash, idDocumentFile.filename, businessName || null, businessRegNumber || null, kraPin || null,
+        passwordHash, idDocumentFile.filename, initialVerificationStatus, businessName || null, businessRegNumber || null, kraPin || null,
+        otpHash, otpExpiryDate(),
       ]
     );
     const user = rows[0];
 
+    try {
+      await sendOtpEmail({ toEmail: user.email, fullName: user.full_name, code: otp });
+    } catch (e) {
+      // Account exists either way — surface this honestly so the user
+      // can use "resend code" once SMTP is actually configured, instead
+      // of being silently stuck.
+      return res.status(201).json({
+        message: 'Account created, but the verification email could not be sent right now. Use "Resend code" once you\'re ready, or contact support.',
+        user,
+        requiresOtp: true,
+        emailError: e.message,
+      });
+    }
+
     res.status(201).json({
-      message: 'Account created. Your ID document has been submitted for review — this usually takes under 24 hours. You can log in and use the platform in the meantime.',
+      message: `Account created. We've sent a 6-digit verification code to ${user.email} — enter it to activate your account.`,
       user,
+      requiresOtp: true,
     });
   } catch (err) {
     cleanupUpload();
     console.error('Signup error:', err);
     res.status(500).json({ error: 'Could not create account. Please try again.' });
+  }
+});
+
+// ---- email verification (OTP) ----
+
+router.post('/verify-otp', authLimiter, async (req, res) => {
+  const { email, code } = req.body;
+  try {
+    if (!email || !code) return res.status(400).json({ error: 'Enter the code sent to your email.' });
+
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [String(email).trim().toLowerCase()]);
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: 'No account found for that email.' });
+    if (user.email_verified) return res.status(400).json({ error: 'This account is already verified. You can log in.' });
+
+    if (user.otp_attempts >= OTP_MAX_ATTEMPTS) {
+      return res.status(429).json({ error: 'Too many incorrect attempts. Request a new code.' });
+    }
+    if (!user.otp_expires_at || new Date(user.otp_expires_at) < new Date()) {
+      return res.status(400).json({ error: 'This code has expired. Request a new one.' });
+    }
+
+    const ok = await verifyOtp(String(code).trim(), user.otp_code_hash);
+    if (!ok) {
+      await pool.query('UPDATE users SET otp_attempts = otp_attempts + 1 WHERE id = $1', [user.id]);
+      return res.status(400).json({ error: 'Incorrect code. Please try again.' });
+    }
+
+    await pool.query(
+      `UPDATE users SET email_verified = TRUE, otp_code_hash = NULL, otp_expires_at = NULL, otp_attempts = 0 WHERE id = $1`,
+      [user.id]
+    );
+
+    // Smooth UX: log the user straight in now that their email is confirmed,
+    // instead of making them re-enter their password immediately after.
+    const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+    const { rows: sessionRows } = await pool.query(
+      `INSERT INTO sessions (user_id, ip_address, user_agent, expires_at) VALUES ($1,$2,$3,$4) RETURNING id`,
+      [user.id, req.ip, req.headers['user-agent'] || null, expiresAt]
+    );
+    const token = jwt.sign({ sessionId: sessionRows[0].id, userId: user.id }, process.env.JWT_SECRET, { expiresIn: `${SESSION_DAYS}d` });
+
+    res.json({
+      message: 'Email verified! You\'re logged in.',
+      token,
+      user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email },
+    });
+  } catch (err) {
+    console.error('Verify OTP error:', err);
+    res.status(500).json({ error: 'Could not verify code. Please try again.' });
+  }
+});
+
+router.post('/resend-otp', authLimiter, async (req, res) => {
+  const { email } = req.body;
+  try {
+    if (!email) return res.status(400).json({ error: 'Enter your email.' });
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [String(email).trim().toLowerCase()]);
+    const user = rows[0];
+    // Same response whether or not the account exists, to avoid leaking registered emails.
+    if (!user || user.email_verified) {
+      return res.json({ message: 'If that account needs verification, a new code has been sent.' });
+    }
+
+    const otp = generateOtp();
+    const otpHash = await hashOtp(otp);
+    await pool.query(
+      `UPDATE users SET otp_code_hash = $1, otp_expires_at = $2, otp_attempts = 0 WHERE id = $3`,
+      [otpHash, otpExpiryDate(), user.id]
+    );
+    await sendOtpEmail({ toEmail: user.email, fullName: user.full_name, code: otp });
+    res.json({ message: 'If that account needs verification, a new code has been sent.' });
+  } catch (err) {
+    console.error('Resend OTP error:', err);
+    res.status(500).json({ error: 'Could not resend code. Please try again.' });
   }
 });
 
@@ -137,6 +238,10 @@ router.post('/login', authLimiter, async (req, res) => {
     const dummyHash = '$2a$12$C6UzMDM.H6dfI/f/IKcEeOoJ6/Q3s4v9K1S8kX6qzxKvZ3z6z6z6a';
     const ok = await bcrypt.compare(password, user ? user.password_hash : dummyHash);
     if (!user || !ok) return res.status(401).json({ error: 'Incorrect credentials.' });
+
+    if (!user.email_verified) {
+      return res.status(403).json({ error: 'Please verify your email before logging in.', requiresOtp: true, email: user.email });
+    }
 
     const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
     const { rows: sessionRows } = await pool.query(

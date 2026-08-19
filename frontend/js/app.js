@@ -1,7 +1,7 @@
 // js/app.js
 const API_BASE = 'https://semacheck.onrender.com/api';
 
-// ---------------- session helpers ----------------
+// - session helpers -
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
 function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }
 function setSession(token, user) {
@@ -12,26 +12,20 @@ function clearSession() {
   sessionStorage.removeItem('semacheck_token');
   sessionStorage.removeItem('semacheck_user');
 }
-// NOTE: sessionStorage (not localStorage) is deliberate — it clears the
-// moment the browser tab/window closes, which is the first line of
-// defence on a shared/public computer. The second, stronger line is
-// server-side: POST /api/auth/logout marks the session inactive in the
-// DB, so even a copied/cached token stops working immediately (see
-// backend/middleware/auth.js).
+
 
 async function api(path, options = {}) {
-  // When body is FormData (file upload), let the browser set its own
-  // multipart Content-Type header (with boundary) — don't override it.
+ 
   const isFormData = options.body instanceof FormData;
   const headers = { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   let data = {};
-  try { data = await res.json(); } catch { /* no body */ }
+  try { data = await res.json(); } catch {  }
   if (!res.ok) {
     const err = new Error(data.error || 'Something went wrong.');
-    Object.assign(err, data); // carries extra fields like requiresOtp, email, alreadyUsed onto the error
+    Object.assign(err, data); 
     throw err;
   }
   return data;
@@ -51,12 +45,12 @@ function updateAuthUI() {
 }
 
 async function doLogout() {
-  try { await api('/auth/logout', { method: 'POST' }); } catch (e) { /* proceed to clear locally regardless */ }
+  try { await api('/auth/logout', { method: 'POST' }); } catch (e) {  }
   clearSession();
   window.location.href = 'index.html';
 }
 
-// ---------------- modal plumbing ----------------
+// -- modal plumbing --
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
@@ -116,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 500);
   document.getElementById('suPhone')?.addEventListener('input', (e) => checkPhone(e.target.value));
 
-  // ---------------- signup submit ----------------
+  // - signup submit -
   let pendingOtpEmail = null;
 
   document.getElementById('signupSubmit')?.addEventListener('click', async () => {
@@ -180,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ---------------- OTP verification ----------------
+  // -OTP verification -
   document.getElementById('otpSubmit')?.addEventListener('click', async () => {
     const alertBox = document.getElementById('otpAlert');
     const code = document.getElementById('otpCodeInput').value.trim();
@@ -254,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ---------------- search tabs / tiers ----------------
+  // - search tabs / tiers -
   let searchType = 'paybill';
   let searchTier = 50;
   document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => {
@@ -270,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
     searchTier = Number(t.dataset.tier);
   }));
 
-  // ---------------- search flow ----------------
+  // - search flow -
   document.getElementById('searchBtn')?.addEventListener('click', async () => {
     const value = document.getElementById('searchInput').value.trim();
     if (!value) return;
@@ -301,16 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  /**
-   * Shows the progress card with a circular loader, polls
-   * /api/payments/status/:paymentId until Tuma's callback marks it
-   * successful (or it times out), then runs onConfirmed(). This replaces
-   * the old flow, which fired the search request immediately after a
-   * blocking alert() — before the callback had any real chance to
-   * arrive, so it reliably failed with "payment not yet confirmed" even
-   * when the payment genuinely went through. If it times out, a manual
-   * M-Pesa-code fallback is revealed instead of just leaving the user stuck.
-   */
+  
   async function waitForPaymentThenRun({ paymentId, initialMessage, onConfirmed }) {
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');
@@ -328,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     const POLL_EVERY_MS = 2500;
-    const TIMEOUT_MS = 45000; // Tuma/M-Pesa STK prompts themselves expire around 60s
+    const TIMEOUT_MS = 45000; 
     const startedAt = Date.now();
 
     return new Promise((resolve) => {
@@ -336,7 +321,8 @@ document.addEventListener('DOMContentLoaded', () => {
         clearInterval(timer);
         circular.classList.add('done');
         statusText.textContent = 'Payment confirmed!';
-        hint.textContent = 'Loading your result…';
+        hint.innerHTML = '<span class="receipt-printing-icon">⚙</span> Printing your receipt…';
+        await new Promise((r) => setTimeout(r, 700)); 
         try {
           await onConfirmed();
           card.style.display = 'none';
@@ -369,9 +355,9 @@ document.addEventListener('DOMContentLoaded', () => {
           else if (status.status === 'failed') {
             showFallback('Payment failed or was cancelled.', 'If you completed the M-Pesa prompt anyway, use the box below to confirm manually.');
           }
-          // still 'initiated' / 'pending' — keep polling
+         
         } catch (err) {
-          // a transient poll failure shouldn't kill the whole flow — keep trying until timeout
+          
         }
       }, POLL_EVERY_MS);
     });
@@ -409,28 +395,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  
   function renderSearchResult(payload) {
     const r = payload.result;
-    const box = document.getElementById('search');
-    let existing = document.getElementById('searchResultBox');
-    if (existing) existing.remove();
-    const div = document.createElement('div');
-    div.id = 'searchResultBox';
-    div.className = 'search-card';
-    div.style.marginTop = '16px';
-    div.innerHTML = `
-      <div class="alert alert-ok" style="margin-bottom:14px;">✓ Payment successful — here's your result.</div>
-      <span class="verdict verdict-${r.verdict}">${r.verdict.toUpperCase()}</span>
-      ${r.confidence_score ? `<p style="margin-top:10px;color:var(--text-muted);font-size:0.88rem;">Confidence: ${r.confidence_score}%</p>` : ''}
-      ${r.summary ? `<p style="margin-top:10px;font-size:0.92rem;">${r.summary}</p>` : ''}
-      ${r.sources ? `<p style="margin-top:10px;font-size:0.8rem;color:var(--text-muted);">Sources checked: ${(r.sources.external_sources || []).length} web result(s), ${r.sources.db_signal ? r.sources.db_signal.reduce((a,b)=>a+b.n,0) : 0} internal report(s)</p>` : ''}
-      ${payload.fromCache ? '<p style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);">⚡ Instant result — already verified.</p>' : ''}
+    const outer = document.getElementById('receiptOuter');
+    const slot = document.getElementById('receiptPaperSlot');
+
+    const verdictLabels = { legit: 'LEGIT', scam: 'SCAM', suspicious: 'SUSPICIOUS', unverified: 'UNVERIFIED' };
+    const now = new Date();
+    const timestamp = now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const sourceCount = r.sources ? (r.sources.external_sources || []).length : null;
+    const dbCount = r.sources && r.sources.db_signal ? r.sources.db_signal.reduce((a, b) => a + b.n, 0) : null;
+
+    slot.innerHTML = `
+      <div class="receipt-paper">
+        <div class="receipt-head">
+          <img src="assets/logo.png" alt="SemaCheck">
+          <div class="r-sub">Verification receipt</div>
+        </div>
+        <hr class="receipt-divider">
+        <div class="receipt-row"><span class="r-label">Date</span><span class="r-value">${timestamp}</span></div>
+        <div class="receipt-row"><span class="r-label">Query type</span><span class="r-value">${searchType.replace('_', ' ')}</span></div>
+        <div class="receipt-row"><span class="r-label">Amount paid</span><span class="r-value">KES ${searchTier}</span></div>
+        <hr class="receipt-divider">
+        <div class="receipt-verdict-line v-${r.verdict}">
+          <div class="r-verdict-word">${verdictLabels[r.verdict] || r.verdict.toUpperCase()}</div>
+          ${r.confidence_score ? `<div style="font-size:0.78rem;color:#666;margin-top:2px;">${r.confidence_score}% confidence</div>` : ''}
+        </div>
+        ${r.summary ? `<hr class="receipt-divider"><div class="receipt-summary">${r.summary}</div>` : ''}
+        ${sourceCount !== null ? `<div class="receipt-sources">Sources checked: ${sourceCount} web result(s), ${dbCount || 0} internal report(s)</div>` : ''}
+        ${payload.fromCache ? '<div class="receipt-sources">⚡ Instant result — already verified by SemaCheck.</div>' : ''}
+        <div class="receipt-barcode"></div>
+        <div class="receipt-footer">THANK YOU FOR USING SEMACHECK &middot; SEMACHECK.CO.KE</div>
+      </div>
     `;
-    box.parentNode.appendChild(div);
-    div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    outer.classList.remove('open');
+   
+    void outer.offsetHeight;
+    requestAnimationFrame(() => outer.classList.add('open'));
+    setTimeout(() => outer.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 250);
   }
 
-  // ---------------- contact form ----------------
+  // -contact form-
   document.getElementById('contactSendBtn')?.addEventListener('click', async () => {
     const alertBox = document.getElementById('contactAlert');
     const email = document.getElementById('contactEmail').value.trim();

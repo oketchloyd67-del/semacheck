@@ -1,8 +1,4 @@
-// js/validation.js
-// Mirrors backend/utils/validators.js scorePasswordStrength() so the
-// meter updates instantly as the user types, without waiting on a
-// network round trip. The backend re-checks everything on submit
-// regardless — this is purely for responsive UX.
+
 
 function scorePasswordStrengthClient(pw) {
   pw = pw || '';

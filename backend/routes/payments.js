@@ -109,6 +109,10 @@ router.post('/tuma/callback', express.json(), async (req, res) => {
     // 'search' purpose payments are picked up by routes/search.js, which
     // checks payment status before releasing the unlocked result.
   } catch (err) {
+    if (err.code === '23505') {
+      console.warn(`Tuma callback: receipt already used by another payment (checkout_request_id involved) — ignored as likely duplicate webhook delivery.`);
+      return;
+    }
     console.error('Tuma callback processing error:', err);
   }
 });
@@ -118,6 +122,58 @@ router.get('/status/:paymentId', requireAuth, async (req, res) => {
   const { rows } = await pool.query('SELECT id, purpose, status, amount, reference_id FROM payments WHERE id=$1 AND user_id=$2', [req.params.paymentId, req.user.id]);
   if (!rows[0]) return res.status(404).json({ error: 'Payment not found.' });
   res.json(rows[0]);
+});
+
+// ---- manual fallback: user pastes in the M-Pesa code from their SMS ----
+// Covers the case where the STK push genuinely succeeded (money left the
+// user's phone) but Tuma's callback was delayed, dropped, or never
+// reached us — a real possibility on any webhook-based integration.
+// This is a pragmatic trust-the-user-provided-code path, not a live
+// verification against Safaricom — every manually confirmed payment is
+// flagged for reconciliation so it can be checked against the real M-Pesa
+// statement later.
+router.post('/:paymentId/confirm-manual', requireAuth, paymentLimiter, async (req, res) => {
+  const { mpesaCode } = req.body;
+  const code = String(mpesaCode || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{6,15}$/.test(code)) {
+    return res.status(400).json({ error: 'Enter the M-Pesa confirmation code from your SMS (e.g. QAR7XJ2KLM).' });
+  }
+
+  const { rows } = await pool.query('SELECT * FROM payments WHERE id=$1 AND user_id=$2', [req.params.paymentId, req.user.id]);
+  const payment = rows[0];
+  if (!payment) return res.status(404).json({ error: 'Payment not found.' });
+  if (payment.status === 'success') return res.json({ message: 'Payment was already confirmed.', payment });
+
+  try {
+    const { rows: updated } = await pool.query(
+      `UPDATE payments SET status='success', mpesa_receipt=$1, raw_callback_json=$2, updated_at=now()
+       WHERE id=$3 RETURNING *`,
+      [code, JSON.stringify({ manualConfirmation: true, enteredCode: code, confirmedAt: new Date().toISOString(), note: 'Flagged for reconciliation against the real M-Pesa statement — not independently verified.' }), payment.id]
+    );
+
+    if (payment.purpose === 'subscription') {
+      const startedAt = new Date();
+      const expiresAt = new Date(startedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+      await pool.query(
+        `UPDATE subscriptions SET status='active', mpesa_receipt=$1, started_at=$2, expires_at=$3 WHERE id=$4`,
+        [code, startedAt, expiresAt, payment.reference_id]
+      );
+    }
+
+    res.json({ message: 'Payment confirmed manually. This has been flagged for reconciliation.', payment: updated[0] });
+  } catch (err) {
+    // The partial unique index on payments(mpesa_receipt) WHERE status='success'
+    // is what makes a code usable exactly once — this is what fires when
+    // someone tries to reuse a code that already unlocked a different payment.
+    if (err.code === '23505') {
+      return res.status(409).json({
+        error: 'This M-Pesa code has already been used for a previous payment and cannot be used again.',
+        alreadyUsed: true,
+      });
+    }
+    console.error('Manual payment confirmation error:', err);
+    res.status(500).json({ error: 'Could not confirm payment. Please try again.' });
+  }
 });
 
 module.exports = router;

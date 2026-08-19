@@ -1,7 +1,7 @@
 // admin/js/admin.js — uses a separate token key/namespace from the
 // public-site frontend so an admin session can never be confused
 // with, or accessed via, a regular user's session.
-const API_BASE = 'https://semacheck.onrender.com/api';
+const API_BASE = 'http://localhost:4800/api';
 
 function getAdminToken() { return sessionStorage.getItem('semacheck_admin_token'); }
 function setAdminToken(t) { sessionStorage.setItem('semacheck_admin_token', t); }
@@ -142,16 +142,21 @@ async function loadRegistrations(status) {
       <div class="job-item" style="flex-direction:column;align-items:stretch;gap:10px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
           <div>
-            <b>${escapeHtml(u.full_name)}</b> <span class="pill pill-${u.account_type}">${u.account_type === 'job_owner' ? 'Job owner' : 'Regular'}</span>
+            <b>${escapeHtml(u.full_name)}</b> <span class="pill pill-job_owner">Job owner</span>
             <div style="font-size:0.82rem;color:var(--text-muted);">ID number entered: <b>${escapeHtml(u.national_id)}</b> &middot; ${escapeHtml(u.email)} &middot; ${escapeHtml(u.phone)}</div>
-            ${u.id_verification_notes ? `<div style="font-size:0.8rem;color:var(--scam-red);margin-top:4px;">Note: ${escapeHtml(u.id_verification_notes)}</div>` : ''}
+            <div style="font-size:0.82rem;color:var(--text-muted);">Business: <b>${escapeHtml(u.business_name || '—')}</b> &middot; Reg#: ${escapeHtml(u.business_reg_number || '—')} &middot; KRA: ${escapeHtml(u.kra_pin || '—')}</div>
+            ${u.id_verification_notes ? `<div style="font-size:0.8rem;color:var(--scam-red);margin-top:4px;">Rejection reason: ${escapeHtml(u.id_verification_notes)}</div>` : ''}
           </div>
           <button class="btn btn-ghost" data-view-doc="${u.id}">View document</button>
         </div>
         ${status === 'pending' ? `
         <div class="action-btns">
-          <button class="btn btn-primary" data-approve-id="${u.id}">Approve — matches</button>
-          <button class="btn btn-ghost" data-reject-id="${u.id}">Reject — doesn't match</button>
+          <button class="btn btn-primary" data-approve-id="${u.id}">Approve</button>
+          <button class="btn btn-ghost" data-reject-id="${u.id}">Reject</button>
+        </div>
+        <div class="reject-reason-box" id="reject-box-${u.id}" style="display:none;">
+          <input type="text" id="reject-reason-${u.id}" placeholder="Reason for rejection (shown to no one but recorded internally)">
+          <button class="btn btn-amber" data-confirm-reject="${u.id}">Confirm rejection</button>
         </div>` : `<div>${pill(u.id_verification_status)}</div>`}
       </div>
     `).join('');
@@ -162,10 +167,14 @@ async function loadRegistrations(status) {
       showToast('Registration approved.');
       loadRegistrations(status); loadStats(); loadUsers();
     }));
-    box.querySelectorAll('[data-reject-id]').forEach((btn) => btn.addEventListener('click', async () => {
-      const reason = prompt('Reason for rejection (shown internally only):', 'Photo does not match name/ID entered');
-      if (reason === null) return;
-      await adminApi(`/admin/id-verifications/${btn.dataset.rejectId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+    box.querySelectorAll('[data-reject-id]').forEach((btn) => btn.addEventListener('click', () => {
+      document.getElementById(`reject-box-${btn.dataset.rejectId}`).style.display = 'flex';
+    }));
+    box.querySelectorAll('[data-confirm-reject]').forEach((btn) => btn.addEventListener('click', async () => {
+      const userId = btn.dataset.confirmReject;
+      const reason = document.getElementById(`reject-reason-${userId}`).value.trim();
+      if (!reason) { document.getElementById(`reject-reason-${userId}`).focus(); return; }
+      await adminApi(`/admin/id-verifications/${userId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
       showToast('Registration rejected.');
       loadRegistrations(status); loadStats(); loadUsers();
     }));
