@@ -1,9 +1,4 @@
-// cluster.js — optional entry point for production: `node cluster.js`
-// Forks one worker per CPU core so the app uses all available cores
-// instead of Node's single-threaded default. Combine with REDIS_URL
-// (see middleware/rateLimiter.js) so rate limits are shared correctly
-// across workers, and with PG_POOL_MAX sized so (workers x pool size)
-// stays under your Postgres max_connections.
+// cluster.js 
 const cluster = require('cluster');
 const os = require('os');
 
