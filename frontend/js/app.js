@@ -246,6 +246,20 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       btn.disabled = false; label.textContent = 'Log in';
     }
+    // After login, store token
+localStorage.setItem('token', data.token);
+
+// For protected API calls
+async function checkPaybill(identifier) {
+  const token = localStorage.getItem('token');
+  
+  const res = await fetch(`${API_BASE}/reports/check?identifier=${identifier}`, {
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : '',
+    },
+  });
+  // ...
+}
   });
 
   // - search tabs / tiers -
