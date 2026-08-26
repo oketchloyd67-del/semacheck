@@ -9,7 +9,7 @@ const corsHeaders = {
 }
 
 // Public routes that don't require authentication
-const PUBLIC_ROUTES = ['/login', '/signup', '/health', '/verify-otp', '/resend-otp', '/check-email', '/check-phone']
+const PUBLIC_ROUTES = ['/login', '/signup', '/health', '/verify-otp', '/resend-otp', '/check-email', '/check-phone', '/logout']
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -27,7 +27,7 @@ serve(async (req) => {
   )
 
   // Check if route is public - if so, skip authentication
-  const isPublic = PUBLIC_ROUTES.some(route => path === route || path.startsWith(route + '/'))
+  const isPublic = PUBLIC_ROUTES.some(route => path === route)
 
   // Only check authorization for protected routes
   if (!isPublic) {
@@ -55,6 +55,14 @@ serve(async (req) => {
     try {
       const body = await req.json()
       const { accountType, fullName, email, phone, nationalId, password, consentAccepted } = body
+
+      // Validate required fields
+      if (!fullName || !email || !phone || !nationalId || !password) {
+        return new Response(
+          JSON.stringify({ error: 'All fields are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
       // Hash password using bcrypt
       const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
@@ -110,6 +118,13 @@ serve(async (req) => {
     try {
       const body = await req.json()
       const { emailOrPhone, password } = body
+
+      if (!emailOrPhone || !password) {
+        return new Response(
+          JSON.stringify({ error: 'Email/phone and password are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
       // Find user by email or phone
       const { data: user, error } = await supabase
@@ -202,6 +217,13 @@ serve(async (req) => {
       const body = await req.json()
       const { email, code } = body
 
+      if (!email || !code) {
+        return new Response(
+          JSON.stringify({ error: 'Email and OTP code are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       const { data: user, error } = await supabase
         .from('users')
         .select('*')
@@ -218,6 +240,13 @@ serve(async (req) => {
       if (user.email_verified) {
         return new Response(
           JSON.stringify({ error: 'Email already verified' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (user.otp_attempts >= 5) {
+        return new Response(
+          JSON.stringify({ error: 'Too many failed attempts. Request a new OTP.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -294,6 +323,13 @@ serve(async (req) => {
       const body = await req.json()
       const { email } = body
 
+      if (!email) {
+        return new Response(
+          JSON.stringify({ error: 'Email is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       const { data: user, error } = await supabase
         .from('users')
         .select('*')
@@ -343,10 +379,25 @@ serve(async (req) => {
     }
   }
 
+  // ---- LOGOUT (Public - just clears client session) ----
+  if (path === '/logout' && req.method === 'POST') {
+    return new Response(
+      JSON.stringify({ message: 'Logged out successfully' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   // ---- CHECK EMAIL (Public) ----
   if (path === '/check-email' && req.method === 'GET') {
     try {
       const email = url.searchParams.get('email') || ''
+      if (!email) {
+        return new Response(
+          JSON.stringify({ valid: false, reason: 'Email is required' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       const { data, error } = await supabase
         .from('users')
         .select('id')
@@ -372,6 +423,13 @@ serve(async (req) => {
   if (path === '/check-phone' && req.method === 'GET') {
     try {
       const phone = url.searchParams.get('phone') || ''
+      if (!phone) {
+        return new Response(
+          JSON.stringify({ valid: false, reason: 'Phone is required' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       const { data, error } = await supabase
         .from('users')
         .select('id')
@@ -413,10 +471,13 @@ serve(async (req) => {
 // Helper function to send email using Brevo
 async function sendOtpEmail(email, fullName, code) {
   const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY')
-  if (!BREVO_API_KEY) return
+  if (!BREVO_API_KEY) {
+    console.error('BREVO_API_KEY not set')
+    return
+  }
 
   try {
-    await fetch('https://api.brevo.com/v3/smtp/email', {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'api-key': BREVO_API_KEY,
@@ -429,10 +490,12 @@ async function sendOtpEmail(email, fullName, code) {
         htmlContent: `<h2>Your Verification Code</h2><p>Hi ${fullName || ''},</p><p>Your code is: <strong>${code}</strong></p><p>This code expires in 10 minutes.</p><p>If you did not request this, you can ignore this email.</p>`,
       }),
     })
+
+    if (!response.ok) {
+      const errorData = await response.text()
+      console.error('Brevo API error:', response.status, errorData)
+    }
   } catch (error) {
     console.error('Failed to send OTP email:', error)
   }
 }
-console.log('Login request received:', { emailOrPhone, password })
-console.log('User found:', user)
-console.log('Password valid:', valid)
