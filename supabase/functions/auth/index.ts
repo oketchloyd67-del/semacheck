@@ -1,4 +1,4 @@
-// supabase/functions/auth/index.ts
+// supabase/functions/auth/index.ts - Updated verification
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -8,21 +8,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
-// Simple hash function using Web Crypto API
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+// ---- JWT Functions ----
+function base64UrlDecode(str: string): Uint8Array {
+  const base64 = str.replace(/-/g, '+').replace(/_/g, '/')
+  const binaryString = atob(base64)
+  const bytes = new Uint8Array(binaryString.length)
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+  return bytes
 }
 
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const newHash = await hashPassword(password)
-  return newHash === hash
-}
-
-// Simple JWT functions (no external dependency)
 function base64UrlEncode(data: Uint8Array): string {
   return btoa(String.fromCharCode(...data))
     .replace(/\+/g, '-')
@@ -35,7 +31,7 @@ async function generateToken(payload: any, secret: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
   const payloadWithExp = {
     ...payload,
-    exp: now + 60 * 60 * 24 * 7, // 7 days
+    exp: now + 60 * 60 * 24 * 7,
     iat: now,
   }
   
@@ -58,8 +54,66 @@ async function generateToken(payload: any, secret: string): Promise<string> {
   return `${headerEncoded}.${payloadEncoded}.${signatureEncoded}`
 }
 
+async function verifyToken(token: string, secret: string): Promise<any> {
+  const parts = token.split('.')
+  if (parts.length !== 3) {
+    throw new Error('Invalid token format')
+  }
+
+  const [headerEncoded, payloadEncoded, signatureEncoded] = parts
+
+  // Verify signature
+  const signatureInput = `${headerEncoded}.${payloadEncoded}`
+  const encoder = new TextEncoder()
+  const keyData = encoder.encode(secret)
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['verify']
+  )
+  const signature = base64UrlDecode(signatureEncoded)
+  const isValid = await crypto.subtle.verify(
+    'HMAC',
+    cryptoKey,
+    signature,
+    encoder.encode(signatureInput)
+  )
+
+  if (!isValid) {
+    throw new Error('Invalid signature')
+  }
+
+  // Decode payload
+  const payloadBytes = base64UrlDecode(payloadEncoded)
+  const payload = JSON.parse(new TextDecoder().decode(payloadBytes))
+
+  // Check expiration
+  const now = Math.floor(Date.now() / 1000)
+  if (payload.exp && payload.exp < now) {
+    throw new Error('Token expired')
+  }
+
+  return payload
+}
+
+// ---- Password Hashing ----
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(password)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const newHash = await hashPassword(password)
+  return newHash === hash
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
+  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -67,6 +121,7 @@ serve(async (req) => {
   const url = new URL(req.url)
   const path = url.pathname.replace('/auth', '')
   const contentType = req.headers.get('Content-Type') || ''
+  const JWT_SECRET = Deno.env.get('JWT_SECRET') || 'your-secret-key'
 
   // ---- LOGIN ----
   if (path === '/login' && req.method === 'POST') {
@@ -151,10 +206,9 @@ serve(async (req) => {
         )
       }
 
-      const jwtSecret = Deno.env.get('JWT_SECRET') || 'your-secret-key'
       const token = await generateToken(
         { userId: user.id, phone: user.phone, email: user.email },
-        jwtSecret
+        JWT_SECRET
       )
 
       return new Response(
@@ -206,7 +260,7 @@ serve(async (req) => {
         }
       } else {
         return new Response(
-          JSON.stringify({ error: 'Unsupported content type. Use JSON or FormData.' }),
+          JSON.stringify({ error: 'Unsupported content type' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -225,7 +279,6 @@ serve(async (req) => {
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       )
 
-      // Check if user already exists
       const { data: existingUser } = await supabase
         .from('users')
         .select('id')
@@ -379,10 +432,9 @@ serve(async (req) => {
         })
         .eq('id', user.id)
 
-      const jwtSecret = Deno.env.get('JWT_SECRET') || 'your-secret-key'
       const token = await generateToken(
         { userId: user.id, phone: user.phone, email: user.email },
-        jwtSecret
+        JWT_SECRET
       )
 
       return new Response(
@@ -483,15 +535,8 @@ serve(async (req) => {
     }
   }
 
-  // ---- HEALTH ----
-  if (path === '/health' && req.method === 'GET') {
-    return new Response(
-      JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
   // ---- PROTECTED ROUTES ----
+  // Verify JWT token manually
   const authHeader = req.headers.get('Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return new Response(
@@ -500,12 +545,13 @@ serve(async (req) => {
     )
   }
 
-  // Verify the token
   const token = authHeader.split(' ')[1]
-  // For now, just check if token exists
-  if (!token) {
+  let payload
+  try {
+    payload = await verifyToken(token, JWT_SECRET)
+  } catch (err) {
     return new Response(
-      JSON.stringify({ error: 'Invalid token' }),
+      JSON.stringify({ error: 'Invalid or expired token' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -514,15 +560,6 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   )
-  
-  const { data: { user }, error } = await supabase.auth.getUser(token)
-  
-  if (error || !user) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid or expired token' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
 
   // ---- CHECK EMAIL ----
   if (path === '/check-email' && req.method === 'GET') {
@@ -535,7 +572,7 @@ serve(async (req) => {
         )
       }
 
-      const { data, error: findError } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .select('id')
         .eq('email', email.toLowerCase().trim())
@@ -567,7 +604,7 @@ serve(async (req) => {
         )
       }
 
-      const { data, error: findError } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .select('id')
         .eq('phone', phone)
