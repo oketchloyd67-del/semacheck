@@ -3,10 +3,25 @@ const { Pool } = require('pg');
 const dns = require('dns');
 require('dotenv').config();
 
-// Force IPv4 globally for all DNS resolutions
+// Force IPv4 globally
 dns.setDefaultResultOrder('ipv4first');
 
+// Monkey-patch DNS lookup to force IPv4
+const originalLookup = dns.lookup;
+dns.lookup = function(hostname, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = { family: 4 };
+  } else if (options && typeof options === 'object') {
+    options.family = 4;
+  } else {
+    options = { family: 4 };
+  }
+  return originalLookup(hostname, options, callback);
+};
+
 console.log('DB configuration starting...');
+console.log('IPv4 forced for all DNS resolutions');
 
 let poolConfig = {
   max: parseInt(process.env.PG_POOL_MAX || '30', 10),
@@ -16,20 +31,7 @@ let poolConfig = {
 
 if (process.env.DATABASE_URL) {
   console.log('Using DATABASE_URL for connection');
-  
-  // Parse the DATABASE_URL to extract host and force IPv4
-  let connectionString = process.env.DATABASE_URL;
-  
-  // If ?family=4 is not already in the URL, add it
-  if (!connectionString.includes('family=4')) {
-    if (connectionString.includes('?')) {
-      connectionString += '&family=4';
-    } else {
-      connectionString += '?family=4';
-    }
-  }
-  
-  poolConfig.connectionString = connectionString;
+  poolConfig.connectionString = process.env.DATABASE_URL;
   
   // SSL is required for Supabase
   if (process.env.NODE_ENV === 'production') {
@@ -38,7 +40,7 @@ if (process.env.DATABASE_URL) {
     };
   }
   
-  // Force IPv4 on the pool itself
+  // Force IPv4
   poolConfig.family = 4;
   
 } else {
@@ -74,10 +76,11 @@ pool.on('error', (err) => {
 });
 
 // Test connection with retry
-async function testConnectionWithRetry(retries = 3) {
+async function testConnectionWithRetry(retries = 5) {
   let client;
   for (let i = 0; i < retries; i++) {
     try {
+      console.log(`Connection attempt ${i + 1}/${retries}...`);
       client = await pool.connect();
       const result = await client.query('SELECT NOW()');
       console.log('PostgreSQL is live at:', result.rows[0].now);
@@ -87,12 +90,12 @@ async function testConnectionWithRetry(retries = 3) {
       console.error(`Connection attempt ${i + 1}/${retries} failed:`, err.message);
       if (client) client.release();
       if (i < retries - 1) {
-        console.log('Waiting 2 seconds before retry...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('Waiting 3 seconds before retry...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
   }
-  console.error('All connection attempts failed.');
+  console.error('All connection attempts failed. Check your DATABASE_URL.');
   return false;
 }
 
