@@ -337,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchBtn = document.getElementById('searchBtn');
     searchBtn.disabled = true;
     try {
-      const pay = await api('/payments/search', { method: 'POST', body: JSON.stringify({ tier: searchTier, phone }) });
+      const pay = await api('/pay/search', { method: 'POST', body: JSON.stringify({ tier: searchTier, phone }) });
       await waitForPaymentThenRun({
         paymentId: pay.paymentId,
         initialMessage: pay.message || `STK push sent to ${phone}. Enter your M-Pesa PIN to complete payment.`,
@@ -414,7 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         try {
-          const status = await api(`/payments/status/${paymentId}`);
+          const status = await api(`/pay/status/${paymentId}`);
           if (status.status === 'success') { 
             finishSuccess(); 
           } else if (status.status === 'failed') {
@@ -440,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     try {
-      await api(`/payments/${paymentId}/confirm-manual`, { method: 'POST', body: JSON.stringify({ mpesaCode: code }) });
+      await api(`/pay/${paymentId}/confirm-manual`, { method: 'POST', body: JSON.stringify({ mpesaCode: code }) });
       if (alertBox) alertBox.innerHTML = '<div class="alert alert-ok">Payment confirmed. Loading your result…</div>';
       
       const circular = document.getElementById('ppCircular');

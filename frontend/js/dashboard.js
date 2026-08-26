@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const phone = prompt('M-Pesa number to pay KES 459 from:', '');
     if (!phone) return;
     try {
-      const r = await api('/payments/subscription', { method: 'POST', body: JSON.stringify({ phone }) });
+      const r = await api('/pay/subscription', { method: 'POST', body: JSON.stringify({ phone }) });
       await waitForPaymentThenRun({
         paymentId: r.paymentId,
         initialMessage: r.message || `STK push sent to ${phone}. Enter your M-Pesa PIN to activate your subscription.`,
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     alertBox.innerHTML = '';
     if (!code) { alertBox.innerHTML = '<div class="alert alert-err">Enter the M-Pesa code from your confirmation SMS.</div>'; return; }
     try {
-      await api(`/payments/${paymentId}/confirm-manual`, { method: 'POST', body: JSON.stringify({ mpesaCode: code }) });
+      await api(`/pay/${paymentId}/confirm-manual`, { method: 'POST', body: JSON.stringify({ mpesaCode: code }) });
       alertBox.innerHTML = '<div class="alert alert-ok">Payment confirmed. Refreshing your subscription…</div>';
       document.getElementById('ppCircular').classList.add('done');
       document.getElementById('ppStatusText').textContent = 'Payment confirmed!';
@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           return;
         }
         try {
-          const status = await api(`/payments/status/${paymentId}`);
+          const status = await api(`/pay/status/${paymentId}`);
           if (status.status === 'success') { finishSuccess(); }
           else if (status.status === 'failed') {
             showFallback('Payment failed or was cancelled.', 'If you completed the M-Pesa prompt anyway, use the box below to confirm manually.');

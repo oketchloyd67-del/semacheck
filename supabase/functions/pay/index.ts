@@ -1,5 +1,6 @@
-// supabase/functions/payments/index.ts
+// supabase/functions/pay/index.ts
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,21 +8,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
-// Tuma API configuration
 const TUMA_API_URL = 'https://api.tuma.co.ke'
 const TUMA_EMAIL = Deno.env.get('TUMA_EMAIL') || ''
 const TUMA_API_KEY = Deno.env.get('TUMA_API_KEY') || ''
 const TUMA_CALLBACK_URL = Deno.env.get('TUMA_CALLBACK_URL') || ''
 
-// Get Tuma JWT token
 async function getTumaToken(): Promise<string> {
   const response = await fetch(`${TUMA_API_URL}/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: TUMA_EMAIL,
-      api_key: TUMA_API_KEY,
-    }),
+    body: JSON.stringify({ email: TUMA_EMAIL, api_key: TUMA_API_KEY }),
   })
 
   if (!response.ok) {
@@ -34,37 +30,53 @@ async function getTumaToken(): Promise<string> {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
+  // CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   const url = new URL(req.url)
-  const path = url.pathname.replace('/payments', '')
-  const contentType = req.headers.get('Content-Type') || ''
+  const path = url.pathname.replace('/pay', '')
 
-  // ---- SEARCH PAYMENT (Initiate STK Push) ----
+  // Supabase client
+  const supabase = createClient(
+    Deno.env.get('API_URL') ?? 'https://csswkinuufdspxcsnfrd.supabase.co',
+    Deno.env.get('DB_SECRET_KEY') ?? ''
+  )
+
+  // --- SEARCH ---
   if (path === '/search' && req.method === 'POST') {
     try {
-      // Parse request body
-      const bodyText = await req.text()
-      if (!bodyText || bodyText.trim() === '') {
+      // Get the token from the Authorization header
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return new Response(
-          JSON.stringify({ error: 'Request body is empty' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Missing authorization header' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      let body
-      try {
-        body = JSON.parse(bodyText)
-      } catch (parseError) {
+      const token = authHeader.split(' ')[1]
+
+      // Check if the token is valid in the sessions table
+      const { data: session, error: sessionError } = await supabase
+        .from('sessions')
+        .select('user_id')
+        .eq('token', token)
+        .eq('is_active', true)
+        .gt('expires_at', new Date().toISOString())
+        .single()
+
+      if (sessionError || !session) {
+        console.error('Session error:', sessionError)
         return new Response(
-          JSON.stringify({ error: 'Invalid JSON format' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Invalid or expired token' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
+      // Get the request body
+      const body = await req.json()
       const { tier, phone } = body
 
       if (!tier || !phone) {
@@ -74,17 +86,15 @@ serve(async (req) => {
         )
       }
 
-      // Get Tuma JWT token
-      const token = await getTumaToken()
-
-      // Format phone number (ensure it starts with 254)
+      // Get Tuma token
+      const tumaToken = await getTumaToken()
       const formattedPhone = phone.replace(/^0/, '254')
 
-      // Initiate STK Push with Tuma
+      // Initiate STK Push
       const paymentResponse = await fetch(`${TUMA_API_URL}/payment/stk-push`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${tumaToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -107,12 +117,11 @@ serve(async (req) => {
           paymentId: paymentData.data?.checkout_request_id || paymentData.checkout_request_id,
           message: `STK push sent to ${phone}. Enter your M-Pesa PIN to complete payment.`,
           status: 'pending',
-          merchantRequestId: paymentData.data?.merchant_request_id,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     } catch (err) {
-      console.error('Payment initiation error:', err)
+      console.error('Payment error:', err)
       return new Response(
         JSON.stringify({ error: err.message || 'Payment initiation failed' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -120,48 +129,20 @@ serve(async (req) => {
     }
   }
 
-  // ---- CHECK PAYMENT STATUS ----
+  // --- STATUS ---
   if (path.startsWith('/status/') && req.method === 'GET') {
-    try {
-      const paymentId = path.split('/status/')[1]
-
-      if (!paymentId) {
-        return new Response(
-          JSON.stringify({ error: 'Payment ID is required' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      // Check payment status with Tuma
-      // Note: Tuma may not have a direct status endpoint; you might need to check your database
-      // or wait for the callback. This is a placeholder.
-      return new Response(
-        JSON.stringify({
-          status: 'pending',
-          paymentId: paymentId,
-          message: 'Payment status pending',
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    } catch (err) {
-      console.error('Status check error:', err)
-      return new Response(
-        JSON.stringify({ error: err.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    const paymentId = path.split('/status/')[1]
+    return new Response(
+      JSON.stringify({ status: 'pending', paymentId }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
-  // ---- TUMA CALLBACK WEBHOOK ----
+  // --- CALLBACK ---
   if (path === '/callback' && req.method === 'POST') {
     try {
       const callbackData = await req.json()
       console.log('Tuma callback received:', callbackData)
-
-      // Process callback data
-      // Update your database with payment status
-      // You can also send confirmation emails or notifications
-
       return new Response(
         JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -175,15 +156,6 @@ serve(async (req) => {
     }
   }
 
-  // ---- HEALTH ----
-  if (path === '/health' && req.method === 'GET') {
-    return new Response(
-      JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  // ---- 404 ----
   return new Response(
     JSON.stringify({ error: 'Not found' }),
     { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
