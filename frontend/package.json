@@ -5,5 +5,9 @@
   "main": "index.html",
   "scripts": {
     "build": "echo 'No build step needed'"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.112.4"
   }
 }
