@@ -8,9 +8,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
-// Public routes that don't require authentication
-const PUBLIC_ROUTES = ['/login', '/signup', '/health', '/verify-otp', '/resend-otp', '/check-email', '/check-phone', '/logout']
-
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -26,98 +23,13 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   )
 
-  // Check if route is public - if so, skip authentication
-  const isPublic = PUBLIC_ROUTES.some(route => path === route)
-
-  // Only check authorization for protected routes
-  if (!isPublic) {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const token = authHeader.split(' ')[1]
-    const { data: { user }, error } = await supabase.auth.getUser(token)
-    
-    if (error || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-  }
-
-  // ---- SIGNUP (Public) ----
-  if (path === '/signup' && req.method === 'POST') {
-    try {
-      const body = await req.json()
-      const { accountType, fullName, email, phone, nationalId, password, consentAccepted } = body
-
-      // Validate required fields
-      if (!fullName || !email || !phone || !nationalId || !password) {
-        return new Response(
-          JSON.stringify({ error: 'All fields are required' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      // Hash password using bcrypt
-      const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
-      const passwordHash = await bcrypt.hash(password, 12)
-
-      // Generate OTP
-      const otp = String(Math.floor(100000 + Math.random() * 900000))
-      const otpHash = await bcrypt.hash(otp, 8)
-      const otpExpires = new Date(Date.now() + 10 * 60 * 1000)
-
-      // Insert user
-      const { data: user, error } = await supabase
-        .from('users')
-        .insert({
-          account_type: accountType || 'regular',
-          full_name: fullName,
-          email: email.toLowerCase().trim(),
-          phone: phone,
-          national_id: nationalId,
-          password_hash: passwordHash,
-          otp_code_hash: otpHash,
-          otp_expires_at: otpExpires.toISOString(),
-          email_verified: false,
-          privacy_consent_at: consentAccepted ? new Date().toISOString() : null,
-        })
-        .select('id, account_type, full_name, email, phone')
-        .single()
-
-      if (error) throw error
-
-      // Send OTP email (using Brevo)
-      await sendOtpEmail(email, fullName, otp)
-
-      return new Response(
-        JSON.stringify({
-          message: 'Account created. Check your email for OTP.',
-          user,
-          requiresOtp: true,
-        }),
-        { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    } catch (err) {
-      console.error('Signup error:', err)
-      return new Response(
-        JSON.stringify({ error: err.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-  }
-
-  // ---- LOGIN (Public) ----
+  // ---- LOGIN MUST BE FIRST - BEFORE ANY AUTH CHECK ----
   if (path === '/login' && req.method === 'POST') {
     try {
       const body = await req.json()
       const { emailOrPhone, password } = body
+
+      console.log('Login attempt for:', emailOrPhone)
 
       if (!emailOrPhone || !password) {
         return new Response(
@@ -134,17 +46,21 @@ serve(async (req) => {
         .single()
 
       if (error || !user) {
+        console.log('User not found:', emailOrPhone)
         return new Response(
           JSON.stringify({ error: 'Invalid phone number or password' }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
+      console.log('User found:', user.email)
+
       // Verify password
       const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
       const valid = await bcrypt.compare(password, user.password_hash)
 
       if (!valid) {
+        console.log('Invalid password for:', emailOrPhone)
         return new Response(
           JSON.stringify({ error: 'Invalid phone number or password' }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -179,7 +95,7 @@ serve(async (req) => {
         )
       }
 
-      // Generate JWT token using jose
+      // Generate JWT token
       const jwt = await import('https://deno.land/x/jose@v4.14.4/index.js')
       const token = await new jwt.SignJWT({ 
         userId: user.id, 
@@ -189,6 +105,8 @@ serve(async (req) => {
         .setProtectedHeader({ alg: 'HS256' })
         .setExpirationTime('7d')
         .sign(new TextEncoder().encode(Deno.env.get('JWT_SECRET') || 'your-secret-key'))
+
+      console.log('Login successful for:', user.email)
 
       return new Response(
         JSON.stringify({
@@ -204,6 +122,69 @@ serve(async (req) => {
       )
     } catch (err) {
       console.error('Login error:', err)
+      return new Response(
+        JSON.stringify({ error: err.message }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  // ---- SIGNUP (Public) ----
+  if (path === '/signup' && req.method === 'POST') {
+    try {
+      const body = await req.json()
+      const { accountType, fullName, email, phone, nationalId, password, consentAccepted } = body
+
+      // Validate required fields
+      if (!fullName || !email || !phone || !nationalId || !password) {
+        return new Response(
+          JSON.stringify({ error: 'All fields are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Hash password
+      const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
+      const passwordHash = await bcrypt.hash(password, 12)
+
+      // Generate OTP
+      const otp = String(Math.floor(100000 + Math.random() * 900000))
+      const otpHash = await bcrypt.hash(otp, 8)
+      const otpExpires = new Date(Date.now() + 10 * 60 * 1000)
+
+      // Insert user
+      const { data: user, error } = await supabase
+        .from('users')
+        .insert({
+          account_type: accountType || 'regular',
+          full_name: fullName,
+          email: email.toLowerCase().trim(),
+          phone: phone,
+          national_id: nationalId,
+          password_hash: passwordHash,
+          otp_code_hash: otpHash,
+          otp_expires_at: otpExpires.toISOString(),
+          email_verified: false,
+          privacy_consent_at: consentAccepted ? new Date().toISOString() : null,
+        })
+        .select('id, account_type, full_name, email, phone')
+        .single()
+
+      if (error) throw error
+
+      // Send OTP email
+      await sendOtpEmail(email, fullName, otp)
+
+      return new Response(
+        JSON.stringify({
+          message: 'Account created. Check your email for OTP.',
+          user,
+          requiresOtp: true,
+        }),
+        { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (err) {
+      console.error('Signup error:', err)
       return new Response(
         JSON.stringify({ error: err.message }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -273,7 +254,7 @@ serve(async (req) => {
         )
       }
 
-      // Mark email as verified and generate token
+      // Mark email as verified
       await supabase
         .from('users')
         .update({ 
@@ -379,7 +360,7 @@ serve(async (req) => {
     }
   }
 
-  // ---- LOGOUT (Public - just clears client session) ----
+  // ---- LOGOUT ----
   if (path === '/logout' && req.method === 'POST') {
     return new Response(
       JSON.stringify({ message: 'Logged out successfully' }),
@@ -458,6 +439,26 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // ---- PROTECTED ROUTES ----
+  // Only now check for authorization header
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Missing authorization header' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const token = authHeader.split(' ')[1]
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  
+  if (error || !user) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid or expired token' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
