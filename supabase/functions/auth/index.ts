@@ -8,7 +8,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
-// Simple password hashing using Web Crypto API
+// Simple hash function using Web Crypto API
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(password)
@@ -20,6 +20,42 @@ async function hashPassword(password: string): Promise<string> {
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
   const newHash = await hashPassword(password)
   return newHash === hash
+}
+
+// Simple JWT functions (no external dependency)
+function base64UrlEncode(data: Uint8Array): string {
+  return btoa(String.fromCharCode(...data))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
+async function generateToken(payload: any, secret: string): Promise<string> {
+  const header = { alg: 'HS256', typ: 'JWT' }
+  const now = Math.floor(Date.now() / 1000)
+  const payloadWithExp = {
+    ...payload,
+    exp: now + 60 * 60 * 24 * 7, // 7 days
+    iat: now,
+  }
+  
+  const headerEncoded = base64UrlEncode(new TextEncoder().encode(JSON.stringify(header)))
+  const payloadEncoded = base64UrlEncode(new TextEncoder().encode(JSON.stringify(payloadWithExp)))
+  
+  const signatureInput = `${headerEncoded}.${payloadEncoded}`
+  const encoder = new TextEncoder()
+  const keyData = encoder.encode(secret)
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(signatureInput))
+  const signatureEncoded = base64UrlEncode(new Uint8Array(signature))
+  
+  return `${headerEncoded}.${payloadEncoded}.${signatureEncoded}`
 }
 
 serve(async (req) => {
@@ -115,15 +151,11 @@ serve(async (req) => {
         )
       }
 
-      const jwt = await import('https://deno.land/x/jose@v4.14.4/index.js')
-      const token = await new jwt.SignJWT({ 
-        userId: user.id, 
-        phone: user.phone,
-        email: user.email 
-      })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setExpirationTime('7d')
-        .sign(new TextEncoder().encode(Deno.env.get('JWT_SECRET') || 'your-secret-key'))
+      const jwtSecret = Deno.env.get('JWT_SECRET') || 'your-secret-key'
+      const token = await generateToken(
+        { userId: user.id, phone: user.phone, email: user.email },
+        jwtSecret
+      )
 
       return new Response(
         JSON.stringify({
@@ -151,7 +183,6 @@ serve(async (req) => {
     try {
       let body: any = {}
 
-      // Handle FormData
       if (contentType.includes('multipart/form-data')) {
         const formData = await req.formData()
         for (const [key, value] of formData.entries()) {
@@ -161,10 +192,7 @@ serve(async (req) => {
           }
           body[key] = value
         }
-        console.log('FormData parsed:', body)
-      } 
-      // Handle JSON
-      else if (contentType.includes('application/json')) {
+      } else if (contentType.includes('application/json')) {
         const bodyText = await req.text()
         if (bodyText && bodyText.trim() !== '') {
           try {
@@ -176,8 +204,7 @@ serve(async (req) => {
             )
           }
         }
-      } 
-      else {
+      } else {
         return new Response(
           JSON.stringify({ error: 'Unsupported content type. Use JSON or FormData.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -185,8 +212,6 @@ serve(async (req) => {
       }
 
       const { accountType, fullName, email, phone, nationalId, password, consentAccepted } = body
-
-      console.log('Signup data:', { accountType, fullName, email, phone, nationalId, consentAccepted })
 
       if (!fullName || !email || !phone || !nationalId || !password) {
         return new Response(
@@ -354,15 +379,11 @@ serve(async (req) => {
         })
         .eq('id', user.id)
 
-      const jwt = await import('https://deno.land/x/jose@v4.14.4/index.js')
-      const token = await new jwt.SignJWT({ 
-        userId: user.id, 
-        phone: user.phone,
-        email: user.email 
-      })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setExpirationTime('7d')
-        .sign(new TextEncoder().encode(Deno.env.get('JWT_SECRET') || 'your-secret-key'))
+      const jwtSecret = Deno.env.get('JWT_SECRET') || 'your-secret-key'
+      const token = await generateToken(
+        { userId: user.id, phone: user.phone, email: user.email },
+        jwtSecret
+      )
 
       return new Response(
         JSON.stringify({
@@ -479,7 +500,16 @@ serve(async (req) => {
     )
   }
 
+  // Verify the token
   const token = authHeader.split(' ')[1]
+  // For now, just check if token exists
+  if (!token) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid token' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
