@@ -16,20 +16,33 @@ serve(async (req) => {
 
   const url = new URL(req.url)
   const path = url.pathname.replace('/auth', '')
-  
-  // Create Supabase client
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
 
-  // ---- LOGIN MUST BE FIRST - BEFORE ANY AUTH CHECK ----
+  // ---- LOGIN - FIRST ----
   if (path === '/login' && req.method === 'POST') {
     try {
-      const body = await req.json()
-      const { emailOrPhone, password } = body
+      // Read the body as text first
+      const bodyText = await req.text()
+      console.log('Login raw body:', bodyText)
 
-      console.log('Login attempt for:', emailOrPhone)
+      if (!bodyText || bodyText.trim() === '') {
+        return new Response(
+          JSON.stringify({ error: 'Request body is empty' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      let body
+      try {
+        body = JSON.parse(bodyText)
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError)
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON format' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { emailOrPhone, password } = body
 
       if (!emailOrPhone || !password) {
         return new Response(
@@ -37,6 +50,12 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
+
+      // Create Supabase client
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
 
       // Find user by email or phone
       const { data: user, error } = await supabase
@@ -46,21 +65,17 @@ serve(async (req) => {
         .single()
 
       if (error || !user) {
-        console.log('User not found:', emailOrPhone)
         return new Response(
           JSON.stringify({ error: 'Invalid phone number or password' }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      console.log('User found:', user.email)
-
       // Verify password
       const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
       const valid = await bcrypt.compare(password, user.password_hash)
 
       if (!valid) {
-        console.log('Invalid password for:', emailOrPhone)
         return new Response(
           JSON.stringify({ error: 'Invalid phone number or password' }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -69,7 +84,6 @@ serve(async (req) => {
 
       // Check if email is verified
       if (!user.email_verified) {
-        // Generate new OTP
         const otp = String(Math.floor(100000 + Math.random() * 900000))
         const otpHash = await bcrypt.hash(otp, 8)
         const otpExpires = new Date(Date.now() + 10 * 60 * 1000)
@@ -106,8 +120,6 @@ serve(async (req) => {
         .setExpirationTime('7d')
         .sign(new TextEncoder().encode(Deno.env.get('JWT_SECRET') || 'your-secret-key'))
 
-      console.log('Login successful for:', user.email)
-
       return new Response(
         JSON.stringify({
           token,
@@ -129,10 +141,31 @@ serve(async (req) => {
     }
   }
 
-  // ---- SIGNUP (Public) ----
+  // ---- SIGNUP ----
   if (path === '/signup' && req.method === 'POST') {
     try {
-      const body = await req.json()
+      // Read the body as text first
+      const bodyText = await req.text()
+      console.log('Signup raw body:', bodyText)
+
+      if (!bodyText || bodyText.trim() === '') {
+        return new Response(
+          JSON.stringify({ error: 'Request body is empty' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      let body
+      try {
+        body = JSON.parse(bodyText)
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError)
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON format' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       const { accountType, fullName, email, phone, nationalId, password, consentAccepted } = body
 
       // Validate required fields
@@ -140,6 +173,26 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ error: 'All fields are required' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Create Supabase client
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+
+      // Check if user already exists
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .or(`email.eq.${email},phone.eq.${phone}`)
+        .maybeSingle()
+
+      if (existingUser) {
+        return new Response(
+          JSON.stringify({ error: 'An account already exists with this email or phone number.' }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
@@ -153,7 +206,7 @@ serve(async (req) => {
       const otpExpires = new Date(Date.now() + 10 * 60 * 1000)
 
       // Insert user
-      const { data: user, error } = await supabase
+      const { data: user, error: insertError } = await supabase
         .from('users')
         .insert({
           account_type: accountType || 'regular',
@@ -170,7 +223,10 @@ serve(async (req) => {
         .select('id, account_type, full_name, email, phone')
         .single()
 
-      if (error) throw error
+      if (insertError) {
+        console.error('Insert error:', insertError)
+        throw insertError
+      }
 
       // Send OTP email
       await sendOtpEmail(email, fullName, otp)
@@ -178,7 +234,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           message: 'Account created. Check your email for OTP.',
-          user,
+          user: user,
           requiresOtp: true,
         }),
         { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -186,16 +242,33 @@ serve(async (req) => {
     } catch (err) {
       console.error('Signup error:', err)
       return new Response(
-        JSON.stringify({ error: err.message }),
+        JSON.stringify({ error: err.message || 'Signup failed. Please try again.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
   }
 
-  // ---- VERIFY OTP (Public) ----
+  // ---- VERIFY OTP ----
   if (path === '/verify-otp' && req.method === 'POST') {
     try {
-      const body = await req.json()
+      const bodyText = await req.text()
+      if (!bodyText || bodyText.trim() === '') {
+        return new Response(
+          JSON.stringify({ error: 'Request body is empty' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      let body
+      try {
+        body = JSON.parse(bodyText)
+      } catch (parseError) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON format' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       const { email, code } = body
 
       if (!email || !code) {
@@ -205,13 +278,18 @@ serve(async (req) => {
         )
       }
 
-      const { data: user, error } = await supabase
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+
+      const { data: user, error: findError } = await supabase
         .from('users')
         .select('*')
         .eq('email', email.toLowerCase().trim())
         .single()
 
-      if (error || !user) {
+      if (findError || !user) {
         return new Response(
           JSON.stringify({ error: 'User not found' }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -254,7 +332,6 @@ serve(async (req) => {
         )
       }
 
-      // Mark email as verified
       await supabase
         .from('users')
         .update({ 
@@ -279,7 +356,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           message: 'Email verified successfully',
-          token,
+          token: token,
           user: {
             id: user.id,
             accountType: user.account_type,
@@ -298,10 +375,27 @@ serve(async (req) => {
     }
   }
 
-  // ---- RESEND OTP (Public) ----
+  // ---- RESEND OTP ----
   if (path === '/resend-otp' && req.method === 'POST') {
     try {
-      const body = await req.json()
+      const bodyText = await req.text()
+      if (!bodyText || bodyText.trim() === '') {
+        return new Response(
+          JSON.stringify({ error: 'Request body is empty' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      let body
+      try {
+        body = JSON.parse(bodyText)
+      } catch (parseError) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON format' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       const { email } = body
 
       if (!email) {
@@ -311,20 +405,18 @@ serve(async (req) => {
         )
       }
 
-      const { data: user, error } = await supabase
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+
+      const { data: user, error: findError } = await supabase
         .from('users')
         .select('*')
         .eq('email', email.toLowerCase().trim())
         .single()
 
-      if (error || !user) {
-        return new Response(
-          JSON.stringify({ message: 'If that account needs verification, a new code has been sent.' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      if (user.email_verified) {
+      if (findError || !user || user.email_verified) {
         return new Response(
           JSON.stringify({ message: 'If that account needs verification, a new code has been sent.' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -360,15 +452,40 @@ serve(async (req) => {
     }
   }
 
-  // ---- LOGOUT ----
-  if (path === '/logout' && req.method === 'POST') {
+  // ---- HEALTH ----
+  if (path === '/health' && req.method === 'GET') {
     return new Response(
-      JSON.stringify({ message: 'Logged out successfully' }),
+      JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  // ---- CHECK EMAIL (Public) ----
+  // ---- PROTECTED ROUTES ----
+  // Check auth for all other routes
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Missing authorization header' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const token = authHeader.split(' ')[1]
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+  
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  
+  if (error || !user) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid or expired token' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // ---- CHECK EMAIL ----
   if (path === '/check-email' && req.method === 'GET') {
     try {
       const email = url.searchParams.get('email') || ''
@@ -379,7 +496,7 @@ serve(async (req) => {
         )
       }
 
-      const { data, error } = await supabase
+      const { data, error: findError } = await supabase
         .from('users')
         .select('id')
         .eq('email', email.toLowerCase().trim())
@@ -400,7 +517,7 @@ serve(async (req) => {
     }
   }
 
-  // ---- CHECK PHONE (Public) ----
+  // ---- CHECK PHONE ----
   if (path === '/check-phone' && req.method === 'GET') {
     try {
       const phone = url.searchParams.get('phone') || ''
@@ -411,7 +528,7 @@ serve(async (req) => {
         )
       }
 
-      const { data, error } = await supabase
+      const { data, error: findError } = await supabase
         .from('users')
         .select('id')
         .eq('phone', phone)
@@ -432,34 +549,6 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-  }
-
-  // ---- HEALTH (Public) ----
-  if (path === '/health' && req.method === 'GET') {
-    return new Response(
-      JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  // ---- PROTECTED ROUTES ----
-  // Only now check for authorization header
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ error: 'Missing authorization header' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  const token = authHeader.split(' ')[1]
-  const { data: { user }, error } = await supabase.auth.getUser(token)
-  
-  if (error || !user) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid or expired token' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
   }
 
   // ---- 404 ----
