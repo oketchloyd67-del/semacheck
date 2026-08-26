@@ -8,6 +8,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
+// Simple password hashing using Web Crypto API
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(password)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const newHash = await hashPassword(password)
+  return newHash === hash
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -18,7 +32,7 @@ serve(async (req) => {
   const path = url.pathname.replace('/auth', '')
   const contentType = req.headers.get('Content-Type') || ''
 
-  // ---- LOGIN (JSON only) ----
+  // ---- LOGIN ----
   if (path === '/login' && req.method === 'POST') {
     try {
       const bodyText = await req.text()
@@ -66,8 +80,7 @@ serve(async (req) => {
         )
       }
 
-      const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
-      const valid = await bcrypt.compare(password, user.password_hash)
+      const valid = await verifyPassword(password, user.password_hash)
 
       if (!valid) {
         return new Response(
@@ -78,7 +91,7 @@ serve(async (req) => {
 
       if (!user.email_verified) {
         const otp = String(Math.floor(100000 + Math.random() * 900000))
-        const otpHash = await bcrypt.hash(otp, 8)
+        const otpHash = await hashPassword(otp)
         const otpExpires = new Date(Date.now() + 10 * 60 * 1000)
 
         await supabase
@@ -133,7 +146,7 @@ serve(async (req) => {
     }
   }
 
-  // ---- SIGNUP (Handles FormData AND JSON) ----
+  // ---- SIGNUP ----
   if (path === '/signup' && req.method === 'POST') {
     try {
       let body: any = {}
@@ -142,7 +155,6 @@ serve(async (req) => {
       if (contentType.includes('multipart/form-data')) {
         const formData = await req.formData()
         for (const [key, value] of formData.entries()) {
-          // Skip file upload for now (we'll handle it separately)
           if (key === 'idDocument' && value instanceof File) {
             console.log('File received:', value.name, value.size, value.type)
             continue
@@ -165,7 +177,6 @@ serve(async (req) => {
           }
         }
       } 
-      // Unsupported content type
       else {
         return new Response(
           JSON.stringify({ error: 'Unsupported content type. Use JSON or FormData.' }),
@@ -177,7 +188,6 @@ serve(async (req) => {
 
       console.log('Signup data:', { accountType, fullName, email, phone, nationalId, consentAccepted })
 
-      // Validate required fields
       if (!fullName || !email || !phone || !nationalId || !password) {
         return new Response(
           JSON.stringify({ error: 'All fields are required' }),
@@ -204,10 +214,9 @@ serve(async (req) => {
         )
       }
 
-      const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
-      const passwordHash = await bcrypt.hash(password, 12)
+      const passwordHash = await hashPassword(password)
       const otp = String(Math.floor(100000 + Math.random() * 900000))
-      const otpHash = await bcrypt.hash(otp, 8)
+      const otpHash = await hashPassword(otp)
       const otpExpires = new Date(Date.now() + 10 * 60 * 1000)
 
       const { data: user, error: insertError } = await supabase
@@ -320,8 +329,8 @@ serve(async (req) => {
         )
       }
 
-      const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
-      const valid = await bcrypt.compare(code, user.otp_code_hash)
+      const otpHash = await hashPassword(code)
+      const valid = otpHash === user.otp_code_hash
 
       if (!valid) {
         await supabase
@@ -425,9 +434,8 @@ serve(async (req) => {
         )
       }
 
-      const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
       const otp = String(Math.floor(100000 + Math.random() * 900000))
-      const otpHash = await bcrypt.hash(otp, 8)
+      const otpHash = await hashPassword(otp)
       const otpExpires = new Date(Date.now() + 10 * 60 * 1000)
 
       await supabase
