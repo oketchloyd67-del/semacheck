@@ -16,14 +16,12 @@ serve(async (req) => {
 
   const url = new URL(req.url)
   const path = url.pathname.replace('/auth', '')
+  const contentType = req.headers.get('Content-Type') || ''
 
-  // ---- LOGIN - FIRST ----
+  // ---- LOGIN (JSON only) ----
   if (path === '/login' && req.method === 'POST') {
     try {
-      // Read the body as text first
       const bodyText = await req.text()
-      console.log('Login raw body:', bodyText)
-
       if (!bodyText || bodyText.trim() === '') {
         return new Response(
           JSON.stringify({ error: 'Request body is empty' }),
@@ -35,7 +33,6 @@ serve(async (req) => {
       try {
         body = JSON.parse(bodyText)
       } catch (parseError) {
-        console.error('JSON parse error:', parseError)
         return new Response(
           JSON.stringify({ error: 'Invalid JSON format' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -51,13 +48,11 @@ serve(async (req) => {
         )
       }
 
-      // Create Supabase client
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       )
 
-      // Find user by email or phone
       const { data: user, error } = await supabase
         .from('users')
         .select('*')
@@ -71,7 +66,6 @@ serve(async (req) => {
         )
       }
 
-      // Verify password
       const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
       const valid = await bcrypt.compare(password, user.password_hash)
 
@@ -82,7 +76,6 @@ serve(async (req) => {
         )
       }
 
-      // Check if email is verified
       if (!user.email_verified) {
         const otp = String(Math.floor(100000 + Math.random() * 900000))
         const otpHash = await bcrypt.hash(otp, 8)
@@ -109,7 +102,6 @@ serve(async (req) => {
         )
       }
 
-      // Generate JWT token
       const jwt = await import('https://deno.land/x/jose@v4.14.4/index.js')
       const token = await new jwt.SignJWT({ 
         userId: user.id, 
@@ -141,32 +133,49 @@ serve(async (req) => {
     }
   }
 
-  // ---- SIGNUP ----
+  // ---- SIGNUP (Handles FormData AND JSON) ----
   if (path === '/signup' && req.method === 'POST') {
     try {
-      // Read the body as text first
-      const bodyText = await req.text()
-      console.log('Signup raw body:', bodyText)
+      let body: any = {}
 
-      if (!bodyText || bodyText.trim() === '') {
+      // Handle FormData
+      if (contentType.includes('multipart/form-data')) {
+        const formData = await req.formData()
+        for (const [key, value] of formData.entries()) {
+          // Skip file upload for now (we'll handle it separately)
+          if (key === 'idDocument' && value instanceof File) {
+            console.log('File received:', value.name, value.size, value.type)
+            continue
+          }
+          body[key] = value
+        }
+        console.log('FormData parsed:', body)
+      } 
+      // Handle JSON
+      else if (contentType.includes('application/json')) {
+        const bodyText = await req.text()
+        if (bodyText && bodyText.trim() !== '') {
+          try {
+            body = JSON.parse(bodyText)
+          } catch (parseError) {
+            return new Response(
+              JSON.stringify({ error: 'Invalid JSON format' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+        }
+      } 
+      // Unsupported content type
+      else {
         return new Response(
-          JSON.stringify({ error: 'Request body is empty' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      let body
-      try {
-        body = JSON.parse(bodyText)
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError)
-        return new Response(
-          JSON.stringify({ error: 'Invalid JSON format' }),
+          JSON.stringify({ error: 'Unsupported content type. Use JSON or FormData.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
       const { accountType, fullName, email, phone, nationalId, password, consentAccepted } = body
+
+      console.log('Signup data:', { accountType, fullName, email, phone, nationalId, consentAccepted })
 
       // Validate required fields
       if (!fullName || !email || !phone || !nationalId || !password) {
@@ -176,7 +185,6 @@ serve(async (req) => {
         )
       }
 
-      // Create Supabase client
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -196,16 +204,12 @@ serve(async (req) => {
         )
       }
 
-      // Hash password
       const bcrypt = await import('https://deno.land/x/bcrypt@v0.4.1/mod.ts')
       const passwordHash = await bcrypt.hash(password, 12)
-
-      // Generate OTP
       const otp = String(Math.floor(100000 + Math.random() * 900000))
       const otpHash = await bcrypt.hash(otp, 8)
       const otpExpires = new Date(Date.now() + 10 * 60 * 1000)
 
-      // Insert user
       const { data: user, error: insertError } = await supabase
         .from('users')
         .insert({
@@ -228,7 +232,6 @@ serve(async (req) => {
         throw insertError
       }
 
-      // Send OTP email
       await sendOtpEmail(email, fullName, otp)
 
       return new Response(
@@ -342,7 +345,6 @@ serve(async (req) => {
         })
         .eq('id', user.id)
 
-      // Generate JWT token
       const jwt = await import('https://deno.land/x/jose@v4.14.4/index.js')
       const token = await new jwt.SignJWT({ 
         userId: user.id, 
@@ -461,7 +463,6 @@ serve(async (req) => {
   }
 
   // ---- PROTECTED ROUTES ----
-  // Check auth for all other routes
   const authHeader = req.headers.get('Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return new Response(
