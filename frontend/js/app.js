@@ -1,5 +1,5 @@
 // js/app.js
-const API_BASE = 'https://semacheck.onrender.com/api';
+const API_BASE = 'https://csswkinuufdspxcsnfrd.supabase.co/functions/v1';
 
 // - session helpers -
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
