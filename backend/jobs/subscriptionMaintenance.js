@@ -21,81 +21,131 @@
 require('dotenv').config();
 const pool = require('../db/pool');
 const { sendSubscriptionReminderEmail } = require('../services/emailService');
-const { sendSubscriptionReminderWhatsApp } = require('../services/whatsappService');
+// WhatsApp service is optional - comment out if not configured
+// const { sendSubscriptionReminderWhatsApp } = require('../services/whatsappService');
 
 async function expireLapsedSubscriptions() {
-  const { rows } = await pool.query(
-    `UPDATE subscriptions SET status = 'expired'
-     WHERE status = 'active' AND expires_at <= now()
-     RETURNING id, user_id`
-  );
-  if (rows.length) console.log(`Expired ${rows.length} lapsed subscription(s).`);
-  return rows.length;
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `UPDATE subscriptions SET status = 'expired'
+       WHERE status = 'active' AND expires_at <= now()
+       RETURNING id, user_id`
+    );
+    if (rows.length) {
+      console.log(`Expired ${rows.length} lapsed subscription(s).`);
+    }
+    return rows.length;
+  } catch (err) {
+    console.error('Error expiring subscriptions:', err.message);
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function sendRemindersForWindow(daysOut, columnName) {
-  // Matches subscriptions expiring on the calendar day exactly `daysOut`
-  // days from now, that haven't had this specific reminder sent yet.
-  const { rows } = await pool.query(
-    `SELECT s.id AS subscription_id, s.expires_at, u.id AS user_id, u.full_name, u.email, u.phone
-     FROM subscriptions s
-     JOIN users u ON u.id = s.user_id
-     WHERE s.status = 'active'
-       AND s.${columnName} IS NULL
-       AND s.expires_at::date = (now() + ($1 || ' days')::interval)::date`,
-    [daysOut]
-  );
+  const client = await pool.connect();
+  try {
+    // Matches subscriptions expiring on the calendar day exactly `daysOut`
+    // days from now, that haven't had this specific reminder sent yet.
+    const { rows } = await client.query(
+      `SELECT s.id AS subscription_id, s.expires_at, u.id AS user_id, u.full_name, u.email, u.phone
+       FROM subscriptions s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.status = 'active'
+         AND s.${columnName} IS NULL
+         AND s.expires_at::date = (now() + ($1 || ' days')::interval)::date`,
+      [daysOut]
+    );
 
-  let sent = 0;
-  for (const row of rows) {
-    let emailOk = false;
-    let whatsappOk = false;
+    let sent = 0;
+    for (const row of rows) {
+      let emailOk = false;
+      let whatsappOk = false;
 
-    try {
-      await sendSubscriptionReminderEmail({
-        toEmail: row.email, fullName: row.full_name, daysRemaining: daysOut, expiresAt: row.expires_at,
-      });
-      emailOk = true;
-    } catch (e) {
-      console.warn(`Reminder email failed for ${row.email}: ${e.message}`);
+      // Send email reminder
+      try {
+        await sendSubscriptionReminderEmail({
+          toEmail: row.email,
+          fullName: row.full_name,
+          daysRemaining: daysOut,
+          expiresAt: row.expires_at,
+        });
+        emailOk = true;
+        console.log(`Reminder email sent to ${row.email} (${daysOut} days remaining)`);
+      } catch (e) {
+        console.warn(`Reminder email failed for ${row.email}: ${e.message}`);
+      }
+
+      // Send WhatsApp reminder (optional - uncomment if configured)
+      // try {
+      //   await sendSubscriptionReminderWhatsApp({
+      //     toPhone: row.phone,
+      //     fullName: row.full_name,
+      //     daysRemaining: daysOut,
+      //     expiresAt: row.expires_at,
+      //   });
+      //   whatsappOk = true;
+      // } catch (e) {
+      //   console.warn(`Reminder WhatsApp message failed for ${row.phone}: ${e.message}`);
+      // }
+
+      // Mark as sent even on partial failure — this reminder window has
+      // passed either way, and we don't want to retry-spam someone daily
+      // just because WhatsApp wasn't configured. Failures are logged above
+      // for follow-up instead.
+      if (emailOk || whatsappOk) {
+        await client.query(`UPDATE subscriptions SET ${columnName} = now() WHERE id = $1`, [row.subscription_id]);
+        sent++;
+      } else {
+        console.warn(`No reminder sent for subscription ${row.subscription_id} - both email and WhatsApp failed`);
+      }
     }
-
-    try {
-      await sendSubscriptionReminderWhatsApp({
-        toPhone: row.phone, fullName: row.full_name, daysRemaining: daysOut, expiresAt: row.expires_at,
-      });
-      whatsappOk = true;
-    } catch (e) {
-      console.warn(`Reminder WhatsApp message failed for ${row.phone}: ${e.message}`);
+    if (rows.length) {
+      console.log(`${daysOut}-day reminders: ${sent}/${rows.length} sent.`);
     }
-
-    // Mark as sent even on partial failure — this reminder window has
-    // passed either way, and we don't want to retry-spam someone daily
-    // just because WhatsApp wasn't configured. Failures are logged above
-    // for follow-up instead.
-    if (emailOk || whatsappOk) {
-      await pool.query(`UPDATE subscriptions SET ${columnName} = now() WHERE id = $1`, [row.subscription_id]);
-      sent++;
-    }
+    return sent;
+  } catch (err) {
+    console.error(`Error sending ${daysOut}-day reminders:`, err.message);
+    throw err;
+  } finally {
+    client.release();
   }
-  if (rows.length) console.log(`${daysOut}-day reminders: ${sent}/${rows.length} sent.`);
-  return sent;
 }
 
 async function runMaintenance() {
-  const expiredCount = await expireLapsedSubscriptions();
-  const r5 = await sendRemindersForWindow(5, 'reminder_5_sent_at');
-  const r3 = await sendRemindersForWindow(3, 'reminder_3_sent_at');
-  const r1 = await sendRemindersForWindow(1, 'reminder_1_sent_at');
-  return { expiredCount, remindersSent: r5 + r3 + r1 };
+  console.log('Starting subscription maintenance...');
+  try {
+    const expiredCount = await expireLapsedSubscriptions();
+    const r5 = await sendRemindersForWindow(5, 'reminder_5_sent_at');
+    const r3 = await sendRemindersForWindow(3, 'reminder_3_sent_at');
+    const r1 = await sendRemindersForWindow(1, 'reminder_1_sent_at');
+    
+    const result = { 
+      expiredCount, 
+      remindersSent: r5 + r3 + r1,
+      details: {
+        '5-day': r5,
+        '3-day': r3,
+        '1-day': r1
+      }
+    };
+    
+    console.log('Subscription maintenance completed:', result);
+    return result;
+  } catch (err) {
+    console.error('Subscription maintenance failed:', err.message);
+    throw err;
+  }
 }
 
 // Allow running directly (`node jobs/subscriptionMaintenance.js`) as well
 // as being imported by server.js for an in-process daily convenience run.
 if (require.main === module) {
   runMaintenance()
-    .then((result) => {
-      console.log('Subscription maintenance complete:', result);
+    .then(() => {
+      console.log('Maintenance run completed, closing database connection...');
       return pool.end();
     })
     .catch((err) => {
