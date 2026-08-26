@@ -433,3 +433,6 @@ async function sendOtpEmail(email, fullName, code) {
     console.error('Failed to send OTP email:', error)
   }
 }
+console.log('Login request received:', { emailOrPhone, password })
+console.log('User found:', user)
+console.log('Password valid:', valid)
