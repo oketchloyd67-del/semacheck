@@ -1,4 +1,4 @@
-// supabase/functions/auth/index.ts - Updated verification
+// supabase/functions/auth/index.ts
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -535,33 +535,7 @@ serve(async (req) => {
     }
   }
 
-  // ---- PROTECTED ROUTES ----
-  // Verify JWT token manually
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ error: 'Missing authorization header' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  const token = authHeader.split(' ')[1]
-  let payload
-  try {
-    payload = await verifyToken(token, JWT_SECRET)
-  } catch (err) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid or expired token' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
-
-  // ---- CHECK EMAIL ----
+  // ---- CHECK EMAIL (PUBLIC) ----
   if (path === '/check-email' && req.method === 'GET') {
     try {
       const email = url.searchParams.get('email') || ''
@@ -571,6 +545,11 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
+
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
 
       const { data, error } = await supabase
         .from('users')
@@ -593,7 +572,7 @@ serve(async (req) => {
     }
   }
 
-  // ---- CHECK PHONE ----
+  // ---- CHECK PHONE (PUBLIC) ----
   if (path === '/check-phone' && req.method === 'GET') {
     try {
       const phone = url.searchParams.get('phone') || ''
@@ -603,6 +582,11 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
+
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
 
       const { data, error } = await supabase
         .from('users')
@@ -625,6 +609,35 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+  }
+
+  // ---- HEALTH (PUBLIC) ----
+  if (path === '/health' && req.method === 'GET') {
+    return new Response(
+      JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // ---- PROTECTED ROUTES ----
+  // Verify JWT token manually
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Missing authorization header' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const token = authHeader.split(' ')[1]
+  let payload
+  try {
+    payload = await verifyToken(token, JWT_SECRET)
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid or expired token' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   // ---- 404 ----
