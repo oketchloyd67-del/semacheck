@@ -29,76 +29,36 @@ function base64UrlEncode(data: Uint8Array): string {
 async function generateToken(payload: any, secret: string): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' }
   const now = Math.floor(Date.now() / 1000)
-  const payloadWithExp = {
-    ...payload,
-    exp: now + 60 * 60 * 24 * 7,
-    iat: now,
-  }
-  
+  const payloadWithExp = { ...payload, exp: now + 60 * 60 * 24 * 7, iat: now }
   const headerEncoded = base64UrlEncode(new TextEncoder().encode(JSON.stringify(header)))
   const payloadEncoded = base64UrlEncode(new TextEncoder().encode(JSON.stringify(payloadWithExp)))
-  
   const signatureInput = `${headerEncoded}.${payloadEncoded}`
   const encoder = new TextEncoder()
   const keyData = encoder.encode(secret)
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
+  const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
   const signature = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(signatureInput))
   const signatureEncoded = base64UrlEncode(new Uint8Array(signature))
-  
   return `${headerEncoded}.${payloadEncoded}.${signatureEncoded}`
 }
 
 async function verifyToken(token: string, secret: string): Promise<any> {
   const parts = token.split('.')
-  if (parts.length !== 3) {
-    throw new Error('Invalid token format')
-  }
-
+  if (parts.length !== 3) throw new Error('Invalid token format')
   const [headerEncoded, payloadEncoded, signatureEncoded] = parts
-
-  // Verify signature
   const signatureInput = `${headerEncoded}.${payloadEncoded}`
   const encoder = new TextEncoder()
   const keyData = encoder.encode(secret)
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['verify']
-  )
+  const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])
   const signature = base64UrlDecode(signatureEncoded)
-  const isValid = await crypto.subtle.verify(
-    'HMAC',
-    cryptoKey,
-    signature,
-    encoder.encode(signatureInput)
-  )
-
-  if (!isValid) {
-    throw new Error('Invalid signature')
-  }
-
-  // Decode payload
+  const isValid = await crypto.subtle.verify('HMAC', cryptoKey, signature, encoder.encode(signatureInput))
+  if (!isValid) throw new Error('Invalid signature')
   const payloadBytes = base64UrlDecode(payloadEncoded)
   const payload = JSON.parse(new TextDecoder().decode(payloadBytes))
-
-  // Check expiration
   const now = Math.floor(Date.now() / 1000)
-  if (payload.exp && payload.exp < now) {
-    throw new Error('Token expired')
-  }
-
+  if (payload.exp && payload.exp < now) throw new Error('Token expired')
   return payload
 }
 
-// ---- Password Hashing ----
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(password)
@@ -113,7 +73,6 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 }
 
 serve(async (req) => {
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -123,7 +82,7 @@ serve(async (req) => {
   const contentType = req.headers.get('Content-Type') || ''
   const JWT_SECRET = Deno.env.get('JWT_SECRET') || 'your-secret-key'
 
-  // ---- LOGIN ----
+  // ---- LOGIN (PUBLIC) ----
   if (path === '/login' && req.method === 'POST') {
     try {
       const bodyText = await req.text()
@@ -137,9 +96,9 @@ serve(async (req) => {
       let body
       try {
         body = JSON.parse(bodyText)
-      } catch (parseError) {
+      } catch {
         return new Response(
-          JSON.stringify({ error: 'Invalid JSON format' }),
+          JSON.stringify({ error: 'Invalid JSON' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -172,7 +131,6 @@ serve(async (req) => {
       }
 
       const valid = await verifyPassword(password, user.password_hash)
-
       if (!valid) {
         return new Response(
           JSON.stringify({ error: 'Invalid phone number or password' }),
@@ -232,7 +190,7 @@ serve(async (req) => {
     }
   }
 
-  // ---- SIGNUP ----
+  // ---- SIGNUP (PUBLIC) ----
   if (path === '/signup' && req.method === 'POST') {
     try {
       let body: any = {}
@@ -251,18 +209,13 @@ serve(async (req) => {
         if (bodyText && bodyText.trim() !== '') {
           try {
             body = JSON.parse(bodyText)
-          } catch (parseError) {
+          } catch {
             return new Response(
-              JSON.stringify({ error: 'Invalid JSON format' }),
+              JSON.stringify({ error: 'Invalid JSON' }),
               { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             )
           }
         }
-      } else {
-        return new Response(
-          JSON.stringify({ error: 'Unsupported content type' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
       }
 
       const { accountType, fullName, email, phone, nationalId, password, consentAccepted } = body
@@ -338,7 +291,7 @@ serve(async (req) => {
     }
   }
 
-  // ---- VERIFY OTP ----
+  // ---- VERIFY OTP (PUBLIC) ----
   if (path === '/verify-otp' && req.method === 'POST') {
     try {
       const bodyText = await req.text()
@@ -352,9 +305,9 @@ serve(async (req) => {
       let body
       try {
         body = JSON.parse(bodyText)
-      } catch (parseError) {
+      } catch {
         return new Response(
-          JSON.stringify({ error: 'Invalid JSON format' }),
+          JSON.stringify({ error: 'Invalid JSON' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -415,7 +368,6 @@ serve(async (req) => {
           .from('users')
           .update({ otp_attempts: user.otp_attempts + 1 })
           .eq('id', user.id)
-        
         return new Response(
           JSON.stringify({ error: 'Invalid OTP code' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -424,9 +376,9 @@ serve(async (req) => {
 
       await supabase
         .from('users')
-        .update({ 
-          email_verified: true, 
-          otp_code_hash: null, 
+        .update({
+          email_verified: true,
+          otp_code_hash: null,
           otp_expires_at: null,
           otp_attempts: 0,
         })
@@ -459,7 +411,7 @@ serve(async (req) => {
     }
   }
 
-  // ---- RESEND OTP ----
+  // ---- RESEND OTP (PUBLIC) ----
   if (path === '/resend-otp' && req.method === 'POST') {
     try {
       const bodyText = await req.text()
@@ -473,9 +425,9 @@ serve(async (req) => {
       let body
       try {
         body = JSON.parse(bodyText)
-      } catch (parseError) {
+      } catch {
         return new Response(
-          JSON.stringify({ error: 'Invalid JSON format' }),
+          JSON.stringify({ error: 'Invalid JSON' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -535,6 +487,14 @@ serve(async (req) => {
     }
   }
 
+  // ---- HEALTH (PUBLIC) ----
+  if (path === '/health' && req.method === 'GET') {
+    return new Response(
+      JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   // ---- CHECK EMAIL (PUBLIC) ----
   if (path === '/check-email' && req.method === 'GET') {
     try {
@@ -558,9 +518,9 @@ serve(async (req) => {
         .maybeSingle()
 
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           valid: !data,
-          reason: data ? 'An account already uses this email.' : null 
+          reason: data ? 'An account already uses this email.' : null,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -595,11 +555,11 @@ serve(async (req) => {
         .maybeSingle()
 
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           valid: !data,
           reason: data ? 'An account already uses this number.' : null,
           normalized: phone,
-          note: 'Format looks valid. This is the number M-Pesa prompts will be sent to when you pay.'
+          note: 'Format looks valid. This is the number M-Pesa prompts will be sent to when you pay.',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -611,16 +571,8 @@ serve(async (req) => {
     }
   }
 
-  // ---- HEALTH (PUBLIC) ----
-  if (path === '/health' && req.method === 'GET') {
-    return new Response(
-      JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-
   // ---- PROTECTED ROUTES ----
-  // Verify JWT token manually
+  // For any route that requires authentication, verify the token
   const authHeader = req.headers.get('Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return new Response(
@@ -637,6 +589,14 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ error: 'Invalid or expired token' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // ---- LOGOUT ----
+  if (path === '/logout' && req.method === 'POST') {
+    return new Response(
+      JSON.stringify({ message: 'Logged out successfully' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
