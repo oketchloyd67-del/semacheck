@@ -72,35 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  document.getElementById('manualCodeSubmit')?.addEventListener('click', async () => {
-    const input = document.getElementById('manualCodeInput');
-    const alertBox = document.getElementById('manualCodeAlert');
-    const paymentId = input.dataset.paymentId;
-    const code = input.value.trim();
-    alertBox.innerHTML = '';
-    if (!code) { alertBox.innerHTML = '<div class="alert alert-err">Enter the M-Pesa code from your confirmation SMS.</div>'; return; }
-    try {
-      const r = await api(`/payments/${paymentId}/confirm-manual`, { method: 'POST', body: JSON.stringify({ mpesaCode: code }) });
-      alertBox.innerHTML = `<div class="alert alert-ok">${r.message}</div>`;
-      input.disabled = true;
-      document.getElementById('manualCodeSubmit').disabled = true;
-      await pollForManualReviewOutcome(paymentId, window.__semacheckPendingOnConfirmed);
-    } catch (err) {
-      if (err.alreadyUsed) {
-        alertBox.innerHTML = `
-          <div class="alert alert-err">${err.message}</div>
-          <button class="btn btn-amber btn-block" id="restartPaymentBtn" style="margin-top:10px;">Make a new payment</button>
-        `;
-        document.getElementById('restartPaymentBtn').addEventListener('click', () => {
-          document.getElementById('paymentProgressCard').style.display = 'none';
-        });
-      } else {
-        alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
-      }
-    }
-  });
-
-
+  
   async function waitForPaymentThenRun({ paymentId, initialMessage, onConfirmed }) {
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');
