@@ -6,6 +6,7 @@ const cors = require('cors');
 const compression = require('compression');
 
 const { generalLimiter } = require('./middleware/rateLimiter');
+const whatsappRoutes = require('./routes/whatsapp');
 const authRoutes = require('./routes/auth');
 const searchRoutes = require('./routes/search');
 const paymentRoutes = require('./routes/payments');
@@ -16,6 +17,7 @@ const forensicsRoutes = require('./routes/forensics');
 
 const app = express();
 
+app.use('/whatsapp', whatsappRoutes);
 app.set('trust proxy', 1); // needed for correct req.ip behind a load balancer/reverse proxy
 app.use(helmet());
 app.use(compression());
