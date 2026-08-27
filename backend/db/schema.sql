@@ -100,14 +100,21 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
 CREATE TABLE IF NOT EXISTS payments (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id                 UUID REFERENCES users(id) ON DELETE SET NULL,
-    purpose                 VARCHAR(20) NOT NULL CHECK (purpose IN ('search', 'subscription')),
+    purpose                 VARCHAR(20) NOT NULL CHECK (purpose IN ('search', 'subscription', 'forensics_case')),
     reference_id             UUID,                    
     amount                   NUMERIC(10,2) NOT NULL,
     phone                    VARCHAR(15) NOT NULL,
-    status                   VARCHAR(20) NOT NULL DEFAULT 'initiated' CHECK (status IN ('initiated', 'pending', 'success', 'failed', 'cancelled')),
+    status                   VARCHAR(20) NOT NULL DEFAULT 'initiated' CHECK (status IN ('initiated', 'pending', 'success', 'failed', 'cancelled', 'manual_review')),
     tuma_checkout_request_id  VARCHAR(60),                      
     tuma_merchant_request_id  VARCHAR(60),
     mpesa_receipt             VARCHAR(40),                      
+    -- The user's self-reported code while a payment sits in manual_review.
+    -- This is NEVER trusted on its own — see routes/payments.js
+    -- /confirm-manual and routes/admin.js /payments/manual-review. Only
+    -- once an admin cross-checks it against the real M-Pesa statement and
+    -- approves does it get copied into mpesa_receipt above and the
+    -- payment actually flip to 'success'.
+    manual_code_submitted      VARCHAR(20),
     raw_callback_json         JSONB,
     created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -155,3 +162,117 @@ CREATE TABLE IF NOT EXISTS contact_messages (
     emailed_ok         BOOLEAN DEFAULT FALSE,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+
+-- ============================================================
+-- FORENSICS CASES — "lost money to a scam, want help reclaiming it"
+-- referral flow, reached from a search result's receipt. A flat
+-- KES 849 case-opening fee is charged once the eligibility check
+-- (amount_lost >= 1000) passes; the case then sits in an admin/
+-- investigator queue. Exact investigator-assignment flow is still
+-- being defined — this table intentionally stays a simple queue with
+-- an editable status for now, so it doesn't need re-migrating once
+-- that flow is decided.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS forensics_cases (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount_lost        NUMERIC(12,2) NOT NULL CHECK (amount_lost >= 1000),
+    scam_description    TEXT NOT NULL,
+    evidence_notes       TEXT,
+    contact_phone         VARCHAR(15),
+    status                 VARCHAR(20) NOT NULL DEFAULT 'awaiting_payment'
+                            CHECK (status IN ('awaiting_payment', 'submitted', 'under_review', 'in_progress', 'resolved', 'closed')),
+    fee_payment_id           UUID REFERENCES payments(id),
+    admin_notes                TEXT,
+    reviewed_by                  UUID,
+    reviewed_at                   TIMESTAMPTZ,
+    created_at                     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_forensics_cases_user ON forensics_cases(user_id);
+CREATE INDEX IF NOT EXISTS idx_forensics_cases_status ON forensics_cases(status);
+
+
+-- ============================================================
+-- CBK LICENSED DIGITAL CREDIT PROVIDERS — a local, periodically
+-- refreshed cache of the Central Bank of Kenya's official directory of
+-- licensed digital lenders (a real, structured public PDF — no login,
+-- no key, just a fetch — see services/cbkRegistryService.js). Used to
+-- give a real positive/negative signal on loan-app scam checks: "is
+-- this actually a CBK-licensed lender, or not on the list at all."
+-- CBK republishes this PDF at a new URL each update rather than one
+-- stable "latest" link, so CBK_DCP_DIRECTORY_URL in .env needs updating
+-- by hand whenever a newer directory is published — see the README.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS cbk_licensed_dcps (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_name          TEXT NOT NULL,
+    phone_raw               TEXT,
+    email_raw                 TEXT,
+    physical_address            TEXT,
+    date_licensed_raw             TEXT,
+    source_pdf_url                  TEXT,
+    fetched_at                        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cbk_dcps_name ON cbk_licensed_dcps(company_name);
+
+
+-- ============================================================
+-- PATCH SECTION — safe to re-run against an already-existing database
+-- ============================================================
+-- CREATE TABLE IF NOT EXISTS only helps on a brand-new database — it's
+-- a no-op against a table that already exists, so any column added to
+-- a table's definition above AFTER that table was first created on a
+-- given deployment never actually appears there just by re-running
+-- this file. That's exactly what caused the "column reminder_5_sent_at
+-- does not exist" error: the subscriptions table already existed from
+-- an earlier deploy, so re-running migrate.js didn't add the columns
+-- that were added to the CREATE TABLE text later.
+--
+-- ADD COLUMN IF NOT EXISTS does not have that problem — it actually
+-- alters an existing table, and is a safe no-op if the column is
+-- already there. Every column ever added to this schema after its
+-- table's first release is repeated here so `npm run migrate` is
+-- always enough on its own, on a fresh database or an old one.
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_code_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_attempts SMALLINT NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS id_document_filename TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS id_verification_reviewed_by UUID;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS id_verification_reviewed_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS id_verification_notes TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_consent_at TIMESTAMPTZ;
+
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS reminder_30_sent_at TIMESTAMPTZ;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS reminder_25_sent_at TIMESTAMPTZ;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS reminder_20_sent_at TIMESTAMPTZ;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS reminder_15_sent_at TIMESTAMPTZ;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS reminder_10_sent_at TIMESTAMPTZ;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS reminder_5_sent_at TIMESTAMPTZ;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS reminder_3_sent_at TIMESTAMPTZ;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS reminder_1_sent_at TIMESTAMPTZ;
+
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS tuma_checkout_request_id VARCHAR(60);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS tuma_merchant_request_id VARCHAR(60);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS raw_callback_json JSONB;
+
+-- CHECK constraints DO need dropping and recreating explicitly — unlike
+-- a plain column, "just editing the CREATE TABLE text" never reaches an
+-- existing table at all, silently or otherwise. DROP...IF EXISTS then
+-- ADD as two separate statements (not a DO block — db/migrate.js splits
+-- this file naively on every semicolon, which would break a $$-quoted
+-- block into invalid fragments) is idempotent on its own: the DROP is a
+-- no-op if there's nothing to drop, and by the time ADD runs the old
+-- constraint is already gone, so it succeeds cleanly every run.
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_purpose_check;
+ALTER TABLE payments ADD CONSTRAINT payments_purpose_check CHECK (purpose IN ('search', 'subscription', 'forensics_case'));
+
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS manual_code_submitted VARCHAR(20);
+
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
+ALTER TABLE payments ADD CONSTRAINT payments_status_check CHECK (status IN ('initiated', 'pending', 'success', 'failed', 'cancelled', 'manual_review'));

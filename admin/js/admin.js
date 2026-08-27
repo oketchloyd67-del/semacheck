@@ -65,10 +65,14 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRegistrations('pending');
   loadUsers();
   loadJobs('pending');
+  loadPaymentVerifications();
+  loadForensicsCases('submitted');
   loadMessages();
+  loadKenyaRegistryStatus();
 
   document.getElementById('regStatusFilter').addEventListener('change', (e) => loadRegistrations(e.target.value));
   document.getElementById('jobStatusFilter').addEventListener('change', (e) => loadJobs(e.target.value));
+  document.getElementById('forensicsStatusFilter').addEventListener('change', (e) => loadForensicsCases(e.target.value));
   document.getElementById('userFilterBtn').addEventListener('click', loadUsers);
   document.getElementById('userSearchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') loadUsers(); });
 
@@ -120,6 +124,8 @@ async function loadStats() {
     document.getElementById('statSubs').textContent = s.activeSubscriptions;
     document.getElementById('statContact').textContent = s.contactMessagesNeedingAttention;
     document.getElementById('statIdPending').textContent = s.idVerificationsPending;
+    document.getElementById('statPaymentsManual').textContent = s.paymentsAwaitingManualReview;
+    document.getElementById('statForensicsCases').textContent = s.forensicsCasesAwaitingReview;
 
     const idBadge = document.getElementById('badgeIdPending');
     idBadge.textContent = s.idVerificationsPending;
@@ -128,6 +134,17 @@ async function loadStats() {
     const jobBadge = document.getElementById('badgeJobsPending');
     jobBadge.textContent = s.pendingJobs;
     jobBadge.style.display = s.pendingJobs > 0 ? 'inline-block' : 'none';
+
+    const paymentsBadge = document.getElementById('badgePaymentsManual');
+    if (paymentsBadge) {
+      paymentsBadge.textContent = s.paymentsAwaitingManualReview;
+      paymentsBadge.style.display = s.paymentsAwaitingManualReview > 0 ? 'inline-block' : 'none';
+    }
+    const forensicsBadge = document.getElementById('badgeForensicsCases');
+    if (forensicsBadge) {
+      forensicsBadge.textContent = s.forensicsCasesAwaitingReview;
+      forensicsBadge.style.display = s.forensicsCasesAwaitingReview > 0 ? 'inline-block' : 'none';
+    }
   } catch (err) { handleAuthError(err); }
 }
 
@@ -311,6 +328,88 @@ async function loadJobs(status) {
   } catch (err) { handleAuthError(err); }
 }
 
+// ---------------- payment verifications (manual M-Pesa code review) ----------------
+async function loadPaymentVerifications() {
+  const box = document.getElementById('paymentVerificationsList');
+  box.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p>';
+  try {
+    const r = await adminApi('/admin/payments/manual-review');
+    if (!r.payments.length) { box.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">Nothing awaiting review.</p>'; return; }
+    box.innerHTML = r.payments.map((p) => `
+      <div class="job-item" style="flex-direction:column;align-items:stretch;gap:10px;">
+        <div>
+          <b>${escapeHtml(p.full_name)}</b> <span class="pill pill-job_owner">${escapeHtml(p.purpose.replace('_', ' '))}</span>
+          <div style="font-size:0.82rem;color:var(--text-muted);">${escapeHtml(p.email)} &middot; ${escapeHtml(p.phone)} &middot; Amount: KES ${Number(p.amount).toLocaleString()}</div>
+          <div style="font-size:0.9rem;margin-top:6px;">Submitted code: <b style="font-family:monospace;letter-spacing:0.05em;">${escapeHtml(p.manual_code_submitted)}</b></div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">Submitted ${new Date(p.updated_at).toLocaleString()}</div>
+        </div>
+        <div class="action-btns">
+          <button class="btn btn-primary" data-approve-payment="${p.id}">Approve — code checks out</button>
+          <button class="btn btn-ghost" data-reject-payment="${p.id}">Reject</button>
+        </div>
+        <div class="reject-reason-box" id="reject-payment-box-${p.id}" style="display:none;">
+          <input type="text" id="reject-payment-reason-${p.id}" placeholder="Why this code doesn't check out (shown to the user)">
+          <button class="btn btn-amber" data-confirm-reject-payment="${p.id}">Confirm rejection</button>
+        </div>
+      </div>
+    `).join('');
+
+    box.querySelectorAll('[data-approve-payment]').forEach((btn) => btn.addEventListener('click', async () => {
+      try {
+        await adminApi(`/admin/payments/${btn.dataset.approvePayment}/approve-manual`, { method: 'POST' });
+        showToast('Payment approved.');
+        loadPaymentVerifications(); loadStats();
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }));
+    box.querySelectorAll('[data-reject-payment]').forEach((btn) => btn.addEventListener('click', () => {
+      document.getElementById(`reject-payment-box-${btn.dataset.rejectPayment}`).style.display = 'flex';
+    }));
+    box.querySelectorAll('[data-confirm-reject-payment]').forEach((btn) => btn.addEventListener('click', async () => {
+      const paymentId = btn.dataset.confirmRejectPayment;
+      const reason = document.getElementById(`reject-payment-reason-${paymentId}`).value.trim();
+      if (!reason) { document.getElementById(`reject-payment-reason-${paymentId}`).focus(); return; }
+      await adminApi(`/admin/payments/${paymentId}/reject-manual`, { method: 'POST', body: JSON.stringify({ reason }) });
+      showToast('Payment rejected.');
+      loadPaymentVerifications(); loadStats();
+    }));
+  } catch (err) { handleAuthError(err); }
+}
+
+// ---------------- forensics cases ----------------
+async function loadForensicsCases(status) {
+  const box = document.getElementById('forensicsCasesList');
+  box.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p>';
+  try {
+    const r = await adminApi(`/admin/forensics-cases?status=${status}`);
+    if (!r.cases.length) { box.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">Nothing here.</p>'; return; }
+    const nextStatusOptions = ['under_review', 'in_progress', 'resolved', 'closed'];
+    box.innerHTML = r.cases.map((c) => `
+      <div class="job-item" style="flex-direction:column;align-items:stretch;gap:10px;">
+        <div>
+          <b>KES ${Number(c.amount_lost).toLocaleString()} lost</b> ${pill(c.status)}
+          <div style="font-size:0.82rem;color:var(--text-muted);">${escapeHtml(c.full_name)} &middot; ${escapeHtml(c.email)} &middot; ${escapeHtml(c.contact_phone || '')}</div>
+          <p style="font-size:0.85rem;margin-top:6px;">${escapeHtml(c.scam_description)}</p>
+          ${c.evidence_notes ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Evidence: ${escapeHtml(c.evidence_notes)}</div>` : ''}
+          ${c.admin_notes ? `<div style="font-size:0.8rem;color:var(--navy);margin-top:4px;">Admin note: ${escapeHtml(c.admin_notes)}</div>` : ''}
+        </div>
+        <div class="action-btns">
+          ${nextStatusOptions.map((s) => `<button class="btn btn-ghost" data-set-case-status="${c.id}" data-status="${s}">${s.replace('_', ' ')}</button>`).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    box.querySelectorAll('[data-set-case-status]').forEach((btn) => btn.addEventListener('click', async () => {
+      const note = prompt('Add a note for this status change (optional):', '');
+      if (note === null) return;
+      await adminApi(`/admin/forensics-cases/${btn.dataset.setCaseStatus}/status`, { method: 'POST', body: JSON.stringify({ status: btn.dataset.status, note }) });
+      showToast('Case status updated.');
+      loadForensicsCases(status); loadStats();
+    }));
+  } catch (err) { handleAuthError(err); }
+}
+
 // ---------------- contact messages ----------------
 async function loadMessages() {
   const box = document.getElementById('messagesList');
@@ -328,6 +427,34 @@ async function loadMessages() {
     }</tbody></table></div>`;
   } catch (err) { handleAuthError(err); }
 }
+
+// ---------------- Kenya registry (CBK licensed lenders) ----------------
+async function loadKenyaRegistryStatus() {
+  try {
+    const r = await adminApi('/admin/kenya-registry/status');
+    document.getElementById('registryEntryCount').textContent = r.entryCount;
+    document.getElementById('registryLastFetched').textContent = r.lastFetched ? new Date(r.lastFetched).toLocaleString() : 'Never';
+    document.getElementById('registrySourceUrl').textContent = r.sourceUrl || r.configuredUrl || 'Not set';
+  } catch (err) { handleAuthError(err); }
+}
+
+document.getElementById('refreshRegistryBtn')?.addEventListener('click', async () => {
+  const alertBox = document.getElementById('kenyaRegistryAlert');
+  const btn = document.getElementById('refreshRegistryBtn');
+  alertBox.innerHTML = '';
+  btn.disabled = true;
+  btn.textContent = 'Refreshing… this fetches and parses a real PDF, may take a few seconds';
+  try {
+    const r = await adminApi('/admin/kenya-registry/refresh', { method: 'POST' });
+    alertBox.innerHTML = `<div class="alert alert-ok">${r.message}</div>`;
+    await loadKenyaRegistryStatus();
+  } catch (err) {
+    alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Refresh now';
+  }
+});
 
 // ---------------- settings ----------------
 async function saveSettings() {

@@ -1,4 +1,4 @@
-// js/dashboard.js
+// js/forensics.js — fraud-recovery case intake, eligibility check, payment, status
 const API_BASE = 'http://localhost:4800/api';
 
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
@@ -11,7 +11,7 @@ async function api(path, options = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   let data = {};
-  try { data = await res.json(); } catch {  }
+  try { data = await res.json(); } catch { /* no body */ }
   if (!res.ok) {
     const err = new Error(data.error || 'Something went wrong.');
     Object.assign(err, data);
@@ -20,52 +20,84 @@ async function api(path, options = {}) {
   return data;
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const user = getUser();
-  if (!user || !getToken() || user.accountType !== 'job_owner') {
-    window.location.href = 'index.html';
-    return;
-  }
-  document.getElementById('dashUserName').textContent = `Hi, ${user.fullName?.split(' ')[0] || ''}`;
+function statusPill(status) {
+  const map = {
+    awaiting_payment: 'pending', submitted: 'pending', under_review: 'pending',
+    in_progress: 'pending', resolved: 'approved', closed: 'rejected',
+  };
+  return `<span class="pill pill-${map[status] || 'pending'}">${status.replace('_', ' ')}</span>`;
+}
 
-  document.getElementById('dashLogout').addEventListener('click', async () => {
+let currentCaseId = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const user = getUser();
+  if (!user || !getToken()) { window.location.href = 'index.html'; return; }
+  document.getElementById('forensicsUserName').textContent = `Hi, ${user.fullName?.split(' ')[0] || ''}`;
+
+  document.getElementById('forensicsLogout').addEventListener('click', async () => {
     try { await api('/auth/logout', { method: 'POST' }); } catch {}
     clearSession();
     window.location.href = 'index.html';
   });
 
-  await loadSummary();
-  await loadJobs();
+  loadMyCases();
 
-  document.getElementById('postJobBtn').addEventListener('click', async () => {
-    const alertBox = document.getElementById('postJobAlert');
+  // ---------------- live eligibility feedback ----------------
+  document.getElementById('amountLost').addEventListener('input', (e) => {
+    const msg = document.getElementById('amountLostMsg');
+    const val = Number(e.target.value);
+    if (!e.target.value) { msg.textContent = ''; return; }
+    if (val < 1000) {
+      msg.textContent = 'This service is currently available for losses of KES 1,000 or more.';
+      msg.className = 'field-msg err';
+    } else {
+      msg.textContent = '';
+    }
+  });
+
+  // ---------------- step 1: intake ----------------
+  document.getElementById('submitIntakeBtn').addEventListener('click', async () => {
+    const alertBox = document.getElementById('intakeAlert');
     alertBox.innerHTML = '';
-    const payload = {
-      title: document.getElementById('jobTitle').value.trim(),
-      companyName: document.getElementById('jobCompany').value.trim(),
-      location: document.getElementById('jobLocation').value.trim(),
-      contactPhone: document.getElementById('jobPhone').value.trim(),
-      description: document.getElementById('jobDescription').value.trim(),
-    };
+    const amountLost = Number(document.getElementById('amountLost').value);
+    const scamDescription = document.getElementById('scamDescription').value.trim();
+    const evidenceNotes = document.getElementById('evidenceNotes').value.trim();
+    const contactPhone = document.getElementById('contactPhone').value.trim();
+
+    if (!amountLost) { alertBox.innerHTML = '<div class="alert alert-err">Enter how much you lost.</div>'; return; }
+    if (amountLost < 1000) { alertBox.innerHTML = '<div class="alert alert-err">This service is currently available for losses of KES 1,000 or more.</div>'; return; }
+    if (scamDescription.length < 20) { alertBox.innerHTML = '<div class="alert alert-err">Describe what happened in a bit more detail.</div>'; return; }
+
     try {
-      const r = await api('/jobs', { method: 'POST', body: JSON.stringify(payload) });
-      alertBox.innerHTML = `<div class="alert alert-ok">${r.message}</div>`;
-      ['jobTitle','jobCompany','jobLocation','jobPhone','jobDescription'].forEach((id) => document.getElementById(id).value = '');
-      await loadJobs(); await loadSummary();
+      const r = await api('/forensics/intake', {
+        method: 'POST',
+        body: JSON.stringify({ amountLost, scamDescription, evidenceNotes, contactPhone }),
+      });
+      currentCaseId = r.case.id;
+      document.getElementById('intakeCard').style.display = 'none';
+      document.getElementById('feeCard').style.display = 'block';
+      document.getElementById('feeCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (err) {
       alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
     }
   });
 
-  document.getElementById('subscribeBtn').addEventListener('click', async () => {
-    const phone = prompt('M-Pesa number to pay KES 459 from:', '');
+  // ---------------- step 2: pay the case fee ----------------
+  document.getElementById('payFeeBtn').addEventListener('click', async () => {
+    const phone = prompt('M-Pesa number to pay KES 849 from:', '');
     if (!phone) return;
     try {
-      const r = await api('/payments/subscription', { method: 'POST', body: JSON.stringify({ phone }) });
+      const r = await api('/payments/forensics-case', { method: 'POST', body: JSON.stringify({ caseId: currentCaseId, phone }) });
+      document.getElementById('feeCard').style.display = 'none';
       await waitForPaymentThenRun({
         paymentId: r.paymentId,
-        initialMessage: r.message || `STK push sent to ${phone}. Enter your M-Pesa PIN to activate your subscription.`,
-        onConfirmed: async () => { await loadSummary(); await loadJobs(); },
+        initialMessage: r.message || `STK push sent to ${phone}. Enter your M-Pesa PIN to submit your case.`,
+        onConfirmed: async () => {
+          document.getElementById('confirmationCard').style.display = 'block';
+          document.getElementById('confirmationCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          await loadMyCases();
+        },
       });
     } catch (err) {
       alert(err.message);
@@ -93,6 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
         document.getElementById('restartPaymentBtn').addEventListener('click', () => {
           document.getElementById('paymentProgressCard').style.display = 'none';
+          document.getElementById('feeCard').style.display = 'block';
         });
       } else {
         alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
@@ -100,7 +133,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-
+  /**
+   * Same circular-loader polling pattern used for search and subscription
+   * payments: never assumes success just because the STK push was sent —
+   * waits for the backend to actually confirm it, with a manual M-Pesa-
+   * code fallback if the confirmation never arrives.
+   */
   async function waitForPaymentThenRun({ paymentId, initialMessage, onConfirmed }) {
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');
@@ -126,7 +164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         clearInterval(timer);
         circular.classList.add('done');
         statusText.textContent = 'Payment confirmed!';
-        hint.textContent = 'Updating your subscription…';
+        hint.textContent = 'Submitting your case…';
         try {
           await onConfirmed();
           card.style.display = 'none';
@@ -159,7 +197,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             showFallback('Payment failed or was cancelled.', 'If you completed the M-Pesa prompt anyway, use the box below to confirm manually.');
           }
         } catch (err) {
-         
+          // transient poll failure — keep trying until timeout
         }
       }, POLL_EVERY_MS);
     });
@@ -191,7 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const timer = setInterval(async () => {
         if (Date.now() - startedAt > ACTIVE_WINDOW_MS) {
           clearInterval(timer);
-          hint.textContent = "Still awaiting verification. It's safe to close this and check back later — your subscription request isn't lost.";
+          hint.textContent = "Still awaiting verification. It's safe to close this and check back later — your case isn't lost.";
           resolve();
           return;
         }
@@ -201,7 +239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             clearInterval(timer);
             circular.classList.add('done');
             statusText.textContent = 'Payment confirmed!';
-            hint.textContent = 'Updating your subscription…';
+            hint.textContent = 'Submitting your case…';
             try {
               await onConfirmed();
               card.style.display = 'none';
@@ -223,46 +261,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-async function loadSummary() {
+async function loadMyCases() {
+  const box = document.getElementById('myCasesList');
   try {
-    const r = await api('/jobs/dashboard-summary');
-    document.getElementById('subDays').textContent = r.subscription.daysRemaining;
-    const counts = Object.fromEntries((r.jobCounts || []).map((c) => [c.status, c.n]));
-    document.getElementById('statPending').textContent = counts.pending || 0;
-    document.getElementById('statApproved').textContent = counts.approved || 0;
-    document.getElementById('statRejected').textContent = counts.rejected || 0;
-
-    const banner = document.getElementById('suspendedBanner');
-    if (r.jobsSuspended) {
-      banner.style.display = 'block';
-      banner.textContent = "Your subscription has expired — your approved job posting(s) are temporarily hidden from search results until you renew.";
-    } else {
-      banner.style.display = 'none';
-    }
-  } catch (err) {
-    document.getElementById('dashAlert').innerHTML = `<div class="alert alert-err">${err.message}</div>`;
-  }
-}
-
-async function loadJobs() {
-  const list = document.getElementById('jobList');
-  try {
-    const r = await api('/jobs/mine');
-    if (!r.jobs.length) { list.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">No postings yet.</p>'; return; }
-    list.innerHTML = r.jobs.map((j) => `
+    const r = await api('/forensics/my-cases');
+    if (!r.cases.length) { box.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">No cases yet.</p>'; return; }
+    box.innerHTML = r.cases.map((c) => `
       <div class="job-item">
         <div>
-          <b>${j.title}</b>
-          <div style="font-size:0.82rem;color:var(--text-muted);">${j.company_name} &middot; ${j.location || 'Nairobi'}</div>
+          <b>KES ${Number(c.amount_lost).toLocaleString()}</b>
+          <div style="font-size:0.82rem;color:var(--text-muted);">Opened ${new Date(c.created_at).toLocaleDateString()}</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-          <span class="status-pill status-${j.status}">${j.status}</span>
-          ${j.status === 'approved' && !j.effective_visible ? '<span class="status-pill status-suspended" style="font-size:0.68rem;">suspended — renew to reactivate</span>' : ''}
-          ${j.status === 'approved' && j.effective_visible ? '<span class="status-pill status-approved" style="font-size:0.68rem;">live in search</span>' : ''}
-        </div>
+        ${statusPill(c.status)}
       </div>
     `).join('');
   } catch (err) {
-    list.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+    box.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
   }
 }

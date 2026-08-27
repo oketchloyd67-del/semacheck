@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reclaim Your Money — SemaCheck Forensics</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="container">
+    <a href="index.html" class="brand"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="index.html#search">Search</a>
+    </div>
+    <div class="nav-actions">
+      <span id="forensicsUserName" style="color:#cfd9ea;font-size:0.9rem;align-self:center;margin-right:6px;"></span>
+      <button class="btn btn-outline" id="forensicsLogout">Log out</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" style="padding:56px 0 70px;">
+  <div class="container" style="max-width:640px;">
+    <h1 style="font-size:1.9rem;">Lost money to a scam?</h1>
+    <p>Tell us what happened. If it qualifies, we'll open a case and connect you with a verified fraud investigator who can help trace it and build evidence you can actually use.</p>
+
+    <div id="forensicsGlobalAlert"></div>
+
+    <!-- ============ STEP 1: INTAKE FORM ============ -->
+    <div class="card" id="intakeCard" style="margin-top:22px;">
+      <h3>Tell us what happened</h3>
+      <p style="margin-bottom:16px;">This service is currently available for losses of <b>KES 1,000 or more</b>.</p>
+      <div id="intakeAlert"></div>
+      <div class="field">
+        <label>How much did you lose? (KES)</label>
+        <input type="number" id="amountLost" min="1" placeholder="e.g. 15000">
+        <div class="field-msg" id="amountLostMsg"></div>
+      </div>
+      <div class="field">
+        <label>What happened?</label>
+        <textarea id="scamDescription" rows="4" placeholder="Describe the scam — how you were contacted, what you were asked to do, what you sent or paid, and to whom." style="width:100%;padding:11px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:0.92rem;font-family:inherit;resize:vertical;"></textarea>
+      </div>
+      <div class="field">
+        <label>Any evidence you already have <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label>
+        <textarea id="evidenceNotes" rows="2" placeholder="e.g. M-Pesa messages, screenshots, phone numbers, names used — just describe what you have, no need to upload anything yet." style="width:100%;padding:11px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:0.92rem;font-family:inherit;resize:vertical;"></textarea>
+      </div>
+      <div class="field">
+        <label>Contact phone</label>
+        <input type="text" id="contactPhone" placeholder="07XXXXXXXX">
+      </div>
+      <button class="btn btn-primary btn-block" id="submitIntakeBtn">Continue</button>
+    </div>
+
+    <!-- ============ STEP 2: PAY THE CASE FEE ============ -->
+    <div class="card" id="feeCard" style="margin-top:22px;display:none;">
+      <h3>Case-opening fee</h3>
+      <p style="margin-bottom:16px;">A flat <b>KES 849</b> fee opens your case and puts it in front of an investigator. This is not a guarantee of recovery — it covers the investigation work of tracing what happened and preparing evidence.</p>
+      <button class="btn btn-amber btn-block" id="payFeeBtn">Pay KES 849 &amp; submit case</button>
+    </div>
+
+    <!-- ============ PAYMENT PROGRESS (same pattern as search/subscription payments) ============ -->
+    <div class="payment-progress-card" id="paymentProgressCard" style="display:none;">
+      <div class="pp-circular" id="ppCircular"></div>
+      <div class="pp-status-text" id="ppStatusText">Waiting for M-Pesa confirmation…</div>
+      <p class="pp-hint" id="ppHint">Check your phone and enter your M-Pesa PIN. This usually takes a few seconds.</p>
+      <div class="manual-code-box" id="manualCodeBox" style="display:none;">
+        <p><b>Money already left your phone but nothing's happening here?</b> Enter the M-Pesa confirmation code from your SMS.</p>
+        <div class="search-row">
+          <input type="text" id="manualCodeInput" placeholder="e.g. QAR7XJ2KLM">
+          <button class="btn btn-amber" id="manualCodeSubmit">Confirm payment</button>
+        </div>
+        <div id="manualCodeAlert"></div>
+      </div>
+    </div>
+
+    <!-- ============ CONFIRMATION ============ -->
+    <div class="card" id="confirmationCard" style="margin-top:22px;display:none;">
+      <div class="alert alert-ok" style="margin-bottom:12px;">✓ Case submitted</div>
+      <p>An investigator will review your case and reach out on the phone number you provided. You can track its status below any time.</p>
+    </div>
+
+    <!-- ============ MY CASES ============ -->
+    <div class="card" id="myCasesCard" style="margin-top:22px;">
+      <h3>Your cases</h3>
+      <div id="myCasesList" style="margin-top:12px;"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+    </div>
+  </div>
+</header>
+
+<footer>
+  <div class="container">
+    SemaCheck &middot; Kenya's citizen scam &amp; fraud verification platform &middot; <a href="privacy.html" style="color:#cfd9ea;">Privacy Policy</a>
+  </div>
+</footer>
+
+<script src="js/forensics.js"></script>
+</body>
+</html>

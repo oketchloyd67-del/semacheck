@@ -33,7 +33,10 @@
     <button class="admin-tab-btn" data-tab="registrations">🪪 Registrations <span class="badge" id="badgeIdPending" style="display:none;"></span></button>
     <button class="admin-tab-btn" data-tab="users">👥 All accounts</button>
     <button class="admin-tab-btn" data-tab="jobs">💼 Jobs <span class="badge" id="badgeJobsPending" style="display:none;"></span></button>
+    <button class="admin-tab-btn" data-tab="payments">💳 Payment verifications <span class="badge" id="badgePaymentsManual" style="display:none;"></span></button>
+    <button class="admin-tab-btn" data-tab="forensics">🔍 Forensics cases <span class="badge" id="badgeForensicsCases" style="display:none;"></span></button>
     <button class="admin-tab-btn" data-tab="messages">✉️ Contact messages</button>
+    <button class="admin-tab-btn" data-tab="kenya-registry">🏛️ Kenya registry</button>
     <button class="admin-tab-btn" data-tab="settings">⚙️ Settings</button>
   </aside>
 
@@ -43,13 +46,15 @@
     <!-- ---------------- OVERVIEW ---------------- -->
     <section class="admin-tab-panel active" id="tab-overview">
       <div class="section-heading"><h2>Overview</h2></div>
-      <div class="stat-row" style="grid-template-columns:repeat(6,1fr);">
+      <div class="stat-row" style="grid-template-columns:repeat(8,1fr);">
         <div class="stat-card"><div class="num" id="statUsers">–</div><div class="label">Total users</div></div>
         <div class="stat-card"><div class="num" id="statSearches">–</div><div class="label">Total searches</div></div>
         <div class="stat-card"><div class="num" id="statPending">–</div><div class="label">Jobs pending</div></div>
         <div class="stat-card"><div class="num" id="statSubs">–</div><div class="label">Active subscriptions</div></div>
         <div class="stat-card"><div class="num" id="statContact">–</div><div class="label">Contact msgs (unsent)</div></div>
         <div class="stat-card"><div class="num" id="statIdPending">–</div><div class="label">ID reviews pending</div></div>
+        <div class="stat-card"><div class="num" id="statPaymentsManual">–</div><div class="label">Payments awaiting verification</div></div>
+        <div class="stat-card"><div class="num" id="statForensicsCases">–</div><div class="label">Forensics cases pending</div></div>
       </div>
       <div class="card" style="margin-top:22px;">
         <h3>Quick actions</h3>
@@ -113,10 +118,53 @@
       <div id="jobsList"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
     </section>
 
+    <!-- ---------------- PAYMENT VERIFICATIONS ---------------- -->
+    <section class="admin-tab-panel" id="tab-payments">
+      <div class="section-heading"><h2>Payment verifications</h2></div>
+      <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:16px;">These are self-reported M-Pesa codes from users whose Tuma STK push callback never arrived. Check each code against the real Tuma merchant dashboard or M-Pesa statement before approving — approving here is the only thing that ever unlocks the underlying search result, subscription, or forensics case.</p>
+      <div id="paymentVerificationsList"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+    </section>
+
+    <!-- ---------------- FORENSICS CASES ---------------- -->
+    <section class="admin-tab-panel" id="tab-forensics">
+      <div class="section-heading"><h2>Forensics cases</h2></div>
+      <div class="filter-bar">
+        <select id="forensicsStatusFilter">
+          <option value="submitted">Submitted (awaiting review)</option>
+          <option value="under_review">Under review</option>
+          <option value="in_progress">In progress</option>
+          <option value="resolved">Resolved</option>
+          <option value="closed">Closed</option>
+          <option value="awaiting_payment">Awaiting payment</option>
+        </select>
+      </div>
+      <div id="forensicsCasesList"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+    </section>
+
     <!-- ---------------- CONTACT MESSAGES ---------------- -->
     <section class="admin-tab-panel" id="tab-messages">
       <div class="section-heading"><h2>Contact messages</h2></div>
       <div id="messagesList"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+    </section>
+
+    <!-- ---------------- KENYA REGISTRY (CBK licensed lenders) ---------------- -->
+    <section class="admin-tab-panel" id="tab-kenya-registry">
+      <div class="section-heading"><h2>Kenya registry — CBK licensed digital lenders</h2></div>
+      <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:16px;">
+        A locally-cached copy of the Central Bank of Kenya's official directory of licensed digital credit providers.
+        Search results check against this list to confirm whether a loan app/lender is genuinely CBK-licensed.
+        CBK republishes this directory at a new URL each time they update it — there's no single "always current" link —
+        so update <code>CBK_DCP_DIRECTORY_URL</code> in <code>.env</code> whenever a newer directory is published, then refresh here.
+      </p>
+      <div class="card" style="max-width:520px;">
+        <div id="kenyaRegistryAlert"></div>
+        <div class="stat-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:16px;">
+          <div class="stat-card"><div class="num" id="registryEntryCount">–</div><div class="label">Licensed entities cached</div></div>
+          <div class="stat-card"><div class="num" id="registryLastFetched" style="font-size:0.95rem;">–</div><div class="label">Last refreshed</div></div>
+        </div>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:14px;word-break:break-all;">Source: <span id="registrySourceUrl">–</span></p>
+        <button class="btn btn-primary btn-block" id="refreshRegistryBtn">Refresh now</button>
+      </div>
     </section>
 
     <!-- ---------------- SETTINGS ---------------- -->

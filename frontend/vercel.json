@@ -21,7 +21,7 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "https://csswkinuufdspxcsnfrd.supabase.co/functions/v1/$1"
+      "destination": "/index.html"
     }
   ]
 }
