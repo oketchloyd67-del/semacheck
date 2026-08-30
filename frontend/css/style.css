@@ -276,6 +276,26 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
   .nav-links { display: none; }
 }
 
+@media (max-width: 480px) {
+  .search-row { flex-direction: column; gap: 8px; }
+  .search-row .btn { width: 100%; padding: 14px; font-size: 1rem; }
+  .tabs { flex-wrap: wrap; }
+  .tab { flex: 1 1 calc(33% - 4px); min-width: 0; font-size: 0.78rem; padding: 8px 4px; }
+  .tier-row { flex-direction: column; gap: 6px; }
+  .tier { padding: 8px; font-size: 0.8rem; }
+  .tier b { font-size: 0.9rem; }
+  .region-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .region-toggle { justify-content: center; }
+  .hero h1 { font-size: 1.6rem; }
+  .hero p { font-size: 0.92rem; }
+  .search-card { padding: 16px; margin-top: 20px; }
+  .hero { padding: 48px 0 64px; }
+  .section-title { font-size: 1.3rem; }
+  .how-steps { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .contact-box { padding: 24px 16px; }
+  .receipt-paper { padding: 16px 14px; }
+}
+
 
 .whatsapp-fab {
   position: fixed; right: 22px; bottom: 22px; z-index: 60;

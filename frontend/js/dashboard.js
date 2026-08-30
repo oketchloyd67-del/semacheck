@@ -1,5 +1,9 @@
 
-const API_BASE = 'http://localhost:4800/api';
+const API_BASE = 'https://semacheck.onrender.com/api';
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
 function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }
@@ -49,11 +53,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     try {
       const r = await api('/jobs', { method: 'POST', body: JSON.stringify(payload) });
-      alertBox.innerHTML = `<div class="alert alert-ok">${r.message}</div>`;
+      alertBox.innerHTML = `<div class="alert alert-ok">${escapeHtml(r.message)}</div>`;
       ['jobTitle','jobCompany','jobLocation','jobPhone','jobDescription'].forEach((id) => document.getElementById(id).value = '');
       await loadJobs(); await loadSummary();
     } catch (err) {
-      alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
     }
   });
 
@@ -148,7 +152,7 @@ async function loadSummary() {
       banner.style.display = 'none';
     }
   } catch (err) {
-    document.getElementById('dashAlert').innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+    document.getElementById('dashAlert').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
   }
 }
 
@@ -171,6 +175,6 @@ async function loadJobs() {
       </div>
     `).join('');
   } catch (err) {
-    list.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+    list.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
   }
 }

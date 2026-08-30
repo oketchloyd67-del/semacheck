@@ -1,5 +1,9 @@
 const API_BASE = 'https://semacheck.onrender.com/api';
 
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
 function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }
 function setSession(token, user) {
@@ -169,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('otpCodeInput').value = '';
       openModal('otpOverlay');
     } catch (err) {
-      alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
     } finally {
       btn.disabled = false; label.textContent = 'Create account';
     }
@@ -194,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateAuthUI();
       }
     } catch (err) {
-      alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
     } finally {
       btn.disabled = false; label.textContent = 'Verify & continue';
     }
@@ -206,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const r = await api('/auth/resend-otp', { method: 'POST', body: JSON.stringify({ email: pendingOtpEmail }) });
       alertBox.innerHTML = `<div class="alert alert-ok">${r.message}</div>`;
     } catch (err) {
-      alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
     }
   });
 
@@ -240,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('otpCodeInput').value = '';
         openModal('otpOverlay');
       } else {
-        alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+        alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
       }
     } finally {
       btn.disabled = false; label.textContent = 'Log in';
@@ -421,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('contactEmail').value = '';
       document.getElementById('contactMessage').value = '';
     } catch (err) {
-      alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
     }
   });
 });

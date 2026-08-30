@@ -1,5 +1,9 @@
 
-const API_BASE = 'http://localhost:4800/api';
+const API_BASE = 'https://semacheck.onrender.com/api';
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
 function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }
@@ -90,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('feeCard').style.display = 'block';
       document.getElementById('feeCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (err) {
-      alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
     }
   });
 
@@ -189,6 +193,6 @@ async function loadMyCases() {
       </div>
     `).join('');
   } catch (err) {
-    box.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+    box.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
   }
 }
