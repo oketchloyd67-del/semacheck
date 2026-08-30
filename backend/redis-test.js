@@ -1,4 +1,4 @@
-// test-redis.js
+
 require('dotenv').config();
 const { createClient } = require('redis');
 
@@ -26,7 +26,7 @@ async function testRedis() {
     await client.connect();
     console.log('✅ Redis connected successfully!');
     
-    // Test set/get
+    
     await client.set('test_key', 'Hello SemaCheck!');
     const value = await client.get('test_key');
     console.log('📝 Test value:', value);

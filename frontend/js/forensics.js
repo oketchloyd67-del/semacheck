@@ -1,4 +1,4 @@
-// js/forensics.js — fraud-recovery case intake, eligibility check, payment, status
+
 const API_BASE = 'http://localhost:4800/api';
 
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
@@ -11,7 +11,7 @@ async function api(path, options = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   let data = {};
-  try { data = await res.json(); } catch { /* no body */ }
+  try { data = await res.json(); } catch {  }
   if (!res.ok) {
     const err = new Error(data.error || 'Something went wrong.');
     Object.assign(err, data);
@@ -41,9 +41,20 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = 'index.html';
   });
 
+  const params = new URLSearchParams(window.location.search);
+  const q = params.get('q');
+  const type = params.get('type');
+  const verdict = params.get('verdict');
+  if (q) {
+    const desc = document.getElementById('scamDescription');
+    if (desc && !desc.value) {
+      desc.value = `I was scammed via a ${type === 'job_offer' ? 'job offer' : type === 'paybill' ? 'paybill number' : 'phone number'}. The query checked was: "${q}". Verdict: ${verdict}. `;
+    }
+  }
+
   loadMyCases();
 
-  // ---------------- live eligibility feedback ----------------
+  
   document.getElementById('amountLost').addEventListener('input', (e) => {
     const msg = document.getElementById('amountLostMsg');
     const val = Number(e.target.value);
@@ -56,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ---------------- step 1: intake ----------------
+  
   document.getElementById('submitIntakeBtn').addEventListener('click', async () => {
     const alertBox = document.getElementById('intakeAlert');
     alertBox.innerHTML = '';
@@ -83,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ---------------- step 2: pay the case fee ----------------
+  
   document.getElementById('payFeeBtn').addEventListener('click', async () => {
     const phone = prompt('M-Pesa number to pay KES 849 from:', '');
     if (!phone) return;
@@ -104,14 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  /**
-   * Waits for Tuma's own STK-push callback to confirm the payment —
-   * that's the only thing that ever marks a payment 'success'. There is
-   * no self-reported/manual code path: if the callback never arrives
-   * within the polling window, the honest answer is that the payment
-   * hasn't been confirmed — try again, or reach out via the contact
-   * form / the critical-only WhatsApp line.
-   */
+  
   async function waitForPaymentThenRun({ paymentId, initialMessage, onConfirmed }) {
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');
@@ -163,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showTimeoutOrFailure('Payment failed or was cancelled.');
           }
         } catch (err) {
-          // transient poll failure — keep trying until timeout
+          
         }
       }, POLL_EVERY_MS);
     });

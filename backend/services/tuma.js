@@ -1,13 +1,13 @@
-// services/tuma.js — Tuma Payment Solutions gateway (api.tuma.co.ke)
-// Replaces a direct Safaricom Daraja integration: Tuma sits in front of
-// M-Pesa (and Kenyan banks) and gives one simpler API + one dashboard,
-// at the cost of Tuma taking a small cut/holding the merchant relationship
-// instead of you dealing with Safaricom directly.
-//
-// Auth flow: exchange TUMA_EMAIL + TUMA_API_KEY for a short-lived JWT via
-// POST /auth/token, then use that token as a Bearer token on STK push
-// calls. We cache the token in memory and only re-fetch when it's close
-// to expiry, so we're not re-authenticating on every payment request.
+
+
+
+
+
+
+
+
+
+
 
 const axios = require('axios');
 
@@ -21,13 +21,13 @@ function decodeJwtExp(token) {
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'));
     return payload.exp ? payload.exp * 1000 : Date.now() + 15 * 60 * 1000;
   } catch {
-    return Date.now() + 15 * 60 * 1000; // fall back to a conservative 15 min
+    return Date.now() + 15 * 60 * 1000; 
   }
 }
 
 async function getAccessToken() {
   if (cachedToken && Date.now() < cachedTokenExpiresAt - 60_000) {
-    return cachedToken; // still valid for at least another minute
+    return cachedToken; 
   }
   if (!process.env.TUMA_EMAIL || !process.env.TUMA_API_KEY) {
     const err = new Error('Tuma credentials are not configured (see .env.example: TUMA_EMAIL, TUMA_API_KEY).');
@@ -47,11 +47,7 @@ async function getAccessToken() {
   return cachedToken;
 }
 
-/**
- * Initiates an STK push via Tuma. Caller persists a `payments` row with
- * the returned checkout_request_id *before* awaiting user action, then
- * updates it when Tuma's callback lands (routes/payments.js).
- */
+
 async function stkPush({ phone, amount, description = 'SemaCheck payment' }) {
   const token = await getAccessToken();
   const { data } = await axios.post(
@@ -69,7 +65,7 @@ async function stkPush({ phone, amount, description = 'SemaCheck payment' }) {
     err.code = 'TUMA_STK_FAILED';
     throw err;
   }
-  return data.data; // { merchant_request_id, checkout_request_id, customer_message }
+  return data.data; 
 }
 
 module.exports = { stkPush, getAccessToken };

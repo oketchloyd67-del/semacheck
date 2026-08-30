@@ -1,4 +1,4 @@
-// utils/otp.js
+
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 

@@ -1,7 +1,5 @@
-// js/app.js
 const API_BASE = 'https://semacheck.onrender.com/api';
 
-// - session helpers -
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
 function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }
 function setSession(token, user) {
@@ -50,7 +48,6 @@ async function doLogout() {
   window.location.href = 'index.html';
 }
 
-// -- modal plumbing --
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
@@ -74,8 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     openModal(btn.dataset.switchTo === 'signup' ? 'signupOverlay' : 'loginOverlay');
   }));
 
-  // ---------------- WhatsApp customer care (critical only) ----------------
-  const WHATSAPP_CARE_NUMBER = '254714589375'; // 0714589375 in international format
+  const WHATSAPP_CARE_NUMBER = '254714589375';
   const WHATSAPP_CARE_MESSAGE = 'Critical alert. I need urgent help';
   document.getElementById('whatsappFab')?.addEventListener('click', () => openModal('whatsappConfirmOverlay'));
   document.getElementById('whatsappConfirmGo')?.addEventListener('click', () => {
@@ -84,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
     closeModal('whatsappConfirmOverlay');
   });
 
-  // account type toggle
   let currentAccountType = 'regular';
   document.querySelectorAll('[data-account-type]').forEach((btn) => btn.addEventListener('click', () => {
     document.querySelectorAll('[data-account-type]').forEach((b) => b.classList.remove('active'));
@@ -93,10 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('jobOwnerFields').classList.toggle('show', currentAccountType === 'job_owner');
   }));
 
-  // live password strength
   document.getElementById('suPassword')?.addEventListener('input', (e) => renderStrengthMeter(e.target.value));
 
-  // live email check
   const checkEmail = debounce(async (email) => {
     const msg = document.getElementById('suEmailMsg');
     if (!isValidEmailClient(email)) { msg.textContent = 'Enter a valid email address.'; msg.className = 'field-msg err'; return; }
@@ -108,7 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 500);
   document.getElementById('suEmail')?.addEventListener('input', (e) => checkEmail(e.target.value));
 
-  // live phone check
   const checkPhone = debounce(async (phone) => {
     const msg = document.getElementById('suPhoneMsg');
     if (!normalizeKenyanPhoneClient(phone)) { msg.textContent = 'Enter a valid Safaricom-format number, e.g. 07XXXXXXXX.'; msg.className = 'field-msg err'; return; }
@@ -120,7 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 500);
   document.getElementById('suPhone')?.addEventListener('input', (e) => checkPhone(e.target.value));
 
-  // - signup submit -
   let pendingOtpEmail = null;
 
   document.getElementById('signupSubmit')?.addEventListener('click', async () => {
@@ -184,7 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // -OTP verification -
   document.getElementById('otpSubmit')?.addEventListener('click', async () => {
     const alertBox = document.getElementById('otpAlert');
     const code = document.getElementById('otpCodeInput').value.trim();
@@ -220,7 +210,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ---------------- login submit ----------------
   document.getElementById('loginSubmit')?.addEventListener('click', async () => {
     const alertBox = document.getElementById('loginAlert');
     alertBox.innerHTML = '';
@@ -258,23 +247,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // - search tabs / tiers -
   let searchType = 'paybill';
   let searchTier = 50;
+  let searchRegion = 'kenya';
+
+  const regionRow = document.getElementById('regionRow');
+
   document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
     tab.classList.add('active');
     searchType = tab.dataset.type;
     document.getElementById('searchInput').placeholder =
       searchType === 'paybill' ? 'e.g. 400200' : searchType === 'phone' ? 'e.g. 0712345678' : 'Paste the job offer text here';
+    regionRow.style.display = searchType === 'job_offer' ? 'flex' : 'none';
   }));
+
   document.querySelectorAll('.tier').forEach((t) => t.addEventListener('click', () => {
     document.querySelectorAll('.tier').forEach((x) => x.classList.remove('selected'));
     t.classList.add('selected');
     searchTier = Number(t.dataset.tier);
   }));
 
-  // - search flow -
+  document.querySelectorAll('.region-btn').forEach((btn) => btn.addEventListener('click', () => {
+    document.querySelectorAll('.region-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    searchRegion = btn.dataset.region;
+  }));
+
   document.getElementById('searchBtn')?.addEventListener('click', async () => {
     const value = document.getElementById('searchInput').value.trim();
     if (!value) return;
@@ -294,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
         paymentId: pay.paymentId,
         initialMessage: pay.message || `STK push sent to ${phone}. Enter your M-Pesa PIN to complete payment.`,
         onConfirmed: async () => {
-          const result = await api('/search', { method: 'POST', body: JSON.stringify({ paymentId: pay.paymentId, queryType: searchType, queryValue: value }) });
+          const result = await api('/search', { method: 'POST', body: JSON.stringify({ paymentId: pay.paymentId, queryType: searchType, queryValue: value, region: searchRegion }) });
           renderSearchResult(result);
         },
       });
@@ -305,16 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  /**
-   * Waits for Tuma's own STK-push callback to confirm the payment —
-   * that's the only thing that ever marks a payment 'success' (see
-   * backend/routes/payments.js /tuma/callback). There is no self-
-   * reported/manual code path: if the callback never arrives within
-   * the polling window, the honest answer is that the payment hasn't
-   * been confirmed — the person should try again, or reach out via the
-   * contact form / the critical-only WhatsApp line, not type in a code
-   * themselves.
-   */
   async function waitForPaymentThenRun({ paymentId, initialMessage, onConfirmed }) {
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');
@@ -367,7 +356,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showTimeoutOrFailure('Payment failed or was cancelled.');
           }
         } catch (err) {
-          // transient poll failure — keep trying until timeout
         }
       }, POLL_EVERY_MS);
     });
@@ -384,8 +372,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const sourceCount = r.sources ? (r.sources.external_sources || []).length : null;
     const dbCount = r.sources && r.sources.db_signal ? r.sources.db_signal.reduce((a, b) => a + b.n, 0) : null;
 
+    const isScam = r.verdict === 'scam' || r.verdict === 'suspicious';
+    const forensicsParams = new URLSearchParams({ q: value, type: searchType, verdict: r.verdict });
+
     slot.innerHTML = `
-      <div class="receipt-paper">
+      <div class="receipt-paper" id="receiptPaper">
         <div class="receipt-head">
           <img src="assets/logo.png" alt="SemaCheck">
           <div class="r-sub">Verification receipt</div>
@@ -393,6 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <hr class="receipt-divider">
         <div class="receipt-row"><span class="r-label">Date</span><span class="r-value">${timestamp}</span></div>
         <div class="receipt-row"><span class="r-label">Query type</span><span class="r-value">${searchType.replace('_', ' ')}</span></div>
+        <div class="receipt-row"><span class="r-label">Search scope</span><span class="r-value">${searchRegion === 'international' ? '🌍 Worldwide' : '🇰🇪 Kenya only'}</span></div>
         <div class="receipt-row"><span class="r-label">Amount paid</span><span class="r-value">KES ${searchTier}</span></div>
         <hr class="receipt-divider">
         <div class="receipt-verdict-line v-${r.verdict}">
@@ -405,10 +397,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="receipt-barcode"></div>
         <div class="receipt-footer">THANK YOU FOR USING SEMACHECK &middot; SEMACHECK.CO.KE</div>
       </div>
-      <div class="reclaim-money-box">
-        <p>Lost money to this scam? Get help tracing it and building a case.</p>
-        <a class="btn btn-amber" href="forensics.html">Reclaim my money →</a>
+      <div class="receipt-actions">
+        <button class="btn btn-ghost" onclick="window.print()">🖨 Print receipt</button>
       </div>
+      ${isScam ? `<div class="reclaim-money-box"><p>Lost money to this scam? Get help tracing it and building a case.</p><a class="btn btn-amber" href="forensics.html?${forensicsParams.toString()}">Reclaim my money →</a></div>` : ''}
     `;
 
     outer.classList.remove('open');
@@ -418,7 +410,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => outer.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 250);
   }
 
-  // -contact form-
   document.getElementById('contactSendBtn')?.addEventListener('click', async () => {
     const alertBox = document.getElementById('contactAlert');
     const email = document.getElementById('contactEmail').value.trim();

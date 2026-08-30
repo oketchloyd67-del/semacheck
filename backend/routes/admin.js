@@ -1,9 +1,9 @@
-// routes/admin.js
-// Mounted at /api/admin — nothing on the public site links here.
-// The admin login page (admin/login.html) is a separate, unlinked
-// static page; treat its URL as a shared secret in addition to the
-// credential check (put it behind an obscure path or basic-auth at
-// the reverse-proxy layer in production — see README).
+
+
+
+
+
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -14,6 +14,7 @@ const { requireAdmin } = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { UPLOAD_DIR } = require('../middleware/upload');
 const { registryStatus, refreshCbkRegistry } = require('../services/cbkRegistryService');
+const internationalDb = require('../services/internationalScamDatabases');
 
 const router = express.Router();
 
@@ -43,7 +44,7 @@ router.get('/jobs/pending', requireAdmin, async (req, res) => {
   res.json({ jobs: rows });
 });
 
-// ?status=pending|approved|rejected — full listing for the Jobs tab
+
 router.get('/jobs', requireAdmin, async (req, res) => {
   const status = ['pending', 'approved', 'rejected'].includes(req.query.status) ? req.query.status : 'pending';
   const { rows } = await pool.query(
@@ -95,10 +96,10 @@ router.get('/stats', requireAdmin, async (req, res) => {
   });
 });
 
-// ---- Full accounts list — every user who has ever signed up ----
-// This is what was missing before: there was no way to simply browse
-// every registered account. Supports optional filters so the list
-// stays usable once you have real volume.
+
+
+
+
 router.get('/users', requireAdmin, async (req, res) => {
   const { accountType, verificationStatus, q } = req.query;
   const conditions = [];
@@ -150,12 +151,12 @@ router.get('/users/:id', requireAdmin, async (req, res) => {
   });
 });
 
-// ---- ID verification review (replaces any automatic name/ID matching) ----
-// Job owners only — their approval gates whether their job postings can go
-// live. Regular users are pre-approved at signup and never appear here
-// (see routes/auth.js /signup); the account_type filter below is a
-// defensive second layer so this stays true even if that ever changes.
-// ?status=pending|approved|rejected — defaults to pending for the queue view
+
+
+
+
+
+
 
 router.get('/id-verifications', requireAdmin, async (req, res) => {
   const status = ['pending', 'approved', 'rejected'].includes(req.query.status) ? req.query.status : 'pending';
@@ -167,7 +168,7 @@ router.get('/id-verifications', requireAdmin, async (req, res) => {
   res.json({ users: rows });
 });
 
-// kept for backwards compatibility with the previous endpoint name
+
 router.get('/id-verifications/pending', requireAdmin, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, account_type, full_name, email, phone, national_id, id_document_filename, business_name, business_reg_number, kra_pin, created_at
@@ -176,8 +177,8 @@ router.get('/id-verifications/pending', requireAdmin, async (req, res) => {
   res.json({ users: rows });
 });
 
-// Streams the uploaded ID photo/PDF to an authenticated admin only —
-// never exposed as a public static URL (see middleware/upload.js).
+
+
 router.get('/id-verifications/:userId/document', requireAdmin, async (req, res) => {
   const { rows } = await pool.query('SELECT id_document_filename FROM users WHERE id=$1', [req.params.userId]);
   const filename = rows[0]?.id_document_filename;
@@ -216,7 +217,7 @@ router.get('/contact-messages', requireAdmin, async (req, res) => {
   res.json({ messages: rows });
 });
 
-// ---- settings: change the logged-in admin's own credentials ----
+
 router.get('/settings/me', requireAdmin, async (req, res) => {
   res.json({ admin: { id: req.admin.id, fullName: req.admin.full_name, email: req.admin.email } });
 });
@@ -265,10 +266,10 @@ router.post('/settings/credentials', requireAdmin, authLimiter, async (req, res)
   }
 });
 
-// ---- forensics cases (fraud investigation referral queue) ----
-// ?status=awaiting_payment|submitted|under_review|in_progress|resolved|closed
-// defaults to 'submitted' — the paid, ready-for-review queue an admin
-// actually needs to work through day to day.
+
+
+
+
 router.get('/forensics-cases', requireAdmin, async (req, res) => {
   const validStatuses = ['awaiting_payment', 'submitted', 'under_review', 'in_progress', 'resolved', 'closed'];
   const status = validStatuses.includes(req.query.status) ? req.query.status : 'submitted';
@@ -298,7 +299,7 @@ router.post('/forensics-cases/:caseId/status', requireAdmin, async (req, res) =>
   res.json({ case: rows[0] });
 });
 
-// ---- Kenya data sources: CBK licensed digital lenders registry ----
+
 router.get('/kenya-registry/status', requireAdmin, async (req, res) => {
   const status = await registryStatus();
   res.json({
@@ -315,6 +316,28 @@ router.post('/kenya-registry/refresh', requireAdmin, async (req, res) => {
     res.json({ message: `Refreshed — ${result.count} licensed entities cached.`, ...result });
   } catch (err) {
     res.status(502).json({ error: err.message });
+  }
+});
+
+
+router.get('/international-databases/status', requireAdmin, async (req, res) => {
+  try {
+    const status = await internationalDb.internationalLookupStatus();
+    res.json({ totalLookups: status.total, matchedScams: status.matched, lastChecked: status.last_checked });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/international-databases/lookup', requireAdmin, async (req, res) => {
+  const { queryValue, queryType } = req.body;
+  if (!queryValue || !queryValue.trim()) return res.status(400).json({ error: 'queryValue is required.' });
+  try {
+    const result = await internationalDb.lookupAllInternationalDatabases(queryValue.trim(), queryType || 'phone');
+    await internationalDb.cacheInternationalLookup(queryType || 'phone', queryValue.trim(), result);
+    res.json({ result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

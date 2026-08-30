@@ -1,22 +1,22 @@
-// jobs/subscriptionMaintenance.js
-//
-// Run this once a day (see package.json "reminders" script + README for
-// the cron entry). It does two things:
-//
-//   1. Flips any subscription whose expires_at has passed from 'active'
-//      to 'expired'. Note: job visibility in search results does NOT
-//      depend on this flag — routes/jobs.js checks expires_at directly
-//      on every request, so suspension is already instant regardless of
-//      whether this job has run yet. This step exists purely so the
-//      admin panel and the job owner's own dashboard show an honest,
-//      explicit "expired" status rather than a stale "active" label.
-//
-//   2. Sends renewal reminders at exactly 5, 3, and 1 day(s) before
-//      expiry, once each — tracked via reminder_5_sent_at /
-//      reminder_3_sent_at / reminder_1_sent_at so re-running this job
-//      never double-sends the same reminder.
-//
-// Safe to run more than once a day: everything here is idempotent.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 require('dotenv').config();
 const pool = require('../db/pool');
@@ -34,8 +34,8 @@ async function expireLapsedSubscriptions() {
 }
 
 async function sendRemindersForWindow(daysOut, columnName) {
-  // Matches subscriptions expiring on the calendar day exactly `daysOut`
-  // days from now, that haven't had this specific reminder sent yet.
+  
+  
   const { rows } = await pool.query(
     `SELECT s.id AS subscription_id, s.expires_at, u.id AS user_id, u.full_name, u.email, u.phone
      FROM subscriptions s
@@ -69,10 +69,10 @@ async function sendRemindersForWindow(daysOut, columnName) {
       console.warn(`Reminder WhatsApp message failed for ${row.phone}: ${e.message}`);
     }
 
-    // Mark as sent even on partial failure — this reminder window has
-    // passed either way, and we don't want to retry-spam someone daily
-    // just because WhatsApp wasn't configured. Failures are logged above
-    // for follow-up instead.
+    
+    
+    
+    
     if (emailOk || whatsappOk) {
       await pool.query(`UPDATE subscriptions SET ${columnName} = now() WHERE id = $1`, [row.subscription_id]);
       sent++;
@@ -90,8 +90,8 @@ async function runMaintenance() {
   return { expiredCount, remindersSent: r5 + r3 + r1 };
 }
 
-// Allow running directly (`node jobs/subscriptionMaintenance.js`) as well
-// as being imported by server.js for an in-process daily convenience run.
+
+
 if (require.main === module) {
   runMaintenance()
     .then((result) => {

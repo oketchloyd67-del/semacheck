@@ -24,7 +24,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .container { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
 
-/* ---- Nav ---- */
+
 .navbar { position: sticky; top: 0; z-index: 40; background: var(--navy); color: #fff; }
 .navbar .container { display: flex; align-items: center; justify-content: space-between; height: 68px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.25rem; letter-spacing: -0.3px; }
@@ -46,7 +46,7 @@ button { font-family: inherit; cursor: pointer; }
 .btn-ghost { background: transparent; color: var(--navy); border: 1.5px solid var(--border); }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
 
-/* ---- Hero / search ---- */
+
 .hero { background: linear-gradient(160deg, var(--navy) 0%, var(--navy-light) 60%, #0d3455 100%); color: #fff; padding: 72px 0 96px; }
 .hero h1 { font-size: 2.4rem; font-weight: 800; letter-spacing: -0.5px; max-width: 640px; }
 .hero p { color: #b9c6dd; margin-top: 14px; max-width: 560px; font-size: 1.05rem; }
@@ -64,7 +64,13 @@ button { font-family: inherit; cursor: pointer; }
 .tier.selected { border-color: var(--teal); background: rgba(15,163,163,0.08); }
 .search-hint { font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; }
 
-/* ---- Payment progress (waiting on Tuma's STK-push confirmation) ---- */
+.region-row { display: flex; align-items: center; gap: 10px; }
+.region-toggle { display: flex; gap: 6px; }
+.region-btn { padding: 6px 14px; border-radius: 8px; border: 1.5px solid var(--border); background: #fff; font-size: 0.82rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all .15s ease; }
+.region-btn.active { border-color: var(--teal); background: rgba(15,163,163,0.08); color: var(--teal); }
+.region-btn:hover { border-color: var(--teal); }
+
+
 .payment-progress-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 26px 22px; margin-top: 16px; max-width: 640px; text-align: center; }
 .pp-circular { width: 54px; height: 54px; border-radius: 50%; border: 5px solid var(--border); border-top-color: var(--teal); margin: 0 auto 16px; animation: spin 0.9s linear infinite; }
 .pp-circular.done { border: 5px solid var(--legit-green); border-top-color: var(--legit-green); animation: none; display: flex; align-items: center; justify-content: center; }
@@ -72,7 +78,7 @@ button { font-family: inherit; cursor: pointer; }
 .pp-status-text { font-weight: 700; font-size: 0.95rem; color: var(--navy); margin-bottom: 4px; }
 .pp-hint { font-size: 0.82rem; color: var(--text-muted); }
 
-/* ---- Receipt-style result reveal ---- */
+
 .receipt-outer { max-height: 0; overflow: hidden; margin-top: 0; transition: max-height 0.9s cubic-bezier(0.22, 1, 0.36, 1), margin-top 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
 .receipt-outer.open { max-height: 950px; margin-top: 18px; }
 .receipt-paper {
@@ -112,7 +118,7 @@ button { font-family: inherit; cursor: pointer; }
 .receipt-footer { text-align: center; font-size: 0.72rem; color: #777; margin-top: 8px; }
 .receipt-printing-icon { display: inline-block; animation: spin 1.1s linear infinite; }
 
-/* ---- Sections ---- */
+
 section { padding: 64px 0; }
 .section-title { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 8px; }
 .section-sub { color: var(--text-muted); max-width: 560px; margin-bottom: 36px; }
@@ -127,24 +133,24 @@ section { padding: 64px 0; }
 .how-step { text-align: center; }
 .how-num { width: 34px; height: 34px; border-radius: 50%; background: var(--navy); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; margin: 0 auto 10px; }
 
-/* ---- Verdict badges ---- */
+
 .verdict { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; }
 .verdict-legit { background: rgba(35,164,106,0.12); color: var(--legit-green); }
 .verdict-scam { background: rgba(214,69,92,0.12); color: var(--scam-red); }
 .verdict-suspicious { background: rgba(224,162,39,0.14); color: var(--suspicious-amber); }
 .verdict-unverified { background: rgba(90,107,133,0.12); color: var(--text-muted); }
 
-/* ---- Contact dialogue box ---- */
+
 .contact-box { background: var(--navy); color: #fff; border-radius: var(--radius); padding: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: center; }
 .contact-box h2 { font-size: 1.5rem; margin-bottom: 8px; }
 .contact-box p { color: #b9c6dd; font-size: 0.92rem; }
 .contact-form input, .contact-form textarea { width: 100%; padding: 12px 14px; border-radius: 8px; border: none; margin-bottom: 10px; font-family: inherit; font-size: 0.92rem; }
 .contact-form textarea { min-height: 90px; resize: vertical; }
 
-/* ---- Footer ---- */
+
 footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85rem; text-align: center; }
 
-/* ---- Modals ---- */
+
 .modal-overlay { position: fixed; inset: 0; background: rgba(8,15,30,0.55); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
 .modal-overlay.open { display: flex; }
 .modal { background: #fff; border-radius: var(--radius); padding: 30px; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; position: relative; }
@@ -182,7 +188,7 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
 .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---- Dashboard (job owner) ---- */
+
 .dash-header { background: var(--navy); color: #fff; padding: 26px 0; }
 .dash-header .container { display: flex; align-items: center; justify-content: space-between; }
 .dash-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 22px; margin-top: 28px; }
@@ -199,7 +205,7 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
 .status-rejected { background: rgba(214,69,92,0.12); color: var(--scam-red); }
 .status-suspended { background: rgba(224,162,39,0.15); color: var(--suspicious-amber); }
 
-/* ---- Admin tabs / responsive layout ---- */
+
 .admin-shell { display: flex; min-height: calc(100vh - 68px); }
 .admin-sidebar { width: 220px; flex-shrink: 0; background: #081428; color: #cfd9ea; padding: 20px 0; }
 .admin-sidebar button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: none; color: #a9b8d4; padding: 12px 22px; font-size: 0.92rem; font-weight: 600; cursor: pointer; border-left: 3px solid transparent; }
@@ -250,7 +256,7 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
   .stat-row { grid-template-columns: repeat(2, 1fr) !important; }
   .dash-header .container { flex-wrap: wrap; gap: 10px; }
 
-  /* Stacked "card" table on narrow screens instead of horizontal scroll */
+  
   .table-scroll { border: none; overflow-x: visible; }
   .table-scroll .data-table { min-width: 0; }
   .data-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
@@ -270,7 +276,7 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
   .nav-links { display: none; }
 }
 
-/* ---- WhatsApp customer-care FAB (critical only) ---- */
+
 .whatsapp-fab {
   position: fixed; right: 22px; bottom: 22px; z-index: 60;
   width: 56px; height: 56px; border-radius: 50%; border: none;
@@ -281,7 +287,7 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
 .whatsapp-fab:hover { transform: scale(1.06); }
 .whatsapp-fab:active { transform: scale(0.96); }
 
-/* ---- "Lost money? Reclaim it" — on the result receipt ---- */
+
 .reclaim-money-box {
   margin-top: 16px; padding: 16px 18px; border-radius: 10px;
   background: rgba(214,69,92,0.06); border: 1px solid rgba(214,69,92,0.25);
@@ -289,3 +295,15 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
 }
 .reclaim-money-box p { font-size: 0.86rem; color: #5a2230; margin-bottom: 10px; }
 .reclaim-money-box .btn { white-space: nowrap; }
+
+.receipt-actions { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
+.receipt-actions .btn { white-space: nowrap; }
+
+@media print {
+  body * { visibility: hidden; }
+  #receiptPaper, #receiptPaper * { visibility: visible; }
+  #receiptPaper { position: absolute; left: 0; top: 0; width: 100%; max-width: 480px; margin: 0 auto; padding: 24px; box-shadow: none; transform: none; opacity: 1; }
+  .receipt-outer { max-height: none !important; overflow: visible !important; margin-top: 0 !important; }
+  .receipt-outer.open { max-height: none !important; }
+  .receipt-actions, .reclaim-money-box, .payment-progress-card, .navbar, .hero > .container > h1, .hero > .container > p, .search-card, .receipt-printing-icon { display: none !important; }
+}

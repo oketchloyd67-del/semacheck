@@ -38,7 +38,7 @@ async function fixReminderColumns() {
     await client.query('COMMIT');
     console.log('Reminder columns fix completed successfully');
 
-    // Show final columns
+    
     var result = await client.query(
       "SELECT column_name FROM information_schema.columns WHERE table_name = 'subscriptions' AND column_name LIKE 'reminder_%' ORDER BY column_name"
     );

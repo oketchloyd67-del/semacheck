@@ -1,4 +1,4 @@
-// routes/payments.js — payments via the Tuma gateway (see services/tuma.js)
+
 const express = require('express');
 const pool = require('../db/pool');
 const { requireAuth, requireJobOwner } = require('../middleware/auth');
@@ -8,15 +8,11 @@ const { normalizeKenyanPhone } = require('../utils/validators');
 
 const router = express.Router();
 
-const SEARCH_TIERS = [50, 100, 150]; // KES — basic / standard / full unlock
-const SUBSCRIPTION_AMOUNT = 459; // KES / 30 days
-const FORENSICS_CASE_FEE = 849; // KES — flat case-opening fee, only for losses of KES 1,000+ (enforced at intake, see routes/forensics.js)
+const SEARCH_TIERS = [50, 100, 150]; 
+const SUBSCRIPTION_AMOUNT = 459; 
+const FORENSICS_CASE_FEE = 849; 
 
-/**
- * Applies the one-time side effect of a payment actually succeeding —
- * runs after Tuma's real callback confirms it, so "what happens when a
- * payment is confirmed" only lives in one place.
- */
+
 async function applyPaymentSuccessSideEffects(payment) {
   if (payment.purpose === 'subscription') {
     const startedAt = new Date();
@@ -29,11 +25,11 @@ async function applyPaymentSuccessSideEffects(payment) {
   if (payment.purpose === 'forensics_case') {
     await pool.query(`UPDATE forensics_cases SET status='submitted', updated_at=now() WHERE id=$1 AND status='awaiting_payment'`, [payment.reference_id]);
   }
-  // 'search' purpose payments are picked up by routes/search.js, which
-  // checks payment status before releasing the unlocked result.
+  
+  
 }
 
-// ---- initiate: pay-per-search ----
+
 router.post('/search', requireAuth, paymentLimiter, async (req, res) => {
   const { tier, phone } = req.body;
   const normalizedPhone = normalizeKenyanPhone(phone) || normalizeKenyanPhone(req.user.phone);
@@ -62,7 +58,7 @@ router.post('/search', requireAuth, paymentLimiter, async (req, res) => {
   }
 });
 
-// ---- initiate: job-owner monthly subscription ----
+
 router.post('/subscription', requireAuth, requireJobOwner, paymentLimiter, async (req, res) => {
   const normalizedPhone = normalizeKenyanPhone(req.body.phone) || normalizeKenyanPhone(req.user.phone);
   if (!normalizedPhone) return res.status(400).json({ error: 'A valid M-Pesa phone number is required.' });
@@ -93,7 +89,7 @@ router.post('/subscription', requireAuth, requireJobOwner, paymentLimiter, async
   }
 });
 
-// ---- initiate: forensics case fee (KES 849, only for losses of KES 1,000+) ----
+
 router.post('/forensics-case', requireAuth, paymentLimiter, async (req, res) => {
   const { caseId, phone } = req.body;
   const normalizedPhone = normalizeKenyanPhone(phone) || normalizeKenyanPhone(req.user.phone);
@@ -131,13 +127,13 @@ router.post('/forensics-case', requireAuth, paymentLimiter, async (req, res) => 
   }
 });
 
-// ---- Tuma callback webhook (Tuma's servers call this, not the browser) ----
-// This IS a trustworthy confirmation — it's Tuma/Safaricom telling us
-// directly what happened to the specific checkout_request_id WE
-// initiated, not something a user typed in.
+
+
+
+
 router.post('/tuma/callback', express.json(), async (req, res) => {
-  // Acknowledge immediately, process asynchronously — same pattern as
-  // Daraja: don't make the gateway wait on our DB writes.
+  
+  
   res.json({ received: true });
 
   try {
@@ -170,8 +166,8 @@ router.post('/tuma/callback', express.json(), async (req, res) => {
   }
 });
 
-// ---- poll payment status (frontend uses this while waiting on Tuma's
-// STK-push confirmation callback) ----
+
+
 router.get('/status/:paymentId', requireAuth, async (req, res) => {
   const { rows } = await pool.query('SELECT id, purpose, status, amount, reference_id FROM payments WHERE id=$1 AND user_id=$2', [req.params.paymentId, req.user.id]);
   if (!rows[0]) return res.status(404).json({ error: 'Payment not found.' });

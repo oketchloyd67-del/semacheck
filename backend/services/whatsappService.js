@@ -1,4 +1,4 @@
-// backend/services/whatsappService.js
+
 const axios = require('axios');
 
 const {
@@ -9,7 +9,7 @@ const {
   WHATSAPP_VERIFY_TOKEN,
 } = process.env;
 
-// ---- Webhook Verification (GET) ----
+
 function verifyWebhook(req, res) {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -31,7 +31,7 @@ function verifyWebhook(req, res) {
   }
 }
 
-// ---- Handle Incoming Messages (POST) ----
+
 async function handleIncomingMessage(req, res) {
   try {
     const body = req.body;
@@ -48,7 +48,7 @@ async function handleIncomingMessage(req, res) {
 
         console.log(`Received message from ${from}: ${text}`);
 
-        // Reply to the user (optional)
+        
         if (text) {
           await sendWhatsAppMessage(from, 'Thank you for your message! We will get back to you shortly.');
         }
@@ -64,7 +64,7 @@ async function handleIncomingMessage(req, res) {
   }
 }
 
-// ---- Send a Text Message ----
+
 async function sendWhatsAppMessage(to, message) {
   if (!WHATSAPP_PHONE_NUMBER_ID || !WHATSAPP_ACCESS_TOKEN) {
     const err = new Error('WhatsApp is not configured');
@@ -104,7 +104,7 @@ async function sendWhatsAppMessage(to, message) {
   }
 }
 
-// ---- Send Subscription Reminder (Your existing function) ----
+
 async function sendSubscriptionReminderWhatsApp({ toPhone, fullName, daysRemaining, expiresAt }) {
   if (!WHATSAPP_PHONE_NUMBER_ID || !WHATSAPP_ACCESS_TOKEN) {
     const err = new Error('WhatsApp is not configured (see .env.example: WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, WHATSAPP_TEMPLATE_NAME).');

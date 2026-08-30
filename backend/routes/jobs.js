@@ -1,4 +1,4 @@
-// routes/jobs.js
+
 const express = require('express');
 const pool = require('../db/pool');
 const { requireAuth, requireJobOwner } = require('../middleware/auth');
@@ -15,7 +15,7 @@ async function activeSubscription(userId) {
   return rows[0] || null;
 }
 
-// Job owner posts a job — held for admin approval, requires active subscription
+
 router.post('/', requireAuth, requireJobOwner, async (req, res) => {
   const sub = await activeSubscription(req.user.id);
   if (!sub) return res.status(402).json({ error: 'An active subscription is required to post jobs. Subscribe for KES 459/30 days.' });
@@ -32,13 +32,13 @@ router.post('/', requireAuth, requireJobOwner, async (req, res) => {
   res.status(201).json({ job: rows[0], message: 'Job submitted. It will appear once an admin approves it.' });
 });
 
-// Job owner's own postings + status
+
 router.get('/mine', requireAuth, requireJobOwner, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM jobs WHERE owner_id=$1 ORDER BY created_at DESC', [req.user.id]);
   res.json({ jobs: rows });
 });
 
-// Job owner dashboard summary: subscription countdown + job stats
+
 router.get('/dashboard-summary', requireAuth, requireJobOwner, async (req, res) => {
   const sub = await activeSubscription(req.user.id);
   const { rows: counts } = await pool.query(
@@ -52,7 +52,7 @@ router.get('/dashboard-summary', requireAuth, requireJobOwner, async (req, res) 
   });
 });
 
-// Publicly approved jobs only (what appears in search / listings)
+
 router.get('/approved', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, title, company_name, location, created_at FROM jobs WHERE status='approved' ORDER BY created_at DESC LIMIT 100`

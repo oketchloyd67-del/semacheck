@@ -1,31 +1,31 @@
-// db/pool.js
+
 const { Pool } = require('pg');
 const dns = require('dns');
 require('dotenv').config();
 
-// Force IPv4
+
 dns.setDefaultResultOrder('ipv4first');
 
-// ── Build connection config ──
+
 let poolConfig = {
   max: parseInt(process.env.PG_POOL_MAX || '30', 10),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 };
 
-// ── PRIORITY 1: Use DATABASE_URL (Render provides this) ──
+
 if (process.env.DATABASE_URL) {
   console.log('Using DATABASE_URL for connection');
   poolConfig.connectionString = process.env.DATABASE_URL;
   
-  // Render PostgreSQL requires SSL
+  
   if (process.env.NODE_ENV === 'production') {
     poolConfig.ssl = {
       rejectUnauthorized: false,
     };
   }
 } 
-// ── PRIORITY 2: Use individual parameters (local development) ──
+
 else if (process.env.DB_USER && process.env.DB_PASSWORD) {
   console.log('Using individual DB parameters for connection');
   poolConfig = {
@@ -37,7 +37,7 @@ else if (process.env.DB_USER && process.env.DB_PASSWORD) {
     port: parseInt(process.env.DB_PORT || '5432', 10),
   };
 } 
-// ── PRIORITY 3: Hardcoded fallback (for Render testing) ──
+
 else {
   console.log('Using hardcoded Render database connection');
   poolConfig = {
@@ -49,7 +49,7 @@ else {
   };
 }
 
-// ── Log connection info ──
+
 console.log('Database config:', {
   hasConnectionString: !!poolConfig.connectionString,
   host: poolConfig.host || 'using connectionString',
@@ -67,7 +67,7 @@ pool.on('error', (err) => {
   console.error('Postgres pool error:', err.message);
 });
 
-// ── Test connection immediately ──
+
 (async function testConnection() {
   let client;
   try {

@@ -1,6 +1,6 @@
-// admin/js/admin.js — uses a separate token key/namespace from the
-// public-site frontend so an admin session can never be confused
-// with, or accessed via, a regular user's session.
+
+
+
 const API_BASE = 'http://localhost:4800/api';
 
 function getAdminToken() { return sessionStorage.getItem('semacheck_admin_token'); }

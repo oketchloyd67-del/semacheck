@@ -1,4 +1,4 @@
-// routes/auth.js
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -16,7 +16,7 @@ const fs = require('fs');
 const router = express.Router();
 const SESSION_DAYS = parseInt(process.env.SESSION_DAYS || '7', 10);
 
-// ---- live-feedback helpers (called as the user types, before submit) ----
+
 
 router.get('/check-email', async (req, res) => {
   const email = String(req.query.email || '').trim();
@@ -38,7 +38,7 @@ router.post('/password-strength', (req, res) => {
   res.json(scorePasswordStrength(String(req.body.password || '')));
 });
 
-// ---- signup ----
+
 
 router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
   const {
@@ -107,7 +107,7 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
     );
     const user = rows[0];
 
-    // SINGLE OTP SEND - ONLY ONE ATTEMPT
+    
     console.log('Sending OTP to email:', user.email);
     console.log('OTP code:', otp);
 
@@ -151,7 +151,7 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
   }
 });
 
-// ---- email verification (OTP) ----
+
 
 router.post('/verify-otp', authLimiter, async (req, res) => {
   const { email, code } = req.body;
@@ -233,7 +233,7 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
   }
 });
 
-// ---- login ----
+
 
 router.post('/login', authLimiter, async (req, res) => {
   const { emailOrPhone, password } = req.body;
@@ -285,7 +285,7 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 });
 
-// ---- logout ----
+
 
 router.post('/logout', requireAuth, async (req, res) => {
   await pool.query(

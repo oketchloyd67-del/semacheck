@@ -1,4 +1,4 @@
-// routes/contact.js
+
 const express = require('express');
 const pool = require('../db/pool');
 const { isValidEmail } = require('../utils/validators');
@@ -22,7 +22,7 @@ router.post('/', generalLimiter, async (req, res) => {
     await pool.query('UPDATE contact_messages SET emailed_ok = TRUE WHERE id = $1', [rows[0].id]);
     res.json({ message: 'Message sent to management. They will get back to you by email.' });
   } catch (err) {
-    // Message is safely saved either way; be honest if the email leg failed.
+    
     console.error('Email sending failed:', err.message);
     res.json({ 
       message: 'Message received and saved. (Email delivery is not configured in this environment yet.)', 

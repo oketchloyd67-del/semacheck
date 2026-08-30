@@ -1,14 +1,12 @@
-// utils/validators.js
+
 const validator = require('validator');
 
-/** Basic RFC-shape + MX-friendly email check (deliverability is confirmed
- *  later by a verification-link email, not asserted here). */
+
 function isValidEmail(email) {
   return typeof email === 'string' && validator.isEmail(email.trim());
 }
 
-/** Normalizes Kenyan numbers to 2547XXXXXXXX / 2541XXXXXXXX and validates shape.
- *  Accepts 07.., 01.., +2547.., +2541.., 2547.., 2541.. */
+
 function normalizeKenyanPhone(raw) {
   if (typeof raw !== 'string') return null;
   let p = raw.replace(/[\s\-()]/g, '');
@@ -22,9 +20,7 @@ function isValidKenyanPhone(raw) {
   return normalizeKenyanPhone(raw) !== null;
 }
 
-/** Kenyan national ID: 7-9 digits. (Format check only — actual identity
- *  confirmation happens via the uploaded ID document photo, reviewed
- *  manually by an admin. See routes/admin.js "ID verification" endpoints.) */
+
 function isValidNationalId(id) {
   return typeof id === 'string' && /^\d{7,9}$/.test(id.trim());
 }
@@ -33,8 +29,7 @@ function isValidKraPin(pin) {
   return typeof pin === 'string' && /^[A-Za-z]\d{9}[A-Za-z]$/.test(pin.trim());
 }
 
-/** Simple zxcvbn-style scorer without the dependency: returns
- *  { score: 0-4, label, feedback[] } for a live strength meter on signup. */
+
 function scorePasswordStrength(password) {
   const pw = password || '';
   let score = 0;
@@ -52,7 +47,7 @@ function scorePasswordStrength(password) {
     feedback.push('Avoid common passwords');
   }
 
-  score = Math.max(0, Math.min(4, score - 1)); // rescale 0-5 raw -> 0-4 bucket
+  score = Math.max(0, Math.min(4, score - 1)); 
   const labels = ['Very weak', 'Weak', 'Fair', 'Strong', 'Very strong'];
   return { score, label: labels[score], feedback };
 }

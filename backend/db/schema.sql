@@ -1,5 +1,4 @@
 
-
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 
@@ -58,6 +57,7 @@ CREATE TABLE IF NOT EXISTS searches (
     query_type          VARCHAR(20) NOT NULL CHECK (query_type IN ('paybill', 'phone', 'job_offer')),
     query_value         VARCHAR(150) NOT NULL,
     query_value_hash    VARCHAR(64) NOT NULL,       
+    region              VARCHAR(20) NOT NULL DEFAULT 'kenya',
     verdict             VARCHAR(20) CHECK (verdict IN ('legit', 'suspicious', 'scam', 'unverified')),
     confidence_score     SMALLINT,                 
     summary             TEXT,
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS searches (
     last_verified_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_searches_dedup ON searches(query_type, query_value_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_searches_dedup ON searches(query_type, query_value_hash, region);
 CREATE INDEX IF NOT EXISTS idx_searches_user ON searches(user_id);
 
 
@@ -104,12 +104,6 @@ CREATE TABLE IF NOT EXISTS payments (
     reference_id             UUID,                    
     amount                   NUMERIC(10,2) NOT NULL,
     phone                    VARCHAR(15) NOT NULL,
-    -- 'success' is only ever set from Tuma's own STK-push callback (see
-    -- routes/payments.js /tuma/callback) — there is no manual/self-reported
-    -- path that can mark a payment successful. If Tuma's callback never
-    -- arrives, the payment simply stays 'pending'/'failed'; the user's
-    -- recourse is the contact form or the critical-only WhatsApp line,
-    -- not a code they type in themselves.
     status                   VARCHAR(20) NOT NULL DEFAULT 'initiated' CHECK (status IN ('initiated', 'pending', 'success', 'failed', 'cancelled')),
     tuma_checkout_request_id  VARCHAR(60),                      
     tuma_merchant_request_id  VARCHAR(60),
@@ -163,16 +157,6 @@ CREATE TABLE IF NOT EXISTS contact_messages (
 );
 
 
--- ============================================================
--- FORENSICS CASES — "lost money to a scam, want help reclaiming it"
--- referral flow, reached from a search result's receipt. A flat
--- KES 849 case-opening fee is charged once the eligibility check
--- (amount_lost >= 1000) passes; the case then sits in an admin/
--- investigator queue. Exact investigator-assignment flow is still
--- being defined — this table intentionally stays a simple queue with
--- an editable status for now, so it doesn't need re-migrating once
--- that flow is decided.
--- ============================================================
 CREATE TABLE IF NOT EXISTS forensics_cases (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -194,17 +178,6 @@ CREATE INDEX IF NOT EXISTS idx_forensics_cases_user ON forensics_cases(user_id);
 CREATE INDEX IF NOT EXISTS idx_forensics_cases_status ON forensics_cases(status);
 
 
--- ============================================================
--- CBK LICENSED DIGITAL CREDIT PROVIDERS — a local, periodically
--- refreshed cache of the Central Bank of Kenya's official directory of
--- licensed digital lenders (a real, structured public PDF — no login,
--- no key, just a fetch — see services/cbkRegistryService.js). Used to
--- give a real positive/negative signal on loan-app scam checks: "is
--- this actually a CBK-licensed lender, or not on the list at all."
--- CBK republishes this PDF at a new URL each update rather than one
--- stable "latest" link, so CBK_DCP_DIRECTORY_URL in .env needs updating
--- by hand whenever a newer directory is published — see the README.
--- ============================================================
 CREATE TABLE IF NOT EXISTS cbk_licensed_dcps (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_name          TEXT NOT NULL,
@@ -219,23 +192,21 @@ CREATE TABLE IF NOT EXISTS cbk_licensed_dcps (
 CREATE INDEX IF NOT EXISTS idx_cbk_dcps_name ON cbk_licensed_dcps(company_name);
 
 
--- ============================================================
--- PATCH SECTION — safe to re-run against an already-existing database
--- ============================================================
--- CREATE TABLE IF NOT EXISTS only helps on a brand-new database — it's
--- a no-op against a table that already exists, so any column added to
--- a table's definition above AFTER that table was first created on a
--- given deployment never actually appears there just by re-running
--- this file. That's exactly what caused the "column reminder_5_sent_at
--- does not exist" error: the subscriptions table already existed from
--- an earlier deploy, so re-running migrate.js didn't add the columns
--- that were added to the CREATE TABLE text later.
---
--- ADD COLUMN IF NOT EXISTS does not have that problem — it actually
--- alters an existing table, and is a safe no-op if the column is
--- already there. Every column ever added to this schema after its
--- table's first release is repeated here so `npm run migrate` is
--- always enough on its own, on a fresh database or an old one.
+CREATE TABLE IF NOT EXISTS international_scam_lookups (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    query_type          VARCHAR(20) NOT NULL,
+    query_value         VARCHAR(200) NOT NULL,
+    query_value_hash    VARCHAR(64) NOT NULL,
+    matched             BOOLEAN NOT NULL DEFAULT FALSE,
+    bbb_results         JSONB DEFAULT '[]',
+    ftc_results         JSONB DEFAULT '[]',
+    interpol_results    JSONB DEFAULT '[]',
+    last_checked_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_international_scam_dedup ON international_scam_lookups(query_type, query_value_hash);
+CREATE INDEX IF NOT EXISTS idx_international_scam_matched ON international_scam_lookups(matched);
+
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_code_hash TEXT;
@@ -260,24 +231,14 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS tuma_checkout_request_id VARCHAR(6
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS tuma_merchant_request_id VARCHAR(60);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS raw_callback_json JSONB;
 
--- CHECK constraints DO need dropping and recreating explicitly — unlike
--- a plain column, "just editing the CREATE TABLE text" never reaches an
--- existing table at all, silently or otherwise. DROP...IF EXISTS then
--- ADD as two separate statements (not a DO block — db/migrate.js splits
--- this file naively on every semicolon, which would break a $$-quoted
--- block into invalid fragments) is idempotent on its own: the DROP is a
--- no-op if there's nothing to drop, and by the time ADD runs the old
--- constraint is already gone, so it succeeds cleanly every run.
+ALTER TABLE searches ADD COLUMN IF NOT EXISTS region VARCHAR(20) NOT NULL DEFAULT 'kenya';
+
+DROP INDEX IF EXISTS idx_searches_dedup;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_searches_dedup ON searches(query_type, query_value_hash, region);
+
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_purpose_check;
 ALTER TABLE payments ADD CONSTRAINT payments_purpose_check CHECK (purpose IN ('search', 'subscription', 'forensics_case'));
 
--- Manual M-Pesa code verification has been removed entirely — there is
--- no longer any self-reported-code path, so 'manual_review' is no
--- longer a valid status and the column that held a submitted code is
--- gone too. Any payment a previous version of this app left sitting in
--- 'manual_review' is moved to 'failed' first, since it never actually
--- got confirmed — this has to run BEFORE tightening the CHECK
--- constraint below, or that ALTER would fail against that old data.
 UPDATE payments SET status='failed', updated_at=now() WHERE status='manual_review';
 
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;

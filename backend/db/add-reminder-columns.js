@@ -1,4 +1,4 @@
-// db/add-reminder-columns.js
+
 const pool = require('./pool');
 
 async function addReminderColumns() {
@@ -37,7 +37,7 @@ async function addReminderColumns() {
     await client.query('COMMIT');
     console.log('Reminder columns added successfully');
 
-    // Verify the columns
+    
     const result = await client.query(
       "SELECT column_name FROM information_schema.columns WHERE table_name = 'subscriptions' AND column_name LIKE 'reminder_%' ORDER BY column_name"
     );

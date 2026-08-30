@@ -1,24 +1,24 @@
-// services/cbkRegistryService.js
-//
-// Central Bank of Kenya publishes a real, structured directory of every
-// licensed Digital Credit Provider (DCP) — the entities legally allowed
-// to run a lending app/loan business in Kenya — as a public PDF, no
-// login or key required. This is genuinely useful for loan-app scam
-// checks: "is this actually CBK-licensed, or nowhere on the list?"
-//
-// Two honest limitations worth knowing before relying on this:
-//   1. CBK republishes this PDF at a NEW url each time they update it —
-//      there's no stable "always current" endpoint. CBK_DCP_DIRECTORY_URL
-//      in .env needs updating by hand when a newer directory comes out
-//      (check centralbank.go.ke's Digital Credit Providers page). This
-//      service will keep working off the last URL it was given even if
-//      that PDF becomes outdated — it doesn't know a newer one exists.
-//   2. The phone/email listed per entity is the COMPANY'S own official
-//      contact info, not the Paybill/till number borrowers actually pay
-//      into. A match on company NAME is a meaningful signal; a
-//      phone/email match is a much weaker one, since real transactions
-//      often go through different numbers than the head-office line —
-//      see the weighting in checkAgainstCbkRegistry() below.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const axios = require('axios');
 const pool = require('../db/pool');
@@ -27,34 +27,28 @@ let pdfParse = null;
 try {
   pdfParse = require('pdf-parse');
 } catch {
-  // pdf-parse not installed yet (run `npm install` after pulling this
-  // update) — refreshCbkRegistry() below fails with a clear message
-  // instead of crashing the whole process on require.
+  
+  
+  
 }
 
-/**
- * Splits the raw PDF text into per-entity blocks and extracts the
- * labeled fields CBK's directory consistently includes, tolerating the
- * label-wording variance actually seen across entries (e.g. "Telephone:"
- * vs "Telephone No:" vs "Telephone Contacts:", "Email:" vs "E-mail
- * address:" vs "Official Email:").
- */
+
 function parseDirectoryText(text) {
-  // Strip the repeated page header/footer noise that appears between
-  // entries at every page break in the real PDF.
+  
+  
   const cleaned = text
     .replace(/C2:\s*CBK\s*-\s*Official/gi, '')
     .replace(/CENTRAL BANK OF KENYA/gi, '')
     .replace(/DIRECTORY OF DIGITAL CREDIT PROVIDERS/gi, '')
     .replace(/UPDATED ON [A-Z]+ \d{1,2},? \d{4}/gi, '')
-    .replace(/^\s*\d+\s*$/gm, ''); // bare page-number-only lines
+    .replace(/^\s*\d+\s*$/gm, ''); 
 
-  // Split on "N. Company Name" at the start of a line — CBK numbers
-  // every entry sequentially throughout the whole directory.
+  
+  
   const parts = cleaned.split(/\n\s*(\d{1,3})\.\s+/);
   const entries = [];
-  // parts[0] is preamble before entry 1; after that it alternates
-  // [number, blockText, number, blockText, ...]
+  
+  
   for (let i = 1; i < parts.length; i += 2) {
     const block = parts[i + 1];
     if (!block) continue;
@@ -78,12 +72,7 @@ function parseDirectoryText(text) {
   return entries;
 }
 
-/**
- * Fetches the CBK directory PDF from CBK_DCP_DIRECTORY_URL, parses it,
- * and replaces the cached table with the fresh list. Safe to call
- * repeatedly (used by jobs/refreshKenyaRegistries.js on a schedule and
- * by the admin "refresh now" button).
- */
+
 async function refreshCbkRegistry() {
   const url = process.env.CBK_DCP_DIRECTORY_URL;
   if (!url) {
@@ -123,14 +112,7 @@ async function refreshCbkRegistry() {
   return { count: entries.length, sourceUrl: url };
 }
 
-/**
- * Fuzzy name check against the cached registry. A normalized-substring
- * match is deliberately simple rather than a full fuzzy-matching
- * library — company names in scam contexts are usually typed close to
- * verbatim (e.g. copied from an app store listing or a text message),
- * so this catches the realistic case without the complexity of a real
- * fuzzy-matching dependency.
- */
+
 async function checkAgainstCbkRegistry(queryValue) {
   const normalized = queryValue.trim().toLowerCase();
   if (normalized.length < 3) return { matched: false };

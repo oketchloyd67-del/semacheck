@@ -1,4 +1,4 @@
-// js/dashboard.js
+
 const API_BASE = 'http://localhost:4800/api';
 
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
@@ -72,14 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  /**
-   * Waits for Tuma's own STK-push callback to confirm the payment —
-   * that's the only thing that ever marks a payment 'success'. There is
-   * no self-reported/manual code path: if the callback never arrives
-   * within the polling window, the honest answer is that the payment
-   * hasn't been confirmed — try again, or reach out via the contact
-   * form / the critical-only WhatsApp line.
-   */
+  
   async function waitForPaymentThenRun({ paymentId, initialMessage, onConfirmed }) {
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');
@@ -131,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             showTimeoutOrFailure('Payment failed or was cancelled.');
           }
         } catch (err) {
-          // transient poll failure — keep trying until timeout
+          
         }
       }, POLL_EVERY_MS);
     });

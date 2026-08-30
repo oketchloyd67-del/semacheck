@@ -1,4 +1,4 @@
-// test-email-standalone.js
+
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 const dns = require('dns');

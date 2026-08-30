@@ -1,13 +1,13 @@
-// routes/forensics.js
-//
-// "Lost money to a scam, want help reclaiming it" referral flow, reached
-// from a search result's receipt. Two-step: create the case (this file),
-// then pay the flat case-opening fee (routes/payments.js POST
-// /forensics-case) before it actually enters the review queue.
-//
-// Eligibility (amount_lost >= 1000) is enforced here AND at the database
-// level (CHECK constraint on forensics_cases.amount_lost) — belt and
-// braces, since this gate is a real business rule, not just UI copy.
+
+
+
+
+
+
+
+
+
+
 
 const express = require('express');
 const pool = require('../db/pool');
@@ -47,7 +47,7 @@ router.post('/intake', requireAuth, generalLimiter, async (req, res) => {
   res.status(201).json({ case: rows[0], message: 'Case created. Pay the case-opening fee to submit it for review.' });
 });
 
-// A user's own cases + status
+
 router.get('/my-cases', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, amount_lost, status, created_at, updated_at FROM forensics_cases WHERE user_id=$1 ORDER BY created_at DESC`,

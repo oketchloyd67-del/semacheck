@@ -1,7 +1,7 @@
-// db/seed.js — run with: node db/seed.js
-// Creates one demo admin account and a couple of pre-cached search
-// results so the "instant result / no duplicate lookups" behaviour
-// is visible immediately without waiting on a real external search.
+
+
+
+
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const pool = require('./pool');
@@ -23,13 +23,14 @@ async function seed() {
 
     const samplePaybill = '400200';
     await client.query(
-      `INSERT INTO searches (query_type, query_value, query_value_hash, verdict, confidence_score, summary, sources_json, tier_paid, amount_paid)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       ON CONFLICT (query_type, query_value_hash) DO NOTHING`,
+      `INSERT INTO searches (query_type, query_value, query_value_hash, region, verdict, confidence_score, summary, sources_json, tier_paid, amount_paid)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ON CONFLICT (query_type, query_value_hash, region) DO NOTHING`,
       [
         'paybill',
         samplePaybill,
         hashValue(samplePaybill),
+        'kenya',
         'legit',
         92,
         'Paybill is registered to a licensed Nairobi retailer with no scam reports in the last 12 months.',
@@ -41,13 +42,14 @@ async function seed() {
 
     const sampleJobText = 'data entry job whatsapp only pay 500 registration fee';
     await client.query(
-      `INSERT INTO searches (query_type, query_value, query_value_hash, verdict, confidence_score, summary, sources_json, tier_paid, amount_paid)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       ON CONFLICT (query_type, query_value_hash) DO NOTHING`,
+      `INSERT INTO searches (query_type, query_value, query_value_hash, region, verdict, confidence_score, summary, sources_json, tier_paid, amount_paid)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ON CONFLICT (query_type, query_value_hash, region) DO NOTHING`,
       [
         'job_offer',
         sampleJobText,
         hashValue(sampleJobText),
+        'kenya',
         'scam',
         88,
         'Matches a widely reported pattern: upfront "registration fee" requested over WhatsApp before any interview. Flagged by multiple community reports.',

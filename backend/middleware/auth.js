@@ -1,15 +1,8 @@
-// middleware/auth.js
+
 const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 
-/**
- * Verifies the JWT AND checks the session it references is still
- * marked active in the DB. This second check is what makes logout
- * final on a shared/public computer: even if someone still had the
- * old token (browser back button, cached tab), the session row was
- * flipped to is_active = false on logout, so every request after
- * that fails here and they're forced to log in again.
- */
+
 async function requireAuth(req, res, next) {
   try {
     const header = req.headers.authorization || '';

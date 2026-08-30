@@ -1,4 +1,4 @@
-// emailService.js
+
 const axios = require('axios');
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;

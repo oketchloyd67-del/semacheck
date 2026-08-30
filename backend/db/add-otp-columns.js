@@ -1,4 +1,4 @@
-// db/add-otp-columns.js
+
 const pool = require('./pool');
 
 async function addOtpColumns() {
@@ -32,7 +32,7 @@ async function addOtpColumns() {
     await client.query('COMMIT');
     console.log('OTP columns added successfully');
 
-    // Verify columns
+    
     const result = await client.query(
       "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name IN ('otp_code_hash', 'otp_expires_at', 'otp_attempts', 'email_verified') ORDER BY column_name"
     );
