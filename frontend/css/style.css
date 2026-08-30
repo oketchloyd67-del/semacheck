@@ -53,7 +53,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .search-card { background: var(--card); color: var(--text); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; margin-top: 32px; max-width: 640px; }
 .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
-.tab { flex: 1; text-align: center; padding: 9px; border-radius: 8px; background: var(--bg); font-size: 0.85rem; font-weight: 600; color: var(--text-muted); border: 1px solid var(--border); }
+.tab { flex: 1; text-align: center; padding: 9px; border-radius: 8px; background: var(--bg); font-size: 0.85rem; font-weight: 600; color: var(--text-muted); border: 1px solid var(--border); cursor: pointer; }
 .tab.active { background: var(--navy); color: #fff; border-color: var(--navy); }
 .search-row { display: flex; gap: 10px; }
 .search-row input, .search-row textarea { flex: 1; padding: 13px 14px; border-radius: 8px; border: 1.5px solid var(--border); font-size: 0.95rem; font-family: inherit; }

@@ -1,21 +1,24 @@
 {
-  "name": "SemaCheck — Verify before you pay",
+  "name": "SemaCheck — Verify Before You Trust It",
   "short_name": "SemaCheck",
-  "description": "Check phone numbers, Paybills, and job offers against community reports.",
+  "description": "Verify phone numbers, Paybills, and job offers against community reports and worldwide scam databases.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0B1F3A",
+  "background_color": "#F6F8FB",
+  "categories": ["finance", "utilities", "security"],
   "icons": [
     {
-      "src": "/android-chrome-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png"
+      "src": "assets/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "/android-chrome-512x512.png",
-      "sizes": "512x512",
+      "src": "assets/apple-touch-icon.png",
+      "sizes": "180x180",
       "type": "image/png"
     }
-  ],
-  "theme_color": "#1A1208",
-  "background_color": "#FDF6EC",
-  "display": "standalone",
-  "start_url": "/"
+  ]
 }
