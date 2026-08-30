@@ -17,6 +17,9 @@
 <meta name="apple-mobile-web-app-title" content="SemaCheck">
 <meta name="description" content="Verify phone numbers, Paybills, and job offers against community reports and worldwide scam databases.">
 <meta name="mobile-web-app-capable" content="yes">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 </head>
 <body>
 
@@ -260,6 +263,21 @@
       <button class="btn btn-ghost" data-close>Cancel, use the contact form</button>
       <button class="btn btn-primary" id="whatsappConfirmGo">This is critical — continue</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="locationReverifyOverlay">
+  <div class="modal" style="max-width:380px;">
+    <button class="modal-close" data-close>&times;</button>
+    <h2>New location detected</h2>
+    <p class="sub">A verification code was sent to <b id="locationReverifyEmail"></b>. Enter it to confirm this is you.</p>
+    <div id="locationReverifyAlert"></div>
+    <div class="field">
+      <label>Verification code</label>
+      <input type="text" id="locationReverifyCode" class="otp-input" maxlength="6" inputmode="numeric" placeholder="000000">
+    </div>
+    <button class="btn btn-primary btn-block" id="locationReverifySubmit">Verify &amp; log in</button>
+    <p class="modal-foot">Didn't get it? <button id="locationReverifyResend">Resend code</button></p>
   </div>
 </div>
 

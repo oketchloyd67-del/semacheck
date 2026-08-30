@@ -7,11 +7,17 @@ function getAdminToken() { return sessionStorage.getItem('semacheck_admin_token'
 function setAdminToken(t) { sessionStorage.setItem('semacheck_admin_token', t); }
 function clearAdminToken() { sessionStorage.removeItem('semacheck_admin_token'); }
 
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) {
+    if (!getAdminToken()) window.location.replace('login.html');
+  }
+});
+
 async function adminApi(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   const token = getAdminToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
   let data = {};
   try { data = await res.json(); } catch {}
   if (!res.ok) throw new Error(data.error || 'Something went wrong.');
@@ -56,8 +62,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---- dashboard page ----
   const logoutBtn = document.getElementById('adminLogout');
   if (!logoutBtn) return;
-  if (!getAdminToken()) { window.location.href = 'login.html'; return; }
-  logoutBtn.addEventListener('click', () => { clearAdminToken(); window.location.href = 'login.html'; });
+  if (!getAdminToken()) { window.location.replace('login.html'); return; }
+  logoutBtn.addEventListener('click', () => { clearAdminToken(); sessionStorage.clear(); window.location.replace('login.html'); });
 
   initTabs();
   loadMe();

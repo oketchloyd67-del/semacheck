@@ -18,7 +18,7 @@ async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
   let data = {};
   try { data = await res.json(); } catch {  }
   if (!res.ok) {
@@ -68,6 +68,15 @@ function statusPill(status) {
 
 let currentCaseId = null;
 
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) {
+    const user = getUser();
+    if (!user || !getToken()) {
+      window.location.replace('index.html');
+    }
+  }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', (e) => {
     closeModal(e.target.closest('.modal-overlay').id);
@@ -77,13 +86,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }));
 
   const user = getUser();
-  if (!user || !getToken()) { window.location.href = 'index.html'; return; }
+  if (!user || !getToken()) { window.location.replace('index.html'); return; }
   document.getElementById('forensicsUserName').textContent = `Hi, ${user.fullName?.split(' ')[0] || ''}`;
 
   document.getElementById('forensicsLogout').addEventListener('click', async () => {
     try { await api('/auth/logout', { method: 'POST' }); } catch {}
-    clearSession();
-    window.location.href = 'index.html';
+    sessionStorage.clear();
+    window.location.replace('index.html');
   });
 
   const params = new URLSearchParams(window.location.search);

@@ -18,7 +18,7 @@ async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
   let data = {};
   try { data = await res.json(); } catch {  }
   if (!res.ok) {
@@ -57,6 +57,14 @@ function askForPhone() {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) { cleanup(); resolve(null); } }, { once: true });
   });
 }
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) {
+    const user = getUser();
+    if (!user || !getToken() || user.accountType !== 'job_owner') {
+      window.location.replace('index.html');
+    }
+  }
+});
 
 document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', (e) => {
@@ -67,15 +75,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   }));
   const user = getUser();
   if (!user || !getToken() || user.accountType !== 'job_owner') {
-    window.location.href = 'index.html';
+    window.location.replace('index.html');
     return;
   }
   document.getElementById('dashUserName').textContent = `Hi, ${user.fullName?.split(' ')[0] || ''}`;
 
   document.getElementById('dashLogout').addEventListener('click', async () => {
     try { await api('/auth/logout', { method: 'POST' }); } catch {}
-    clearSession();
-    window.location.href = 'index.html';
+    sessionStorage.clear();
+    window.location.replace('index.html');
   });
 
   await loadSummary();

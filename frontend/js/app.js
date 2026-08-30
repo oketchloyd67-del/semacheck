@@ -17,12 +17,11 @@ function clearSession() {
 
 
 async function api(path, options = {}) {
- 
   const isFormData = options.body instanceof FormData;
   const headers = { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
   let data = {};
   try { data = await res.json(); } catch {  }
   if (!res.ok) {
@@ -48,12 +47,20 @@ function updateAuthUI() {
 
 async function doLogout() {
   try { await api('/auth/logout', { method: 'POST' }); } catch (e) {  }
-  clearSession();
-  window.location.href = 'index.html';
+  sessionStorage.clear();
+  window.location.replace('index.html');
 }
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) {
+    if (!getToken()) {
+      window.location.replace('index.html');
+    }
+  }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   updateAuthUI();
@@ -117,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('suPhone')?.addEventListener('input', (e) => checkPhone(e.target.value));
 
   let pendingOtpEmail = null;
+  let pendingLocationReverifyEmail = null;
 
   document.getElementById('signupSubmit')?.addEventListener('click', async () => {
     const alertBox = document.getElementById('signupAlert');
@@ -214,6 +222,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  document.getElementById('locationReverifySubmit')?.addEventListener('click', async () => {
+    const alertBox = document.getElementById('locationReverifyAlert');
+    const code = document.getElementById('locationReverifyCode').value.trim();
+    alertBox.innerHTML = '';
+    if (!code) { alertBox.innerHTML = '<div class="alert alert-err">Enter the 6-digit code.</div>'; return; }
+    try {
+      const r = await api('/auth/reverify-location', { method: 'POST', body: JSON.stringify({ email: pendingLocationReverifyEmail, code }) });
+      setSession(r.token, r.user);
+      closeModal('locationReverifyOverlay');
+      if (r.user.accountType === 'job_owner') {
+        window.location.href = 'dashboard.html';
+      } else {
+        updateAuthUI();
+      }
+    } catch (err) {
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+    }
+  });
+
+  document.getElementById('locationReverifyResend')?.addEventListener('click', async () => {
+    const alertBox = document.getElementById('locationReverifyAlert');
+    try {
+      const r = await api('/auth/resend-otp', { method: 'POST', body: JSON.stringify({ email: pendingLocationReverifyEmail }) });
+      alertBox.innerHTML = `<div class="alert alert-ok">${r.message}</div>`;
+    } catch (err) {
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+    }
+  });
+
   document.getElementById('loginSubmit')?.addEventListener('click', async () => {
     const alertBox = document.getElementById('loginAlert');
     alertBox.innerHTML = '';
@@ -243,6 +280,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('otpAlert').innerHTML = '<div class="alert alert-err">Verify your email to continue.</div>';
         document.getElementById('otpCodeInput').value = '';
         openModal('otpOverlay');
+      } else if (err.requiresLocationReverify) {
+        pendingLocationReverifyEmail = err.email || document.getElementById('loginId').value.trim();
+        closeModal('loginOverlay');
+        document.getElementById('locationReverifyEmail').textContent = pendingLocationReverifyEmail;
+        document.getElementById('locationReverifyAlert').innerHTML = '<div class="alert alert-err">' + escapeHtml(err.message) + '</div>';
+        document.getElementById('locationReverifyCode').value = '';
+        openModal('locationReverifyOverlay');
       } else {
         alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
       }

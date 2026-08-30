@@ -58,6 +58,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const noCachePages = ['/dashboard.html', '/forensics.html'];
+  if (noCachePages.some((p) => url.pathname === p || url.pathname.endsWith(p))) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' }).catch(() => {
+        return new Response('', { status: 503, statusText: 'Please go online.' });
+      })
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const networkFetch = fetchWithRetry(event.request, {}, 1, 800).then((response) => {

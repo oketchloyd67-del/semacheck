@@ -244,3 +244,7 @@ ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
 ALTER TABLE payments ADD CONSTRAINT payments_status_check CHECK (status IN ('initiated', 'pending', 'success', 'failed', 'cancelled'));
 
 ALTER TABLE payments DROP COLUMN IF EXISTS manual_code_submitted;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip VARCHAR(64);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS requires_reverification BOOLEAN NOT NULL DEFAULT FALSE;

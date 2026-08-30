@@ -255,11 +255,38 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.status(403).json({ error: 'Please verify your email before logging in.', requiresOtp: true, email: user.email });
     }
 
+    const loginIp = req.ip;
+    const isNewLocation = user.last_login_ip && user.last_login_ip !== loginIp;
+
+    if (isNewLocation) {
+      const otp = generateOtp();
+      const otpHash = await hashOtp(otp);
+      await pool.query(
+        `UPDATE users SET otp_code_hash = $1, otp_expires_at = $2, otp_attempts = 0, requires_reverification = TRUE WHERE id = $3`,
+        [otpHash, otpExpiryDate(), user.id]
+      );
+      try {
+        await sendOtpEmail({ toEmail: user.email, fullName: user.full_name, code: otp });
+      } catch (e) {
+        console.error('Location re-verification email failed:', e.message);
+      }
+      return res.status(403).json({
+        error: 'New login location detected. A verification code has been sent to your email.',
+        requiresLocationReverify: true,
+        email: user.email,
+      });
+    }
+
+    await pool.query(
+      `UPDATE users SET last_login_ip = $1, last_login_at = now() WHERE id = $2`,
+      [loginIp, user.id]
+    );
+
     const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
     const { rows: sessionRows } = await pool.query(
       `INSERT INTO sessions (user_id, ip_address, user_agent, expires_at)
        VALUES ($1,$2,$3,$4) RETURNING id`,
-      [user.id, req.ip, req.headers['user-agent'] || null, expiresAt]
+      [user.id, loginIp, req.headers['user-agent'] || null, expiresAt]
     );
     const sessionId = sessionRows[0].id;
 
@@ -287,9 +314,66 @@ router.post('/login', authLimiter, async (req, res) => {
 
 
 
+router.post('/reverify-location', authLimiter, async (req, res) => {
+  const { email, code } = req.body;
+  try {
+    if (!email || !code) return res.status(400).json({ error: 'Enter the code sent to your email.' });
+
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [String(email).trim().toLowerCase()]);
+    const user = rows[0];
+    if (!user) return res.status(404).json({ error: 'No account found.' });
+    if (!user.requires_reverification) return res.status(400).json({ error: 'No re-verification needed.' });
+
+    if (user.otp_attempts >= OTP_MAX_ATTEMPTS) {
+      return res.status(429).json({ error: 'Too many incorrect attempts. Request a new code.' });
+    }
+    if (!user.otp_expires_at || new Date(user.otp_expires_at) < new Date()) {
+      return res.status(400).json({ error: 'This code has expired. Request a new one.' });
+    }
+
+    const ok = await verifyOtp(String(code).trim(), user.otp_code_hash);
+    if (!ok) {
+      await pool.query('UPDATE users SET otp_attempts = otp_attempts + 1 WHERE id = $1', [user.id]);
+      return res.status(400).json({ error: 'Incorrect code. Please try again.' });
+    }
+
+    const loginIp = req.ip;
+    await pool.query(
+      `UPDATE users SET requires_reverification = FALSE, otp_code_hash = NULL, otp_expires_at = NULL, otp_attempts = 0, last_login_ip = $1, last_login_at = now() WHERE id = $2`,
+      [loginIp, user.id]
+    );
+
+    const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+    const { rows: sessionRows } = await pool.query(
+      `INSERT INTO sessions (user_id, ip_address, user_agent, expires_at) VALUES ($1,$2,$3,$4) RETURNING id`,
+      [user.id, loginIp, req.headers['user-agent'] || null, expiresAt]
+    );
+    const token = jwt.sign({ sessionId: sessionRows[0].id, userId: user.id }, process.env.JWT_SECRET, { expiresIn: `${SESSION_DAYS}d` });
+
+    let subscription = null;
+    if (user.account_type === 'job_owner') {
+      const { rows: subRows } = await pool.query(
+        `SELECT status, expires_at FROM subscriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [user.id]
+      );
+      subscription = subRows[0] || null;
+    }
+
+    res.json({
+      message: 'Location verified. You are logged in.',
+      token,
+      user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email },
+      subscription,
+    });
+  } catch (err) {
+    console.error('Re-verify location error:', err);
+    res.status(500).json({ error: 'Could not verify. Please try again.' });
+  }
+});
+
 router.post('/logout', requireAuth, async (req, res) => {
   await pool.query(
-    'UPDATE sessions SET is_active = FALSE, revoked_at = now() WHERE id = $1',
+    `UPDATE sessions SET is_active = FALSE, revoked_at = now(), expires_at = now() WHERE id = $1`,
     [req.sessionId]
   );
   res.json({ message: 'Logged out. This device now requires your password again to access the account.' });
@@ -297,7 +381,7 @@ router.post('/logout', requireAuth, async (req, res) => {
 
 router.post('/logout-all', requireAuth, async (req, res) => {
   await pool.query(
-    'UPDATE sessions SET is_active = FALSE, revoked_at = now() WHERE user_id = $1 AND is_active = TRUE',
+    `UPDATE sessions SET is_active = FALSE, revoked_at = now(), expires_at = now() WHERE user_id = $1 AND is_active = TRUE`,
     [req.user.id]
   );
   res.json({ message: 'Logged out of all devices.' });
