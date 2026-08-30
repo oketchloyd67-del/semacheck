@@ -69,7 +69,6 @@ CREATE TABLE IF NOT EXISTS searches (
     last_verified_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_searches_dedup ON searches(query_type, query_value_hash, region);
 CREATE INDEX IF NOT EXISTS idx_searches_user ON searches(user_id);
 
 

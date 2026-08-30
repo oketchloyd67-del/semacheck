@@ -50,22 +50,11 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 4800;
 app.listen(PORT, () => console.log(`SemaCheck API listening on port ${PORT}`));
 
-
-
-
-
-
-
-
-
-
 if (process.env.DISABLE_IN_PROCESS_SCHEDULER !== 'true') {
   const { runMaintenance } = require('./jobs/subscriptionMaintenance');
   setTimeout(() => runMaintenance().catch((e) => console.error('Subscription maintenance failed:', e)), 30_000);
   setInterval(() => runMaintenance().catch((e) => console.error('Subscription maintenance failed:', e)), 24 * 60 * 60 * 1000);
 
-  
-  
   
   const { run: refreshKenyaRegistries } = require('./jobs/refreshKenyaRegistries');
   setTimeout(() => refreshKenyaRegistries().catch((e) => console.error('CBK registry refresh failed:', e.message)), 45_000);

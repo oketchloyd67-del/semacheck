@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — SemaCheck</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="https://semacheck.vercel.app/assets/favicon.png">
+<link rel="apple-touch-icon" href="https://semacheck.vercel.app/assets/apple-touch-icon.png">
+<link rel="manifest" href="https://semacheck.vercel.app/site.webmanifest">
+<meta name="theme-color" content="#0B1F3A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SemaCheck Admin">
+</head>
+<body style="background:var(--navy);min-height:100vh;display:flex;align-items:center;justify-content:center;">
+
+<div class="modal" style="max-width:380px;">
+  <div class="brand" style="color:var(--navy);justify-content:center;margin-bottom:6px;"><img src="https://semacheck.vercel.app/assets/logo.png" alt="SemaCheck" class="brand-logo"></div>
+  <h2>SemaCheck Admin</h2>
+  <p class="sub">Staff access only. This page is not linked from the public site.</p>
+  <div id="loginAlert"></div>
+  <div class="field"><label>Admin email</label><input type="email" id="adminEmail" placeholder="admin@semacheck.co.ke"></div>
+  <div class="field"><label>Password</label><input type="password" id="adminPassword" placeholder="••••••••"></div>
+  <button class="btn btn-primary btn-block" id="adminLoginBtn">Log in</button>
+</div>
+
+<script src="js/admin.js"></script>
+</body>
+</html>
