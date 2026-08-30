@@ -21,7 +21,17 @@ app.use('/whatsapp', whatsappRoutes);
 app.set('trust proxy', 1); 
 app.use(helmet());
 app.use(compression());
-app.use(cors({ origin: process.env.ALLOWED_ORIGIN || '*', credentials: true }));
+const allowedOrigins = (process.env.ALLOWED_ORIGIN || '*').split(',').map((s) => s.trim());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 
 
 app.use('/api/payments/tuma/callback', express.json());
