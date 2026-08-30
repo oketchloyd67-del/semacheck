@@ -6,8 +6,13 @@ function escapeHtml(str) {
 }
 
 function getToken() { return sessionStorage.getItem('semacheck_token'); }
-function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }
-function clearSession() { sessionStorage.removeItem('semacheck_token'); sessionStorage.removeItem('semacheck_user'); }
+function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }function clearSession() {
+  sessionStorage.removeItem('semacheck_token');
+  sessionStorage.removeItem('semacheck_user');
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
@@ -24,7 +29,42 @@ async function api(path, options = {}) {
   return data;
 }
 
+function askForPhone() {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('phoneOverlay');
+    const input = document.getElementById('phoneInput');
+    const msg = document.getElementById('phoneInputMsg');
+    const confirmBtn = document.getElementById('phoneConfirmBtn');
+    const alertBox = document.getElementById('phoneAlert');
+    input.value = '';
+    msg.textContent = '';
+    alertBox.innerHTML = '';
+    openModal('phoneOverlay');
+    input.focus();
+
+    const cleanup = () => { closeModal('phoneOverlay'); confirmBtn.removeEventListener('click', onConfirm); input.removeEventListener('keydown', onKey); };
+    const onConfirm = () => {
+      const val = input.value.trim();
+      if (!val) { msg.textContent = 'Enter your M-Pesa number.'; msg.className = 'field-msg err'; return; }
+      if (!normalizeKenyanPhoneClient(val)) { msg.textContent = 'Enter a valid number, e.g. 07XXXXXXXX.'; msg.className = 'field-msg err'; return; }
+      cleanup(); resolve(val);
+    };
+    const onKey = (e) => { if (e.key === 'Enter') onConfirm(); };
+    confirmBtn.addEventListener('click', onConfirm);
+    input.addEventListener('keydown', onKey);
+
+    overlay.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', () => { cleanup(); resolve(null); }, { once: true }));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) { cleanup(); resolve(null); } }, { once: true });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  document.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', (e) => {
+    closeModal(e.target.closest('.modal-overlay').id);
+  }));
+  document.querySelectorAll('.modal-overlay').forEach((ov) => ov.addEventListener('click', (e) => {
+    if (e.target === ov) closeModal(ov.id);
+  }));
   const user = getUser();
   if (!user || !getToken() || user.accountType !== 'job_owner') {
     window.location.href = 'index.html';
@@ -62,7 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   document.getElementById('subscribeBtn').addEventListener('click', async () => {
-    const phone = prompt('M-Pesa number to pay KES 459 from:', '');
+    const phone = await askForPhone();
     if (!phone) return;
     try {
       const r = await api('/payments/subscription', { method: 'POST', body: JSON.stringify({ phone }) });
@@ -72,7 +112,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         onConfirmed: async () => { await loadSummary(); await loadJobs(); },
       });
     } catch (err) {
-      alert(err.message);
+      const pp = document.getElementById('paymentProgressCard');
+      pp.style.display = 'block';
+      document.getElementById('ppStatusText').textContent = 'Something went wrong.';
+      document.getElementById('ppHint').textContent = escapeHtml(err.message);
     }
   });
 

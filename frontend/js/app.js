@@ -278,6 +278,35 @@ document.addEventListener('DOMContentLoaded', () => {
     searchRegion = btn.dataset.region;
   }));
 
+  function askForPhone() {
+    return new Promise((resolve) => {
+      const overlay = document.getElementById('phoneOverlay');
+      const input = document.getElementById('phoneInput');
+      const msg = document.getElementById('phoneInputMsg');
+      const confirmBtn = document.getElementById('phoneConfirmBtn');
+      const alertBox = document.getElementById('phoneAlert');
+      input.value = '';
+      msg.textContent = '';
+      alertBox.innerHTML = '';
+      openModal('phoneOverlay');
+      input.focus();
+
+      const cleanup = () => { closeModal('phoneOverlay'); confirmBtn.removeEventListener('click', onConfirm); input.removeEventListener('keydown', onKey); };
+      const onConfirm = () => {
+        const val = input.value.trim();
+        if (!val) { msg.textContent = 'Enter your M-Pesa number.'; msg.className = 'field-msg err'; return; }
+        if (!normalizeKenyanPhoneClient(val)) { msg.textContent = 'Enter a valid number, e.g. 07XXXXXXXX.'; msg.className = 'field-msg err'; return; }
+        cleanup(); resolve(val);
+      };
+      const onKey = (e) => { if (e.key === 'Enter') onConfirm(); };
+      confirmBtn.addEventListener('click', onConfirm);
+      input.addEventListener('keydown', onKey);
+
+      overlay.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', () => { cleanup(); resolve(null); }, { once: true }));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) { cleanup(); resolve(null); } }, { once: true });
+    });
+  }
+
   document.getElementById('searchBtn')?.addEventListener('click', async () => {
     const value = document.getElementById('searchInput').value.trim();
     if (!value) return;
@@ -286,7 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('loginAlert').innerHTML = '<div class="alert alert-err">Create an account or log in first — every search is tied to your account.</div>';
       return;
     }
-    const phone = prompt('Confirm the M-Pesa number to pay from:', '');
+    const phone = await askForPhone();
     if (!phone) return;
 
     const searchBtn = document.getElementById('searchBtn');
@@ -302,7 +331,10 @@ document.addEventListener('DOMContentLoaded', () => {
         },
       });
     } catch (err) {
-      alert(err.message);
+      const pp = document.getElementById('paymentProgressCard');
+      pp.style.display = 'block';
+      document.getElementById('ppStatusText').textContent = 'Something went wrong.';
+      document.getElementById('ppHint').textContent = escapeHtml(err.message);
     } finally {
       searchBtn.disabled = false;
     }

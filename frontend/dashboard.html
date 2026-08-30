@@ -74,6 +74,24 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="phoneOverlay">
+  <div class="modal" style="max-width:380px;">
+    <button class="modal-close" data-close>&times;</button>
+    <h2>Confirm M-Pesa Number</h2>
+    <p class="sub">Enter the phone number to pay from. An STK push will be sent to this number.</p>
+    <div id="phoneAlert"></div>
+    <div class="field">
+      <label>M-Pesa phone number</label>
+      <input type="text" id="phoneInput" placeholder="07XXXXXXXX">
+      <div class="field-msg" id="phoneInputMsg"></div>
+    </div>
+    <div class="action-btns" style="justify-content:flex-end;gap:8px;margin-top:16px;">
+      <button class="btn btn-ghost" data-close>Cancel</button>
+      <button class="btn btn-primary" id="phoneConfirmBtn">Pay now</button>
+    </div>
+  </div>
+</div>
+
 <script src="js/validation.js"></script>
 <script src="js/dashboard.js"></script>
 <script>
