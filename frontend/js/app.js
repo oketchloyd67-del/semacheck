@@ -305,23 +305,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  
+  /**
+   * Waits for Tuma's own STK-push callback to confirm the payment —
+   * that's the only thing that ever marks a payment 'success' (see
+   * backend/routes/payments.js /tuma/callback). There is no self-
+   * reported/manual code path: if the callback never arrives within
+   * the polling window, the honest answer is that the payment hasn't
+   * been confirmed — the person should try again, or reach out via the
+   * contact form / the critical-only WhatsApp line, not type in a code
+   * themselves.
+   */
   async function waitForPaymentThenRun({ paymentId, initialMessage, onConfirmed }) {
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');
     const circular = document.getElementById('ppCircular');
     const hint = document.getElementById('ppHint');
-   
+
     card.style.display = 'block';
-    manualBox.style.display = 'none';
     circular.classList.remove('done');
-    
     statusText.textContent = initialMessage;
     hint.textContent = 'Check your phone and enter your M-Pesa PIN. This usually takes a few seconds.';
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     const POLL_EVERY_MS = 2500;
-    const TIMEOUT_MS = 45000; 
+    const TIMEOUT_MS = 45000;
     const startedAt = Date.now();
 
     return new Promise((resolve) => {
@@ -330,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
         circular.classList.add('done');
         statusText.textContent = 'Payment confirmed!';
         hint.innerHTML = '<span class="receipt-printing-icon">⚙</span> Printing your receipt…';
-        await new Promise((r) => setTimeout(r, 700)); 
+        await new Promise((r) => setTimeout(r, 700));
         try {
           await onConfirmed();
           card.style.display = 'none';
@@ -340,99 +347,32 @@ document.addEventListener('DOMContentLoaded', () => {
         resolve();
       };
 
-      const showFallback = (statusMsg, hintMsg) => {
+      const showTimeoutOrFailure = (statusMsg) => {
         clearInterval(timer);
         statusText.textContent = statusMsg;
-        hint.textContent = hintMsg;
-        manualBox.style.display = 'block';
-        
-        window.__semacheckPendingOnConfirmed = onConfirmed;
-        window.__semacheckRestartPayment = () => { card.style.display = 'none'; };
+        hint.textContent = "If you completed the M-Pesa prompt and this persists, please get in touch via the contact form — don't try paying again until you hear back.";
         resolve();
       };
 
       const timer = setInterval(async () => {
         const elapsed = Date.now() - startedAt;
         if (elapsed > TIMEOUT_MS) {
-          showFallback("Still waiting — didn't get a confirmation yet.", 'If your M-Pesa PIN prompt timed out, try again. If money already left your phone, use the box below.');
+          showTimeoutOrFailure("Still waiting — didn't get a confirmation yet.");
           return;
         }
         try {
           const status = await api(`/payments/status/${paymentId}`);
           if (status.status === 'success') { finishSuccess(); }
           else if (status.status === 'failed') {
-            showFallback('Payment failed or was cancelled.', 'If you completed the M-Pesa prompt anyway, use the box below to confirm manually.');
+            showTimeoutOrFailure('Payment failed or was cancelled.');
           }
-         
         } catch (err) {
-          
+          // transient poll failure — keep trying until timeout
         }
       }, POLL_EVERY_MS);
     });
   }
 
-  
-
-  /**
-   * A manually-submitted M-Pesa code never unlocks anything by itself —
-   * see the honest explanation in backend/routes/payments.js
-   * /:paymentId/confirm-manual. It only stages the payment for a human
-   * admin to check against the real M-Pesa statement. This polls for
-   * that outcome, separately from (and slower than) the initial STK-push
-   * poll, since it's now waiting on a person rather than an instant
-   * gateway callback.
-   */
-  async function pollForManualReviewOutcome(paymentId, onConfirmed) {
-    const statusText = document.getElementById('ppStatusText');
-    const hint = document.getElementById('ppHint');
-    const card = document.getElementById('paymentProgressCard');
-    const circular = document.getElementById('ppCircular');
-
-    statusText.textContent = 'Code received — verifying…';
-    hint.textContent = 'An admin checks this against the real M-Pesa statement. This can take a little while.';
-
-    const POLL_EVERY_MS = 8000;
-    const ACTIVE_WINDOW_MS = 5 * 60 * 1000; // keep polling in-tab for 5 minutes
-    const startedAt = Date.now();
-
-    return new Promise((resolve) => {
-      const timer = setInterval(async () => {
-        if (Date.now() - startedAt > ACTIVE_WINDOW_MS) {
-          clearInterval(timer);
-          hint.textContent = "Still awaiting verification. It's safe to close this and check back later — your case isn't lost.";
-          resolve();
-          return;
-        }
-        try {
-          const status = await api(`/payments/status/${paymentId}`);
-          if (status.status === 'success') {
-            clearInterval(timer);
-            circular.classList.add('done');
-            statusText.textContent = 'Payment confirmed!';
-            hint.innerHTML = '<span class="receipt-printing-icon">⚙</span> Printing your receipt…';
-            await new Promise((r) => setTimeout(r, 700));
-            try {
-              await onConfirmed();
-              card.style.display = 'none';
-            } catch (err) {
-              hint.textContent = err.message || 'Something went wrong loading your result.';
-            }
-            resolve();
-          } else if (status.status === 'failed') {
-            clearInterval(timer);
-            statusText.textContent = 'This code could not be verified.';
-            hint.textContent = status.rejectionReason || 'Please contact support, or make a new payment.';
-            resolve();
-          }
-          // still 'manual_review' — keep waiting
-        } catch (err) {
-          // transient poll failure — keep trying until the active window ends
-        }
-      }, POLL_EVERY_MS);
-    });
-  }
-
-  
   function renderSearchResult(payload) {
     const r = payload.result;
     const outer = document.getElementById('receiptOuter');

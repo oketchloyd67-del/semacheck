@@ -65,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRegistrations('pending');
   loadUsers();
   loadJobs('pending');
-  loadPaymentVerifications();
   loadForensicsCases('submitted');
   loadMessages();
   loadKenyaRegistryStatus();
@@ -124,7 +123,6 @@ async function loadStats() {
     document.getElementById('statSubs').textContent = s.activeSubscriptions;
     document.getElementById('statContact').textContent = s.contactMessagesNeedingAttention;
     document.getElementById('statIdPending').textContent = s.idVerificationsPending;
-    document.getElementById('statPaymentsManual').textContent = s.paymentsAwaitingManualReview;
     document.getElementById('statForensicsCases').textContent = s.forensicsCasesAwaitingReview;
 
     const idBadge = document.getElementById('badgeIdPending');
@@ -135,11 +133,6 @@ async function loadStats() {
     jobBadge.textContent = s.pendingJobs;
     jobBadge.style.display = s.pendingJobs > 0 ? 'inline-block' : 'none';
 
-    const paymentsBadge = document.getElementById('badgePaymentsManual');
-    if (paymentsBadge) {
-      paymentsBadge.textContent = s.paymentsAwaitingManualReview;
-      paymentsBadge.style.display = s.paymentsAwaitingManualReview > 0 ? 'inline-block' : 'none';
-    }
     const forensicsBadge = document.getElementById('badgeForensicsCases');
     if (forensicsBadge) {
       forensicsBadge.textContent = s.forensicsCasesAwaitingReview;
@@ -324,55 +317,6 @@ async function loadJobs(status) {
       await adminApi(`/admin/jobs/${btn.dataset.reject}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
       showToast('Job rejected.');
       loadJobs(status); loadStats();
-    }));
-  } catch (err) { handleAuthError(err); }
-}
-
-// ---------------- payment verifications (manual M-Pesa code review) ----------------
-async function loadPaymentVerifications() {
-  const box = document.getElementById('paymentVerificationsList');
-  box.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p>';
-  try {
-    const r = await adminApi('/admin/payments/manual-review');
-    if (!r.payments.length) { box.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">Nothing awaiting review.</p>'; return; }
-    box.innerHTML = r.payments.map((p) => `
-      <div class="job-item" style="flex-direction:column;align-items:stretch;gap:10px;">
-        <div>
-          <b>${escapeHtml(p.full_name)}</b> <span class="pill pill-job_owner">${escapeHtml(p.purpose.replace('_', ' '))}</span>
-          <div style="font-size:0.82rem;color:var(--text-muted);">${escapeHtml(p.email)} &middot; ${escapeHtml(p.phone)} &middot; Amount: KES ${Number(p.amount).toLocaleString()}</div>
-          <div style="font-size:0.9rem;margin-top:6px;">Submitted code: <b style="font-family:monospace;letter-spacing:0.05em;">${escapeHtml(p.manual_code_submitted)}</b></div>
-          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">Submitted ${new Date(p.updated_at).toLocaleString()}</div>
-        </div>
-        <div class="action-btns">
-          <button class="btn btn-primary" data-approve-payment="${p.id}">Approve — code checks out</button>
-          <button class="btn btn-ghost" data-reject-payment="${p.id}">Reject</button>
-        </div>
-        <div class="reject-reason-box" id="reject-payment-box-${p.id}" style="display:none;">
-          <input type="text" id="reject-payment-reason-${p.id}" placeholder="Why this code doesn't check out (shown to the user)">
-          <button class="btn btn-amber" data-confirm-reject-payment="${p.id}">Confirm rejection</button>
-        </div>
-      </div>
-    `).join('');
-
-    box.querySelectorAll('[data-approve-payment]').forEach((btn) => btn.addEventListener('click', async () => {
-      try {
-        await adminApi(`/admin/payments/${btn.dataset.approvePayment}/approve-manual`, { method: 'POST' });
-        showToast('Payment approved.');
-        loadPaymentVerifications(); loadStats();
-      } catch (err) {
-        showToast(err.message, true);
-      }
-    }));
-    box.querySelectorAll('[data-reject-payment]').forEach((btn) => btn.addEventListener('click', () => {
-      document.getElementById(`reject-payment-box-${btn.dataset.rejectPayment}`).style.display = 'flex';
-    }));
-    box.querySelectorAll('[data-confirm-reject-payment]').forEach((btn) => btn.addEventListener('click', async () => {
-      const paymentId = btn.dataset.confirmRejectPayment;
-      const reason = document.getElementById(`reject-payment-reason-${paymentId}`).value.trim();
-      if (!reason) { document.getElementById(`reject-payment-reason-${paymentId}`).focus(); return; }
-      await adminApi(`/admin/payments/${paymentId}/reject-manual`, { method: 'POST', body: JSON.stringify({ reason }) });
-      showToast('Payment rejected.');
-      loadPaymentVerifications(); loadStats();
     }));
   } catch (err) { handleAuthError(err); }
 }

@@ -33,7 +33,6 @@
     <button class="admin-tab-btn" data-tab="registrations">🪪 Registrations <span class="badge" id="badgeIdPending" style="display:none;"></span></button>
     <button class="admin-tab-btn" data-tab="users">👥 All accounts</button>
     <button class="admin-tab-btn" data-tab="jobs">💼 Jobs <span class="badge" id="badgeJobsPending" style="display:none;"></span></button>
-    <button class="admin-tab-btn" data-tab="payments">💳 Payment verifications <span class="badge" id="badgePaymentsManual" style="display:none;"></span></button>
     <button class="admin-tab-btn" data-tab="forensics">🔍 Forensics cases <span class="badge" id="badgeForensicsCases" style="display:none;"></span></button>
     <button class="admin-tab-btn" data-tab="messages">✉️ Contact messages</button>
     <button class="admin-tab-btn" data-tab="kenya-registry">🏛️ Kenya registry</button>
@@ -46,14 +45,13 @@
     <!-- ---------------- OVERVIEW ---------------- -->
     <section class="admin-tab-panel active" id="tab-overview">
       <div class="section-heading"><h2>Overview</h2></div>
-      <div class="stat-row" style="grid-template-columns:repeat(8,1fr);">
+      <div class="stat-row" style="grid-template-columns:repeat(7,1fr);">
         <div class="stat-card"><div class="num" id="statUsers">–</div><div class="label">Total users</div></div>
         <div class="stat-card"><div class="num" id="statSearches">–</div><div class="label">Total searches</div></div>
         <div class="stat-card"><div class="num" id="statPending">–</div><div class="label">Jobs pending</div></div>
         <div class="stat-card"><div class="num" id="statSubs">–</div><div class="label">Active subscriptions</div></div>
         <div class="stat-card"><div class="num" id="statContact">–</div><div class="label">Contact msgs (unsent)</div></div>
         <div class="stat-card"><div class="num" id="statIdPending">–</div><div class="label">ID reviews pending</div></div>
-        <div class="stat-card"><div class="num" id="statPaymentsManual">–</div><div class="label">Payments awaiting verification</div></div>
         <div class="stat-card"><div class="num" id="statForensicsCases">–</div><div class="label">Forensics cases pending</div></div>
       </div>
       <div class="card" style="margin-top:22px;">
@@ -116,13 +114,6 @@
         </select>
       </div>
       <div id="jobsList"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
-    </section>
-
-    <!-- ---------------- PAYMENT VERIFICATIONS ---------------- -->
-    <section class="admin-tab-panel" id="tab-payments">
-      <div class="section-heading"><h2>Payment verifications</h2></div>
-      <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:16px;">These are self-reported M-Pesa codes from users whose Tuma STK push callback never arrived. Check each code against the real Tuma merchant dashboard or M-Pesa statement before approving — approving here is the only thing that ever unlocks the underlying search result, subscription, or forensics case.</p>
-      <div id="paymentVerificationsList"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
     </section>
 
     <!-- ---------------- FORENSICS CASES ---------------- -->

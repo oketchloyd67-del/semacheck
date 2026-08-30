@@ -47,7 +47,7 @@ approval workflow, and a single email-based support channel.
 - `backend/services/tuma.js` handles authentication (exchanging your Tuma API key for a short-lived JWT, cached until near expiry) and STK Push requests
 - `POST /api/payments/tuma/callback` receives Tuma's payment status webhook and updates the relevant `payments` row — same flow for pay-per-search and the job-owner subscription
 - Trade-off worth knowing: Tuma is a third party sitting between you and Safaricom, so you're trusting their uptime and terms alongside Safaricom's — worth reading Tuma's pricing/terms before going live with real volume
-- The frontend never assumes a payment succeeded just because the STK push was sent — it polls `GET /api/payments/status/:paymentId` (every 2.5s, up to 45s) and only unlocks the search/subscription once the status genuinely flips to `success` from Tuma's callback. A visible progress bar tracks this wait. If the callback never lands (dropped webhook, delayed network, etc.) but the user's money did leave their phone, they can paste the M-Pesa confirmation code from their SMS into a fallback box, which hits `POST /api/payments/:paymentId/confirm-manual` — this trusts the user-provided code rather than independently re-verifying it against Safaricom (no such lookup is publicly available), so every manually confirmed payment is flagged in `raw_callback_json` for reconciliation against your real M-Pesa statement.
+- The frontend never assumes a payment succeeded just because the STK push was sent — it polls `GET /api/payments/status/:paymentId` (every 2.5s, up to 45s) and only unlocks the search/subscription once the status genuinely flips to `success` from Tuma's own callback. A visible circular loader tracks this wait. There is no other way for a payment to become `success` — see "Payment security" below.
 
 **Security:**
 - Passwords hashed with bcrypt (cost 12)
@@ -65,7 +65,7 @@ approval workflow, and a single email-based support channel.
 - Confirm-password field added to signup, checked client-side before submission
 
 **One-time-use M-Pesa codes:**
-- The manual M-Pesa-code fallback (see "Payments" below) is now genuinely single-use: a partial unique index on `payments.mpesa_receipt WHERE status='success'` means the same code can never confirm two different payments, whether it's entered manually twice or a duplicate webhook fires
+- M-Pesa codes are single-use at the database level: a partial unique index on `payments.mpesa_receipt WHERE status='success'` means the same code can never confirm two different payments, even if Tuma somehow redelivers the same callback twice
 - Trying to reuse a code returns a clear "already used" error with a button to start a fresh payment, instead of silently failing or double-unlocking
 
 **Job visibility gated by subscription — automatic, immediate suspension:**
@@ -78,16 +78,15 @@ approval workflow, and a single email-based support channel.
 - Run it via `npm run reminders` on a daily cron (recommended for production), or leave the in-process fallback scheduler in `server.js` running (fires once ~30s after boot, then every 24h — fine for getting started, but a real process can restart/redeploy and reset that timer, so don't rely on it alone at scale)
 - WhatsApp reminders use Meta's WhatsApp Business Cloud API via `services/whatsappService.js` — needs a WhatsApp Business Account and an **approved message template** (WhatsApp doesn't allow free-form business-initiated messages) before it can send anything real
 
-**Payment security — manually-entered M-Pesa codes are never trusted automatically:**
-- There is no public Safaricom or Tuma API to check whether an arbitrary typed code corresponds to a real completed transaction — Tuma only pushes a callback for STK pushes it initiated; it doesn't expose a "look up this code" endpoint. Trusting a typed code outright would let anyone type any string and get a free search result, subscription, or forensics case.
-- So a manually-submitted code no longer marks a payment `success` on its own. It flips the payment to `manual_review`, and only an admin manually cross-checking that code against the real Tuma merchant dashboard / M-Pesa statement (Admin panel → **Payment verifications**) can approve it — which is what actually flips it to `success` and unlocks whatever it was paying for.
-- `routes/search.js` (and the subscription/forensics-case equivalents) only ever release their result when a payment's status is *exactly* `success` — so results genuinely only appear once Tuma's real callback confirms payment, or a human has independently verified a self-reported code.
-- The frontend reflects this honestly: after submitting a manual code, the UI says "sent for verification" and polls slowly (every 8s, for up to 5 minutes in-tab) rather than assuming success — if it's still pending after that, it says so plainly and stops polling, since the payment isn't lost, just waiting on a person.
+**Payment security — Tuma's own callback is the only thing that ever confirms a payment:**
+- There is no public Safaricom or Tuma API to check whether an arbitrary typed code corresponds to a real completed transaction — Tuma only pushes a callback for STK pushes it initiated; it doesn't expose a "look up this code" endpoint. An earlier version of this app let a user self-report an M-Pesa code as a fallback when the callback didn't arrive in time, staged behind admin review — that path has been removed entirely. There is now no way to mark a payment `success` other than Tuma's own webhook actually confirming it.
+- `routes/search.js` (and the subscription/forensics-case equivalents) only ever release their result when a payment's status is *exactly* `success` — so results genuinely only appear once Tuma's real callback confirms payment. Nothing else can trigger that state.
+- The honest tradeoff: if Tuma's callback is ever dropped or delayed past the 45-second polling window, there's no self-service recovery — the frontend says plainly that it's still waiting and points the person to the contact form (or the critical-only WhatsApp line) rather than offering a workaround. That's a deliberate choice to keep "success" meaning only one thing.
 
-**"Reclaim your money" — forensics case referral, reachable from any search result:**
+**\"Reclaim your money" — forensics case referral, reachable from any search result:**
 - Every result receipt now ends with a "Lost money to this scam? Reclaim it →" link to `forensics.html`
 - Eligibility is enforced both client-side and server-side: only losses of **KES 1,000 or more** qualify (a DB `CHECK` constraint on `forensics_cases.amount_lost` backs this up as the real gate, not just UI copy)
-- Flow: intake form (amount lost, description, evidence notes, contact phone) → flat **KES 849** case-opening fee via the same Tuma/circular-spinner/manual-code pattern as search and subscriptions → case enters an admin queue (Admin panel → **Forensics cases**) with a status an admin can move through `submitted → under_review → in_progress → resolved/closed`
+- Flow: intake form (amount lost, description, evidence notes, contact phone) → flat **KES 849** case-opening fee via the same Tuma/circular-spinner pattern as search and subscriptions → case enters an admin queue (Admin panel → **Forensics cases**) with a status an admin can move through `submitted → under_review → in_progress → resolved/closed`
 - This is intentionally a simple queue for now — the real investigator-matching flow (see the earlier fraud-investigation-referral sketch) is still being defined; this table and flow don't need re-migrating once that's decided, they just get built on top of
 
 **WhatsApp customer care — critical emergencies only:**

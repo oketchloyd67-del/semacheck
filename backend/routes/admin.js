@@ -13,7 +13,6 @@ const pool = require('../db/pool');
 const { requireAdmin } = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { UPLOAD_DIR } = require('../middleware/upload');
-const { applyPaymentSuccessSideEffects } = require('./payments');
 const { registryStatus, refreshCbkRegistry } = require('../services/cbkRegistryService');
 
 const router = express.Router();
@@ -76,7 +75,7 @@ router.post('/jobs/:id/reject', requireAdmin, async (req, res) => {
 });
 
 router.get('/stats', requireAdmin, async (req, res) => {
-  const [users, searches, jobsPending, subsActive, contactUnread, idPending, forensicsSubmitted, manualReview] = await Promise.all([
+  const [users, searches, jobsPending, subsActive, contactUnread, idPending, forensicsSubmitted] = await Promise.all([
     pool.query('SELECT count(*)::int AS n FROM users'),
     pool.query('SELECT count(*)::int AS n FROM searches'),
     pool.query(`SELECT count(*)::int AS n FROM jobs WHERE status='pending'`),
@@ -84,7 +83,6 @@ router.get('/stats', requireAdmin, async (req, res) => {
     pool.query(`SELECT count(*)::int AS n FROM contact_messages WHERE emailed_ok = FALSE`),
     pool.query(`SELECT count(*)::int AS n FROM users WHERE account_type='job_owner' AND id_verification_status='pending'`),
     pool.query(`SELECT count(*)::int AS n FROM forensics_cases WHERE status='submitted'`),
-    pool.query(`SELECT count(*)::int AS n FROM payments WHERE status='manual_review'`),
   ]);
   res.json({
     totalUsers: users.rows[0].n,
@@ -94,7 +92,6 @@ router.get('/stats', requireAdmin, async (req, res) => {
     contactMessagesNeedingAttention: contactUnread.rows[0].n,
     idVerificationsPending: idPending.rows[0].n,
     forensicsCasesAwaitingReview: forensicsSubmitted.rows[0].n,
-    paymentsAwaitingManualReview: manualReview.rows[0].n,
   });
 });
 
@@ -299,55 +296,6 @@ router.post('/forensics-cases/:caseId/status', requireAdmin, async (req, res) =>
   );
   if (!rows[0]) return res.status(404).json({ error: 'Case not found.' });
   res.json({ case: rows[0] });
-});
-
-// ---- manual payment verification queue ----
-// Payments a user self-reported an M-Pesa code for, staged in
-// 'manual_review' until an admin actually checks that code against the
-// real Tuma merchant dashboard / M-Pesa statement. This is the only way
-// a manually-entered code can ever unlock anything — see routes/payments.js
-// /:paymentId/confirm-manual for why the code itself is never trusted
-// automatically.
-router.get('/payments/manual-review', requireAdmin, async (req, res) => {
-  const { rows } = await pool.query(
-    `SELECT p.id, p.purpose, p.amount, p.phone, p.manual_code_submitted, p.reference_id, p.created_at, p.updated_at,
-            u.full_name, u.email
-     FROM payments p JOIN users u ON u.id = p.user_id
-     WHERE p.status='manual_review' ORDER BY p.updated_at ASC`
-  );
-  res.json({ payments: rows });
-});
-
-router.post('/payments/:paymentId/approve-manual', requireAdmin, async (req, res) => {
-  const { rows } = await pool.query(`SELECT * FROM payments WHERE id=$1 AND status='manual_review'`, [req.params.paymentId]);
-  const payment = rows[0];
-  if (!payment) return res.status(404).json({ error: 'Payment not found or not awaiting manual review.' });
-
-  try {
-    const { rows: updated } = await pool.query(
-      `UPDATE payments SET status='success', mpesa_receipt=$1, updated_at=now() WHERE id=$2 RETURNING *`,
-      [payment.manual_code_submitted, payment.id]
-    );
-    await applyPaymentSuccessSideEffects(updated[0]);
-    res.json({ message: 'Payment approved — confirmed against the real M-Pesa statement.', payment: updated[0] });
-  } catch (err) {
-    if (err.code === '23505') {
-      return res.status(409).json({ error: 'This M-Pesa code is already recorded against a different successful payment — cannot approve as a duplicate.' });
-    }
-    console.error('Manual payment approval error:', err);
-    res.status(500).json({ error: 'Could not approve payment.' });
-  }
-});
-
-router.post('/payments/:paymentId/reject-manual', requireAdmin, async (req, res) => {
-  const { reason } = req.body;
-  if (!reason || !reason.trim()) return res.status(400).json({ error: 'A rejection reason is required.' });
-  const { rows } = await pool.query(
-    `UPDATE payments SET status='failed', raw_callback_json=$1, updated_at=now() WHERE id=$2 AND status='manual_review' RETURNING id, status`,
-    [JSON.stringify({ manualReviewRejected: true, reason: reason.trim(), rejectedAt: new Date().toISOString() }), req.params.paymentId]
-  );
-  if (!rows[0]) return res.status(404).json({ error: 'Payment not found or not awaiting manual review.' });
-  res.json({ message: 'Payment rejected.', payment: rows[0] });
 });
 
 // ---- Kenya data sources: CBK licensed digital lenders registry ----

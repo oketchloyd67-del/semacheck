@@ -104,17 +104,16 @@ CREATE TABLE IF NOT EXISTS payments (
     reference_id             UUID,                    
     amount                   NUMERIC(10,2) NOT NULL,
     phone                    VARCHAR(15) NOT NULL,
-    status                   VARCHAR(20) NOT NULL DEFAULT 'initiated' CHECK (status IN ('initiated', 'pending', 'success', 'failed', 'cancelled', 'manual_review')),
+    -- 'success' is only ever set from Tuma's own STK-push callback (see
+    -- routes/payments.js /tuma/callback) — there is no manual/self-reported
+    -- path that can mark a payment successful. If Tuma's callback never
+    -- arrives, the payment simply stays 'pending'/'failed'; the user's
+    -- recourse is the contact form or the critical-only WhatsApp line,
+    -- not a code they type in themselves.
+    status                   VARCHAR(20) NOT NULL DEFAULT 'initiated' CHECK (status IN ('initiated', 'pending', 'success', 'failed', 'cancelled')),
     tuma_checkout_request_id  VARCHAR(60),                      
     tuma_merchant_request_id  VARCHAR(60),
     mpesa_receipt             VARCHAR(40),                      
-    -- The user's self-reported code while a payment sits in manual_review.
-    -- This is NEVER trusted on its own — see routes/payments.js
-    -- /confirm-manual and routes/admin.js /payments/manual-review. Only
-    -- once an admin cross-checks it against the real M-Pesa statement and
-    -- approves does it get copied into mpesa_receipt above and the
-    -- payment actually flip to 'success'.
-    manual_code_submitted      VARCHAR(20),
     raw_callback_json         JSONB,
     created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -272,7 +271,16 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS raw_callback_json JSONB;
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_purpose_check;
 ALTER TABLE payments ADD CONSTRAINT payments_purpose_check CHECK (purpose IN ('search', 'subscription', 'forensics_case'));
 
-ALTER TABLE payments ADD COLUMN IF NOT EXISTS manual_code_submitted VARCHAR(20);
+-- Manual M-Pesa code verification has been removed entirely — there is
+-- no longer any self-reported-code path, so 'manual_review' is no
+-- longer a valid status and the column that held a submitted code is
+-- gone too. Any payment a previous version of this app left sitting in
+-- 'manual_review' is moved to 'failed' first, since it never actually
+-- got confirmed — this has to run BEFORE tightening the CHECK
+-- constraint below, or that ALTER would fail against that old data.
+UPDATE payments SET status='failed', updated_at=now() WHERE status='manual_review';
 
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
-ALTER TABLE payments ADD CONSTRAINT payments_status_check CHECK (status IN ('initiated', 'pending', 'success', 'failed', 'cancelled', 'manual_review'));
+ALTER TABLE payments ADD CONSTRAINT payments_status_check CHECK (status IN ('initiated', 'pending', 'success', 'failed', 'cancelled'));
+
+ALTER TABLE payments DROP COLUMN IF EXISTS manual_code_submitted;
