@@ -4,7 +4,7 @@ const dns = require('dns');
 require('dotenv').config();
 
 
-dns.setDefaultResultOrder('ipv4first');
+dns.setDefaultResultOrder('ipv6first');
 
 
 let poolConfig = {
@@ -17,13 +17,9 @@ let poolConfig = {
 if (process.env.DATABASE_URL) {
   console.log('Using DATABASE_URL for connection');
   poolConfig.connectionString = process.env.DATABASE_URL;
-  
-  
-  if (process.env.NODE_ENV === 'production') {
-    poolConfig.ssl = {
-      rejectUnauthorized: false,
-    };
-  }
+  poolConfig.ssl = {
+    rejectUnauthorized: false,
+  };
 } 
 
 else if (process.env.DB_USER && process.env.DB_PASSWORD) {
