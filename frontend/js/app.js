@@ -440,37 +440,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const searchBtn = document.getElementById('searchBtn');
     searchBtn.disabled = true;
+    const pp = document.getElementById('paymentProgressCard');
+    const ppCircular = document.getElementById('ppCircular');
+    const ppStatus = document.getElementById('ppStatusText');
+    const ppHint = document.getElementById('ppHint');
+    pp.style.display = 'block';
+    ppCircular.className = 'pp-circular';
+    ppStatus.textContent = 'Processing your results';
+    ppHint.textContent = 'Sending M-Pesa STK push to your phone...';
+    pp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const pay = await api('/payments/search', { method: 'POST', body: JSON.stringify({ tier: searchTier, phone }) });
+      ppStatus.textContent = 'Enter your M-Pesa PIN';
+      ppHint.textContent = 'An STK prompt has been sent to your phone. Enter your PIN to confirm payment.';
       await waitForPaymentThenRun({
         paymentId: pay.paymentId,
-        initialMessage: pay.message || `STK push sent to ${phone}. Enter your M-Pesa PIN to complete payment.`,
         onConfirmed: async () => {
           const result = await api('/search', { method: 'POST', body: JSON.stringify({ paymentId: pay.paymentId, queryType: searchType, queryValue: value, region: searchRegion }) });
           renderSearchResult(result);
         },
       });
     } catch (err) {
-      const pp = document.getElementById('paymentProgressCard');
-      pp.style.display = 'block';
-      document.getElementById('ppStatusText').textContent = 'Something went wrong.';
-      document.getElementById('ppHint').textContent = escapeHtml(err.message);
+      ppCircular.className = 'pp-circular';
+      ppStatus.textContent = 'Something went wrong.';
+      ppHint.textContent = escapeHtml(err.message);
     } finally {
       searchBtn.disabled = false;
     }
   });
 
-  async function waitForPaymentThenRun({ paymentId, initialMessage, onConfirmed }) {
+  async function waitForPaymentThenRun({ paymentId, onConfirmed }) {
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');
     const circular = document.getElementById('ppCircular');
     const hint = document.getElementById('ppHint');
 
     card.style.display = 'block';
-    circular.classList.remove('done');
-    statusText.textContent = initialMessage;
-    hint.textContent = 'Check your phone and enter your M-Pesa PIN. This usually takes a few seconds.';
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    circular.className = 'pp-circular';
 
     const POLL_EVERY_MS = 2500;
     const TIMEOUT_MS = 45000;
@@ -480,9 +486,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const finishSuccess = async () => {
         clearInterval(timer);
         circular.classList.add('done');
-        statusText.textContent = 'Payment confirmed!';
-        hint.innerHTML = '<span class="receipt-printing-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></span> Printing your receipt…';
-        await new Promise((r) => setTimeout(r, 700));
+        circular.className = 'pp-circular done';
+        statusText.textContent = 'Success!';
+        hint.textContent = 'Payment confirmed. Generating your receipt...';
+        await new Promise((r) => setTimeout(r, 1200));
         try {
           await onConfirmed();
           card.style.display = 'none';
@@ -494,6 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const showTimeoutOrFailure = (statusMsg) => {
         clearInterval(timer);
+        circular.className = 'pp-circular failed';
         statusText.textContent = statusMsg;
         hint.textContent = "If you completed the M-Pesa prompt and this persists, please get in touch via the contact form — don't try paying again until you hear back.";
         resolve();

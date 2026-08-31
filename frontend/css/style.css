@@ -74,6 +74,8 @@ button { font-family: inherit; cursor: pointer; }
 .payment-progress-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 26px 22px; margin-top: 16px; max-width: 640px; text-align: center; }
 .pp-circular { width: 54px; height: 54px; border-radius: 50%; border: 5px solid var(--border); border-top-color: var(--teal); margin: 0 auto 16px; animation: spin 0.9s linear infinite; }
 .pp-circular.done { border: 5px solid var(--legit-green); border-top-color: var(--legit-green); animation: none; display: flex; align-items: center; justify-content: center; }
+.pp-circular.failed { border: 5px solid var(--scam-red); border-top-color: var(--scam-red); animation: none; display: flex; align-items: center; justify-content: center; }
+.pp-circular.failed::after { content: '\2717'; font-size: 22px; color: var(--scam-red); font-weight: 700; }
 .pp-circular.done::after { content: ''; width: 24px; height: 24px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2323A46A'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E") center/contain no-repeat; display: block; margin: 0 auto; }
 .pp-status-text { font-weight: 700; font-size: 0.95rem; color: var(--navy); margin-bottom: 4px; }
 .pp-hint { font-size: 0.82rem; color: var(--text-muted); }
@@ -81,6 +83,12 @@ button { font-family: inherit; cursor: pointer; }
 
 .receipt-outer { max-height: 0; overflow: hidden; margin-top: 0; transition: max-height 0.9s cubic-bezier(0.22, 1, 0.36, 1), margin-top 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
 .receipt-outer.open { max-height: 950px; margin-top: 18px; }
+.receipt-outer.open .receipt-paper { animation: printReveal 0.8s ease-out forwards; }
+@keyframes printReveal {
+  0% { opacity: 0; transform: translateY(-20px) scaleY(0.3); }
+  40% { opacity: 1; transform: translateY(0) scaleY(0.3); }
+  100% { opacity: 1; transform: translateY(0) scaleY(1); }
+}
 .receipt-paper {
   position: relative;
   background: #fdfdf7;
