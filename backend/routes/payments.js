@@ -185,7 +185,7 @@ router.get('/status/:paymentId', requireAuth, async (req, res) => {
   const { rows } = await pool.query('SELECT id, purpose, status, amount, reference_id FROM payments WHERE id=$1 AND user_id=$2', [req.params.paymentId, req.user.id]);
   if (!rows[0]) return res.status(404).json({ error: 'Payment not found.' });
 
-  if (rows[0].status === 'pending' && rows[0].reference_id) {
+  if (rows[0].status === 'pending') {
     try {
       const { rows: payRows } = await pool.query('SELECT tuma_checkout_request_id FROM payments WHERE id=$1', [req.params.paymentId]);
       const checkoutId = payRows[0] && payRows[0].tuma_checkout_request_id;
