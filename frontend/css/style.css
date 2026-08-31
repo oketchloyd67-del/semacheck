@@ -332,6 +332,35 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
 .ticker-item { animation: tickerFadeIn 0.3s ease forwards; }
 
 
+.cookie-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 30px rgba(0,0,0,0.12);
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  animation: cookieSlideUp 0.4s ease;
+}
+.cookie-banner.hidden { display: none; }
+.cookie-banner-text { flex: 1; font-size: 0.88rem; color: var(--text); line-height: 1.5; }
+.cookie-banner-text a { color: var(--teal); font-weight: 600; }
+.cookie-banner-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.cookie-banner-actions .btn { padding: 9px 18px; font-size: 0.85rem; white-space: nowrap; }
+@keyframes cookieSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@media (max-width: 600px) {
+  .cookie-banner { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 18px; }
+  .cookie-banner-actions { justify-content: stretch; }
+  .cookie-banner-actions .btn { flex: 1; }
+}
+
+
 @media print {
   body * { visibility: hidden; }
   #receiptPaper, #receiptPaper * { visibility: visible; }
