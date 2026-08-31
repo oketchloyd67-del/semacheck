@@ -186,35 +186,7 @@ router.get('/status/:paymentId', requireAuth, async (req, res) => {
   if (!rows[0]) return res.status(404).json({ error: 'Payment not found.' });
 
   if (rows[0].status === 'pending') {
-    try {
-      const { rows: payRows } = await pool.query('SELECT tuma_checkout_request_id FROM payments WHERE id=$1', [req.params.paymentId]);
-      const checkoutId = payRows[0] && payRows[0].tuma_checkout_request_id;
-      if (checkoutId) {
-        const tumaStatus = await tuma.queryPaymentStatus(checkoutId);
-        if (tumaStatus && tumaStatus.data) {
-          const d = tumaStatus.data;
-          if (d.status === 'completed' && d.result_code === 0) {
-            await pool.query(
-              `UPDATE payments SET status='success', mpesa_receipt=$1, raw_callback_json=$2, updated_at=now() WHERE id=$3 AND status='pending' RETURNING *`,
-              [d.mpesa_receipt_number || null, JSON.stringify(d), req.params.paymentId]
-            );
-            const { rows: updated } = await pool.query('SELECT id, purpose, status, amount, reference_id FROM payments WHERE id=$1', [req.params.paymentId]);
-            if (updated[0] && updated[0].status === 'success') {
-              await applyPaymentSuccessSideEffects(updated[0]);
-              return res.json(updated[0]);
-            }
-          } else if (d.status === 'failed' || (d.result_code && d.result_code !== 0)) {
-            await pool.query(
-              `UPDATE payments SET status='failed', raw_callback_json=$1, updated_at=now() WHERE id=$2 AND status='pending'`,
-              [JSON.stringify(d), req.params.paymentId]
-            );
-            rows[0].status = 'failed';
-          }
-        }
-      }
-    } catch (fallbackErr) {
-      console.warn('Tuma status fallback failed:', fallbackErr.message);
-    }
+    console.log('Payment still pending for', req.params.paymentId, '- waiting for Tuma callback');
   }
 
   res.json(rows[0]);
