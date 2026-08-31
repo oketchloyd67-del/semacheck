@@ -1,10 +1,10 @@
-# Allow all search engines to crawl your site
+# SemaCheck — robots.txt
+# https://semacheck.vercel.app
+
 User-agent: *
 Allow: /
+Disallow: /dashboard.html
+Disallow: /forensics.html
+Disallow: /admin/
 
-# Disallow admin pages if you don't want them indexed
-# User-agent: *
-# Disallow: /admin.html
-
-# Point to your sitemap
 Sitemap: https://semacheck.vercel.app/sitemap.xml
