@@ -68,4 +68,17 @@ async function stkPush({ phone, amount, description = 'SemaCheck payment' }) {
   return data.data; 
 }
 
-module.exports = { stkPush, getAccessToken };
+async function queryPaymentStatus(checkoutRequestId) {
+  const token = await getAccessToken();
+  try {
+    const { data } = await axios.get(
+      `${BASE_URL}/payment/status/${checkoutRequestId}`,
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }
+    );
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { stkPush, getAccessToken, queryPaymentStatus };

@@ -135,19 +135,25 @@ router.post('/forensics-case', requireAuth, paymentLimiter, async (req, res) => 
 
 
 router.post('/tuma/callback', express.json(), async (req, res) => {
-  
-  
+  console.log('Tuma callback received:', JSON.stringify(req.body));
   res.json({ received: true });
 
   try {
     const { status, checkout_request_id, result_code, mpesa_receipt_number, failure_reason } = req.body || {};
-    if (!checkout_request_id) return;
+    if (!checkout_request_id) {
+      console.warn('Tuma callback: missing checkout_request_id');
+      return;
+    }
 
     const { rows } = await pool.query('SELECT * FROM payments WHERE tuma_checkout_request_id = $1', [checkout_request_id]);
     const payment = rows[0];
-    if (!payment) return;
+    if (!payment) {
+      console.warn('Tuma callback: no payment found for checkout_request_id:', checkout_request_id);
+      return;
+    }
 
     if (status !== 'completed' || result_code !== 0) {
+      console.log('Tuma callback: payment failed for', payment.id, 'reason:', failure_reason);
       await pool.query(
         `UPDATE payments SET status='failed', raw_callback_json=$1, updated_at=now() WHERE id=$2`,
         [JSON.stringify({ ...req.body, failure_reason }), payment.id]
@@ -155,6 +161,7 @@ router.post('/tuma/callback', express.json(), async (req, res) => {
       return;
     }
 
+    console.log('Tuma callback: payment succeeded for', payment.id, 'receipt:', mpesa_receipt_number);
     const { rows: updated } = await pool.query(
       `UPDATE payments SET status='success', mpesa_receipt=$1, raw_callback_json=$2, updated_at=now() WHERE id=$3 RETURNING *`,
       [mpesa_receipt_number || null, JSON.stringify(req.body), payment.id]
@@ -177,6 +184,39 @@ router.get('/status/:paymentId', requireAuth, async (req, res) => {
   if (!UUID_RE.test(req.params.paymentId)) return res.status(400).json({ error: 'Invalid payment ID.' });
   const { rows } = await pool.query('SELECT id, purpose, status, amount, reference_id FROM payments WHERE id=$1 AND user_id=$2', [req.params.paymentId, req.user.id]);
   if (!rows[0]) return res.status(404).json({ error: 'Payment not found.' });
+
+  if (rows[0].status === 'pending' && rows[0].reference_id) {
+    try {
+      const { rows: payRows } = await pool.query('SELECT tuma_checkout_request_id FROM payments WHERE id=$1', [req.params.paymentId]);
+      const checkoutId = payRows[0] && payRows[0].tuma_checkout_request_id;
+      if (checkoutId) {
+        const tumaStatus = await tuma.queryPaymentStatus(checkoutId);
+        if (tumaStatus && tumaStatus.data) {
+          const d = tumaStatus.data;
+          if (d.status === 'completed' && d.result_code === 0) {
+            await pool.query(
+              `UPDATE payments SET status='success', mpesa_receipt=$1, raw_callback_json=$2, updated_at=now() WHERE id=$3 AND status='pending' RETURNING *`,
+              [d.mpesa_receipt_number || null, JSON.stringify(d), req.params.paymentId]
+            );
+            const { rows: updated } = await pool.query('SELECT id, purpose, status, amount, reference_id FROM payments WHERE id=$1', [req.params.paymentId]);
+            if (updated[0] && updated[0].status === 'success') {
+              await applyPaymentSuccessSideEffects(updated[0]);
+              return res.json(updated[0]);
+            }
+          } else if (d.status === 'failed' || (d.result_code && d.result_code !== 0)) {
+            await pool.query(
+              `UPDATE payments SET status='failed', raw_callback_json=$1, updated_at=now() WHERE id=$2 AND status='pending'`,
+              [JSON.stringify(d), req.params.paymentId]
+            );
+            rows[0].status = 'failed';
+          }
+        }
+      }
+    } catch (fallbackErr) {
+      console.warn('Tuma status fallback failed:', fallbackErr.message);
+    }
+  }
+
   res.json(rows[0]);
 });
 
