@@ -7,6 +7,7 @@ const compression = require('compression');
 
 const { generalLimiter } = require('./middleware/rateLimiter');
 const whatsappRoutes = require('./routes/whatsapp');
+const publicRoutes = require('./routes/public');
 const authRoutes = require('./routes/auth');
 const searchRoutes = require('./routes/search');
 const paymentRoutes = require('./routes/payments');
@@ -41,6 +42,7 @@ app.use(generalLimiter);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
+app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/payments', paymentRoutes);
@@ -48,6 +50,8 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/admin', adminRoutes); 
 app.use('/api/contact', contactRoutes);
 app.use('/api/forensics', forensicsRoutes);
+
+app.use('/api/free-search', require('./routes/freeSearch'));
 
 app.use((req, res) => res.status(404).json({ error: 'Not found.' }));
 

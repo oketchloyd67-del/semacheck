@@ -319,6 +319,22 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
 .receipt-actions { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
 .receipt-actions .btn { white-space: nowrap; }
 
+.ticker-container { display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
+.ticker-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; transition: transform 0.15s ease; }
+.ticker-item:hover { transform: translateY(-1px); }
+.ticker-verdict { font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
+.ticker-verdict.scam { background: rgba(214,69,92,0.12); color: var(--scam-red); }
+.ticker-verdict.suspicious { background: rgba(224,162,39,0.14); color: var(--suspicious-amber); }
+.ticker-type { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.03em; flex-shrink: 0; width: 64px; }
+.ticker-value { font-family: 'Courier New', monospace; font-weight: 700; font-size: 0.95rem; color: var(--text); }
+.ticker-time { font-size: 0.75rem; color: var(--text-muted); margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+@keyframes tickerFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.ticker-item { animation: tickerFadeIn 0.3s ease forwards; }
+
+.free-search-banner { background: linear-gradient(135deg, rgba(15,163,163,0.08), rgba(15,163,163,0.04)); border: 1px solid rgba(15,163,163,0.2); border-radius: 10px; padding: 14px 18px; margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.free-search-banner p { font-size: 0.88rem; color: var(--navy); font-weight: 500; }
+.free-search-banner .btn { font-size: 0.82rem; padding: 8px 16px; white-space: nowrap; }
+
 @media print {
   body * { visibility: hidden; }
   #receiptPaper, #receiptPaper * { visibility: visible; }

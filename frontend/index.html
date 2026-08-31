@@ -20,6 +20,10 @@
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<link rel="preload" href="css/style.css" as="style">
+<link rel="preload" href="js/app.js" as="script">
+<link rel="preload" href="js/validation.js" as="script">
+<link rel="preload" href="assets/logo.png" as="image">
 </head>
 <body>
 
@@ -94,6 +98,44 @@
 
 <section style="background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
   <div class="container">
+    <h2 class="section-title">Our data sources</h2>
+    <p class="section-sub">SemaCheck is not a black box. Here's exactly what powers every verdict.</p>
+    <div class="grid-3">
+      <div class="card">
+        <div class="icon-badge">🗄</div>
+        <h3>Community scam database</h3>
+        <p>Thousands of verified scam reports submitted by real Kenyans — Paybills, phone numbers, and job offers that people have already flagged.</p>
+      </div>
+      <div class="card">
+        <div class="icon-badge">🏦</div>
+        <h3>CBK licensed lender registry</h3>
+        <p>We cross-reference every Paybill against the Central Bank of Kenya's official list of licensed deposit-taking institutions.</p>
+      </div>
+      <div class="card">
+        <div class="icon-badge">🌐</div>
+        <h3>Live web search + global databases</h3>
+        <p>We run real-time web searches across government scam alerts (DCI, CBK), Kenyan news outlets, FTC, BBB Scam Tracker, and Interpol fraud alerts.</p>
+      </div>
+    </div>
+    <div class="legal-note" style="background:rgba(15,163,163,0.06);border:1px solid rgba(15,163,163,0.2);border-radius:10px;padding:16px 20px;margin-top:28px;font-size:0.9rem;color:var(--text);max-width:680px;">
+      <b>Transparency:</b> SemaCheck is a research and reference tool — it is not insurance or a guarantee. A "clean" result means we found no reports at the time of the search. Always apply your own judgement. Read our full <a href="terms.html" style="color:var(--teal);font-weight:600;">Terms of Service</a> and <a href="privacy.html" style="color:var(--teal);font-weight:600;">Privacy Policy</a>.
+    </div>
+  </div>
+</section>
+
+<section style="background:var(--bg);border-bottom:1px solid var(--border);padding:48px 0;">
+  <div class="container">
+    <h2 class="section-title">Recently flagged scam numbers</h2>
+    <p class="section-sub">Live feed from SemaCheck's scam database — these numbers and offers were recently reported and verified as scams or suspicious.</p>
+    <div id="tickerContainer" class="ticker-container">
+      <p style="color:var(--text-muted);font-size:0.9rem;">Loading recent scam reports…</p>
+    </div>
+    <p style="margin-top:14px;font-size:0.82rem;color:var(--text-muted);">Numbers are partially hidden for privacy. Full details available after a paid search.</p>
+  </div>
+</section>
+
+<section style="background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="container">
     <h2 class="section-title">What SemaCheck catches</h2>
     <div class="grid-3">
       <div class="card"><div class="icon-badge">FPN</div><h3>Fake Paybill numbers</h3><p>Confirm a till or Paybill is registered to a real, licensed business before you pay.</p></div>
@@ -132,7 +174,7 @@
 
 <footer>
   <div class="container">
-    SemaCheck &middot; Kenya's citizen scam &amp; fraud verification platform &middot; <a href="privacy.html" style="color:#cfd9ea;">Privacy Policy</a>
+    SemaCheck &middot; Kenya's citizen scam &amp; fraud verification platform &middot; <a href="privacy.html" style="color:#cfd9ea;">Privacy Policy</a> &middot; <a href="terms.html" style="color:#cfd9ea;">Terms of Service</a>
   </div>
 </footer>
 
