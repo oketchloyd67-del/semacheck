@@ -10,7 +10,7 @@
     "migrate": "node db/migrate.js",
     "migrate:fix": "node db/add-reminder-columns.js",
     "seed": "node db/seed.js",
-    "build": "npm run migrate && npm run migrate:fix || true",
+    "build": "npm install --include=dev && node db/migrate.js && node db/add-reminder-columns.js || true",
     "reminders": "node jobs/subscriptionMaintenance.js",
     "refresh-kenya-registry": "node jobs/refreshKenyaRegistries.js",
     "test": "echo \"Error: no test specified\" && exit 1",

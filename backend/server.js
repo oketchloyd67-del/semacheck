@@ -71,7 +71,15 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4800;
-app.listen(PORT, () => console.log(`SemaCheck API listening on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`SemaCheck API listening on port ${PORT}`);
+  console.log('Tuma config:', {
+    hasEmail: !!process.env.TUMA_EMAIL,
+    hasApiKey: !!process.env.TUMA_API_KEY,
+    hasCallbackUrl: !!process.env.TUMA_CALLBACK_URL,
+    callbackUrl: process.env.TUMA_CALLBACK_URL || 'NOT SET',
+  });
+});
 
 if (process.env.DISABLE_IN_PROCESS_SCHEDULER !== 'true') {
   const { runMaintenance } = require('./jobs/subscriptionMaintenance');
