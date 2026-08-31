@@ -53,6 +53,7 @@ router.post('/search', requireAuth, paymentLimiter, async (req, res) => {
     );
     res.json({ paymentId, checkoutRequestId: stk.checkout_request_id, message: stk.customer_message || 'STK push sent. Enter your M-Pesa PIN to complete payment.' });
   } catch (err) {
+    console.error('STK push failed:', err.response ? JSON.stringify(err.response.data) : err.message);
     await pool.query(`UPDATE payments SET status='failed', updated_at=now() WHERE id=$1`, [paymentId]);
     res.status(502).json({ error: err.message, paymentId });
   }
@@ -84,6 +85,7 @@ router.post('/subscription', requireAuth, requireJobOwner, paymentLimiter, async
     );
     res.json({ paymentId, subscriptionId, checkoutRequestId: stk.checkout_request_id, message: stk.customer_message || 'STK push sent. Enter your M-Pesa PIN to activate your subscription.' });
   } catch (err) {
+    console.error('STK push failed:', err.response ? JSON.stringify(err.response.data) : err.message);
     await pool.query(`UPDATE payments SET status='failed', updated_at=now() WHERE id=$1`, [paymentId]);
     res.status(502).json({ error: err.message, paymentId });
   }
@@ -122,6 +124,7 @@ router.post('/forensics-case', requireAuth, paymentLimiter, async (req, res) => 
     );
     res.json({ paymentId, caseId, checkoutRequestId: stk.checkout_request_id, message: stk.customer_message || 'STK push sent. Enter your M-Pesa PIN to submit your case.' });
   } catch (err) {
+    console.error('STK push failed:', err.response ? JSON.stringify(err.response.data) : err.message);
     await pool.query(`UPDATE payments SET status='failed', updated_at=now() WHERE id=$1`, [paymentId]);
     res.status(502).json({ error: err.message, paymentId });
   }
