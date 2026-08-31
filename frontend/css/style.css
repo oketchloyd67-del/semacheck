@@ -331,6 +331,15 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
 @keyframes tickerFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .ticker-item { animation: tickerFadeIn 0.3s ease forwards; }
 
+.skip-link:focus { top: 0 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .pp-circular { animation: none !important; }
+  .receipt-paper { transition: none !important; transform: none !important; opacity: 1 !important; }
+  .ticker-item { animation: none !important; opacity: 1; }
+}
+
 
 .cookie-banner {
   position: fixed;

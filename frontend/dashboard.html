@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Job Owner Dashboard — SemaCheck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta name="description" content="Manage your job postings, track approvals, and maintain your subscription on SemaCheck's job-owner dashboard.">
 <meta name="robots" content="noindex, nofollow">
 <link rel="canonical" href="https://semacheck.vercel.app/dashboard.html">
@@ -34,7 +36,9 @@
 </head>
 <body>
 
-<div class="dash-header">
+<a href="#postJobBtn" class="skip-link" style="position:absolute;top:-100%;left:16px;background:var(--teal);color:#fff;padding:10px 18px;border-radius:0 0 8px 8px;font-weight:600;z-index:999;transition:top 0.2s;">Skip to content</a>
+
+<div class="dash-header" role="banner" aria-label="Job owner dashboard header">
   <div class="container">
     <div class="brand" style="color:#fff;"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></div>
     <div>
@@ -44,7 +48,8 @@
   </div>
 </div>
 
-<div class="container" style="padding-top:30px;padding-bottom:60px;">
+<div class="container" style="padding-top:30px;padding-bottom:60px;" role="main">
+  <h1 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Job Owner Dashboard</h1>
   <div id="dashAlert"></div>
   <div id="suspendedBanner" style="display:none;margin-bottom:16px;" class="alert alert-err"></div>
 
