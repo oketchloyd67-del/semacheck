@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
         paymentId: pay.paymentId,
         onConfirmed: async () => {
           const result = await api('/search', { method: 'POST', body: JSON.stringify({ paymentId: pay.paymentId, queryType: searchType, queryValue: value, region: searchRegion }) });
-          renderSearchResult(result);
+          renderSearchResult(result, value);
         },
       });
     } catch (err) {
@@ -521,7 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function renderSearchResult(payload) {
+  function renderSearchResult(payload, queryValue) {
     const r = payload.result;
     const outer = document.getElementById('receiptOuter');
     const slot = document.getElementById('receiptPaperSlot');
@@ -533,7 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dbCount = r.sources && r.sources.db_signal ? r.sources.db_signal.reduce((a, b) => a + b.n, 0) : null;
 
     const isScam = r.verdict === 'scam' || r.verdict === 'suspicious';
-    const forensicsParams = new URLSearchParams({ q: value, type: searchType, verdict: r.verdict });
+    const forensicsParams = new URLSearchParams({ q: queryValue, type: searchType, verdict: r.verdict });
 
     slot.innerHTML = `
       <div class="receipt-paper" id="receiptPaper">
