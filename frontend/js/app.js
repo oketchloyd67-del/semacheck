@@ -57,22 +57,20 @@ async function api(path, options = {}) {
   const headers = { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const MAX_RETRIES = 3;
-  const RETRY_DELAYS = [3000, 6000, 10000];
+  const MAX_RETRIES = 5;
+  const RETRY_DELAYS = [5000, 10000, 15000, 20000, 25000];
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
       if ((res.status === 503 || res.status === 502) && attempt < MAX_RETRIES) {
-        if (attempt === 0) {
-          var wakeNotice = document.getElementById('apiWakeNotice');
-          if (!wakeNotice) {
-            wakeNotice = document.createElement('div');
-            wakeNotice.id = 'apiWakeNotice';
-            wakeNotice.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#0d9488;color:#fff;text-align:center;padding:10px 16px;font-size:0.9rem;font-weight:500;';
-            wakeNotice.textContent = 'Server is waking up, please wait...';
-            document.body.appendChild(wakeNotice);
-          }
+        var wakeNotice = document.getElementById('apiWakeNotice');
+        if (!wakeNotice) {
+          wakeNotice = document.createElement('div');
+          wakeNotice.id = 'apiWakeNotice';
+          wakeNotice.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#0d9488;color:#fff;text-align:center;padding:10px 16px;font-size:0.9rem;font-weight:500;';
+          document.body.appendChild(wakeNotice);
         }
+        wakeNotice.textContent = 'Server is waking up, please wait... (attempt ' + (attempt + 1) + '/' + (MAX_RETRIES + 1) + ')';
         await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
         continue;
       }
@@ -88,16 +86,14 @@ async function api(path, options = {}) {
       return data;
     } catch (fetchErr) {
       if (fetchErr.name === 'TypeError' && attempt < MAX_RETRIES) {
-        if (attempt === 0) {
-          var wakeNotice3 = document.getElementById('apiWakeNotice');
-          if (!wakeNotice3) {
-            wakeNotice3 = document.createElement('div');
-            wakeNotice3.id = 'apiWakeNotice';
-            wakeNotice3.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#0d9488;color:#fff;text-align:center;padding:10px 16px;font-size:0.9rem;font-weight:500;';
-            wakeNotice3.textContent = 'Server is waking up, please wait...';
-            document.body.appendChild(wakeNotice3);
-          }
+        var wakeNotice3 = document.getElementById('apiWakeNotice');
+        if (!wakeNotice3) {
+          wakeNotice3 = document.createElement('div');
+          wakeNotice3.id = 'apiWakeNotice';
+          wakeNotice3.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#0d9488;color:#fff;text-align:center;padding:10px 16px;font-size:0.9rem;font-weight:500;';
+          document.body.appendChild(wakeNotice3);
         }
+        wakeNotice3.textContent = 'Server is waking up, please wait... (attempt ' + (attempt + 1) + '/' + (MAX_RETRIES + 1) + ')';
         await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
         continue;
       }
