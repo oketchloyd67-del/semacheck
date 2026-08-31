@@ -36,84 +36,6 @@ function timeAgo(date) {
   return `${days}d ago`;
 }
 
-function setupFreeSearchHook() {
-  const searchCard = document.getElementById('search');
-  if (!searchCard) return;
-  const hint = document.querySelector('.search-hint');
-  if (!hint) return;
-
-  const token = getToken();
-  if (token) {
-    fetch(`${API_BASE}/public/user-search-count`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.count === 0) {
-          const banner = document.createElement('div');
-          banner.className = 'free-search-banner';
-          banner.innerHTML = '<p>🎉 Your first search is free — no payment needed.</p><button class="btn btn-primary" id="freeSearchBtn">Try it now</button>';
-          searchCard.appendChild(banner);
-          document.getElementById('freeSearchBtn')?.addEventListener('click', runFreeSearch);
-        }
-      })
-      .catch(() => {});
-    return;
-  }
-
-  const banner = document.createElement('div');
-  banner.className = 'free-search-banner';
-  banner.innerHTML = '<p>🎉 Try SemaCheck for free — your first basic search is on us.</p><button class="btn btn-primary" id="freeSearchBtn">Try it now</button>';
-  searchCard.appendChild(banner);
-  document.getElementById('freeSearchBtn')?.addEventListener('click', runFreeSearch);
-}
-
-async function runFreeSearch() {
-  const value = document.getElementById('searchInput').value.trim();
-  if (!value) {
-    document.getElementById('searchInput').focus();
-    return;
-  }
-  const searchBtn = document.getElementById('searchBtn');
-  searchBtn.disabled = true;
-  const card = document.getElementById('paymentProgressCard');
-  const statusText = document.getElementById('ppStatusText');
-  const hint = document.getElementById('ppHint');
-  const circular = document.getElementById('ppCircular');
-  card.style.display = 'block';
-  circular.classList.remove('done');
-  statusText.textContent = 'Running your free search…';
-  hint.textContent = 'Checking our database and the web — this takes a few seconds.';
-  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}/free-search`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ queryType: searchType, queryValue: value, region: searchRegion }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Search failed.');
-    circular.classList.add('done');
-    statusText.textContent = 'Free search complete!';
-    hint.innerHTML = '<span class="receipt-printing-icon">⚙</span> Printing your receipt…';
-    await new Promise((r) => setTimeout(r, 700));
-    renderSearchResult(data);
-    card.style.display = 'none';
-    document.querySelector('.free-search-banner')?.remove();
-  } catch (err) {
-    circular.classList.remove('done');
-    statusText.textContent = 'Search failed.';
-    hint.textContent = err.message || 'Something went wrong.';
-  } finally {
-    searchBtn.disabled = false;
-  }
-}
-
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -605,7 +527,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   loadRecentScamsTicker();
-  setupFreeSearchHook();
 
   document.getElementById('contactSendBtn')?.addEventListener('click', async () => {
     const alertBox = document.getElementById('contactAlert');

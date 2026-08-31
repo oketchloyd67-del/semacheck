@@ -51,8 +51,6 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/forensics', forensicsRoutes);
 
-app.use('/api/free-search', require('./routes/freeSearch'));
-
 app.use((req, res) => res.status(404).json({ error: 'Not found.' }));
 
 

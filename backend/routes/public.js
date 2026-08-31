@@ -30,25 +30,4 @@ router.get('/recent-scams', async (req, res) => {
   }
 });
 
-router.get('/user-search-count', async (req, res) => {
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  if (!token) return res.json({ count: 999 });
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    const { rows } = await pool.query(
-      `SELECT count(*)::int AS count FROM searches WHERE user_id = $1`,
-      [payload.sessionId ? (await pool.query(
-        `SELECT user_id FROM sessions WHERE id = $1`,
-        [payload.sessionId]
-      )).rows[0]?.user_id || 0 : 0]
-    );
-    res.json({ count: rows[0]?.count ?? 999 });
-  } catch {
-    res.json({ count: 999 });
-  }
-});
-
 module.exports = router;

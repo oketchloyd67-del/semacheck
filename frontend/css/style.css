@@ -331,9 +331,6 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
 @keyframes tickerFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .ticker-item { animation: tickerFadeIn 0.3s ease forwards; }
 
-.free-search-banner { background: linear-gradient(135deg, rgba(15,163,163,0.08), rgba(15,163,163,0.04)); border: 1px solid rgba(15,163,163,0.2); border-radius: 10px; padding: 14px 18px; margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.free-search-banner p { font-size: 0.88rem; color: var(--navy); font-weight: 500; }
-.free-search-banner .btn { font-size: 0.82rem; padding: 8px 16px; white-space: nowrap; }
 
 @media print {
   body * { visibility: hidden; }
