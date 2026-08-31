@@ -18,15 +18,49 @@ async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
-  let data = {};
-  try { data = await res.json(); } catch {  }
-  if (!res.ok) {
-    const err = new Error(data.error || 'Something went wrong.');
-    Object.assign(err, data);
-    throw err;
+  const MAX_RETRIES = 3;
+  const RETRY_DELAYS = [3000, 6000, 10000];
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
+      if ((res.status === 503 || res.status === 502) && attempt < MAX_RETRIES) {
+        if (attempt === 0 && !document.getElementById('apiWakeNotice')) {
+          var n = document.createElement('div');
+          n.id = 'apiWakeNotice';
+          n.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#0d9488;color:#fff;text-align:center;padding:10px 16px;font-size:0.9rem;font-weight:500;';
+          n.textContent = 'Server is waking up, please wait...';
+          document.body.appendChild(n);
+        }
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+        continue;
+      }
+      var wn = document.getElementById('apiWakeNotice');
+      if (wn) wn.remove();
+      let data = {};
+      try { data = await res.json(); } catch {  }
+      if (!res.ok) {
+        const err = new Error(data.error || 'Something went wrong.');
+        Object.assign(err, data);
+        throw err;
+      }
+      return data;
+    } catch (fetchErr) {
+      if (fetchErr.name === 'TypeError' && attempt < MAX_RETRIES) {
+        if (attempt === 0 && !document.getElementById('apiWakeNotice')) {
+          var n2 = document.createElement('div');
+          n2.id = 'apiWakeNotice';
+          n2.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#0d9488;color:#fff;text-align:center;padding:10px 16px;font-size:0.9rem;font-weight:500;';
+          n2.textContent = 'Server is waking up, please wait...';
+          document.body.appendChild(n2);
+        }
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+        continue;
+      }
+      var wn2 = document.getElementById('apiWakeNotice');
+      if (wn2) wn2.remove();
+      throw fetchErr;
+    }
   }
-  return data;
 }
 
 function askForPhone() {
