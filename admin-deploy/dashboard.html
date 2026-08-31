@@ -38,6 +38,7 @@
 <div class="admin-shell">
   <aside class="admin-sidebar" id="adminSidebar">
     <button class="admin-tab-btn active" data-tab="overview">📊 Overview</button>
+    <button class="admin-tab-btn" data-tab="revenue">💰 Revenue</button>
     <button class="admin-tab-btn" data-tab="registrations">🪪 Registrations <span class="badge" id="badgeIdPending" style="display:none;"></span></button>
     <button class="admin-tab-btn" data-tab="users">👥 All accounts</button>
     <button class="admin-tab-btn" data-tab="jobs">💼 Jobs <span class="badge" id="badgeJobsPending" style="display:none;"></span></button>
@@ -72,7 +73,32 @@
       </div>
     </section>
 
-    
+
+    <section class="admin-tab-panel" id="tab-revenue">
+      <div class="section-heading"><h2>Revenue</h2></div>
+      <div class="stat-row" style="grid-template-columns:repeat(4,1fr);">
+        <div class="stat-card" style="background:linear-gradient(135deg,#0FA3A3,#0d3455);color:#fff;"><div class="num" id="revTotal" style="color:#fff;">–</div><div class="label" style="color:#b9c6dd;">Total revenue</div></div>
+        <div class="stat-card"><div class="num" id="revTransactions">–</div><div class="label">Total transactions</div></div>
+        <div class="stat-card"><div class="num" id="revLast7">–</div><div class="label">Last 7 days</div></div>
+        <div class="stat-card"><div class="num" id="revLast30">–</div><div class="label">Last 30 days</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:22px;">
+        <div class="card">
+          <h3>Revenue by category</h3>
+          <div id="revByPurpose" style="margin-top:12px;"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+        </div>
+        <div class="card">
+          <h3>Revenue breakdown</h3>
+          <div id="revBreakdown" style="margin-top:12px;"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:22px;">
+        <h3>Recent payments</h3>
+        <div id="revRecentList" style="margin-top:12px;"><p style="color:var(--text-muted);font-size:0.9rem;">Loading…</p></div>
+      </div>
+    </section>
+
+
     <section class="admin-tab-panel" id="tab-registrations">
       <div class="section-heading"><h2>Registrations — ID verification</h2></div>
       <div class="filter-bar">

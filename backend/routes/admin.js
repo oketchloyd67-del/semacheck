@@ -75,6 +75,29 @@ router.post('/jobs/:id/reject', requireAdmin, async (req, res) => {
   res.json({ job: rows[0] });
 });
 
+router.get('/revenue', requireAdmin, async (req, res) => {
+  try {
+    const [total, byPurpose, last7, last30, recent] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(amount),0)::numeric(10,2) AS total, count(*)::int AS count FROM payments WHERE status='success'`),
+      pool.query(`SELECT purpose, COALESCE(SUM(amount),0)::numeric(10,2) AS total, count(*)::int AS count FROM payments WHERE status='success' GROUP BY purpose ORDER BY total DESC`),
+      pool.query(`SELECT COALESCE(SUM(amount),0)::numeric(10,2) AS total, count(*)::int AS count FROM payments WHERE status='success' AND created_at > now() - INTERVAL '7 days'`),
+      pool.query(`SELECT COALESCE(SUM(amount),0)::numeric(10,2) AS total, count(*)::int AS count FROM payments WHERE status='success' AND created_at > now() - INTERVAL '30 days'`),
+      pool.query(`SELECT p.id, p.purpose, p.amount, p.phone, p.mpesa_receipt, p.status, p.created_at, u.full_name, u.email FROM payments p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 50`),
+    ]);
+    res.json({
+      totalRevenue: Number(total.rows[0].total),
+      totalTransactions: total.rows[0].count,
+      byPurpose: byPurpose.rows.map((r) => ({ purpose: r.purpose, total: Number(r.total), count: r.count })),
+      last7Days: { total: Number(last7.rows[0].total), count: last7.rows[0].count },
+      last30Days: { total: Number(last30.rows[0].total), count: last30.rows[0].count },
+      recentPayments: recent.rows,
+    });
+  } catch (err) {
+    console.error('Revenue query error:', err);
+    res.status(500).json({ error: 'Failed to load revenue data.' });
+  }
+});
+
 router.get('/stats', requireAdmin, async (req, res) => {
   const [users, searches, jobsPending, subsActive, contactUnread, idPending, forensicsSubmitted] = await Promise.all([
     pool.query('SELECT count(*)::int AS n FROM users'),

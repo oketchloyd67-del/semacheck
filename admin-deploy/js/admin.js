@@ -68,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTabs();
   loadMe();
   loadStats();
+  loadRevenue();
   loadRegistrations('pending');
   loadUsers();
   loadJobs('pending');
@@ -143,6 +144,68 @@ async function loadStats() {
     if (forensicsBadge) {
       forensicsBadge.textContent = s.forensicsCasesAwaitingReview;
       forensicsBadge.style.display = s.forensicsCasesAwaitingReview > 0 ? 'inline-block' : 'none';
+    }
+  } catch (err) { handleAuthError(err); }
+}
+
+// ---------------- revenue ----------------
+async function loadRevenue() {
+  try {
+    const r = await adminApi('/admin/revenue');
+    document.getElementById('revTotal').textContent = 'KES ' + r.totalRevenue.toLocaleString();
+    document.getElementById('revTransactions').textContent = r.totalTransactions.toLocaleString();
+    document.getElementById('revLast7').textContent = 'KES ' + r.last7Days.total.toLocaleString();
+    document.getElementById('revLast30').textContent = 'KES ' + r.last30Days.total.toLocaleString();
+
+    const purposeLabels = { search: '🔍 Search', subscription: '⭐ Subscription', forensics_case: '🔎 Forensics' };
+    const purposeBox = document.getElementById('revByPurpose');
+    if (r.byPurpose.length === 0) {
+      purposeBox.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">No payments yet.</p>';
+    } else {
+      purposeBox.innerHTML = r.byPurpose.map((p) => {
+        const pct = r.totalRevenue > 0 ? Math.round((p.total / r.totalRevenue) * 100) : 0;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <span style="font-size:0.95rem;font-weight:600;">${purposeLabels[p.purpose] || p.purpose}</span>
+            <span style="font-size:0.82rem;color:var(--text-muted);margin-left:8px;">${p.count} transaction${p.count !== 1 ? 's' : ''}</span>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:700;font-size:0.95rem;">KES ${p.total.toLocaleString()}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">${pct}%</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    const breakdownBox = document.getElementById('revBreakdown');
+    const avgOrder = r.totalTransactions > 0 ? Math.round(r.totalRevenue / r.totalTransactions) : 0;
+    const dailyAvg30 = r.last30Days.count > 0 ? Math.round(r.last30Days.total / 30) : 0;
+    breakdownBox.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text-muted);">Average order value</span><b>KES ${avgOrder.toLocaleString()}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text-muted);">Daily revenue (30-day avg)</span><b>KES ${dailyAvg30.toLocaleString()}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text-muted);">Transactions (7 days)</span><b>${r.last7Days.count}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);"><span style="color:var(--text-muted);">Transactions (30 days)</span><b>${r.last30Days.count}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:var(--text-muted);">Revenue (30 days)</span><b>KES ${r.last30Days.total.toLocaleString()}</b></div>
+      </div>
+    `;
+
+    const recentBox = document.getElementById('revRecentList');
+    const successPayments = r.recentPayments.filter((p) => p.status === 'success');
+    const allPayments = r.recentPayments;
+    if (allPayments.length === 0) {
+      recentBox.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">No payments yet.</p>';
+    } else {
+      recentBox.innerHTML = `<div class="table-scroll"><table class="data-table"><thead><tr><th>User</th><th>Purpose</th><th>Amount</th><th>Status</th><th>M-Pesa receipt</th><th>Date</th></tr></thead><tbody>${
+        allPayments.map((p) => `<tr>
+          <td data-label="User">${escapeHtml(p.full_name || 'Unknown')}<div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(p.email || '')}</div></td>
+          <td data-label="Purpose">${purposeLabels[p.purpose] || p.purpose}</td>
+          <td data-label="Amount" style="font-weight:700;">KES ${Number(p.amount).toLocaleString()}</td>
+          <td data-label="Status">${pill(p.status)}</td>
+          <td data-label="M-Pesa receipt" style="font-family:monospace;font-size:0.82rem;">${escapeHtml(p.mpesa_receipt || '—')}</td>
+          <td data-label="Date">${new Date(p.created_at).toLocaleString()}</td>
+        </tr>`).join('')
+      }</tbody></table></div>`;
     }
   } catch (err) { handleAuthError(err); }
 }
