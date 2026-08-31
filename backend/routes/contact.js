@@ -11,6 +11,7 @@ router.post('/', generalLimiter, async (req, res) => {
   const { email, message } = req.body;
   if (!isValidEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
   if (!message || message.trim().length < 5) return res.status(400).json({ error: 'Enter a message.' });
+  if (message.trim().length > 5000) return res.status(400).json({ error: 'Message too long (max 5000 characters).' });
 
   const { rows } = await pool.query(
     'INSERT INTO contact_messages (email, message) VALUES ($1, $2) RETURNING id',

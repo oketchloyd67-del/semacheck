@@ -13,6 +13,16 @@ const pool = require('../db/pool');
 const { requireAdmin } = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { UPLOAD_DIR } = require('../middleware/upload');
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function requireUuid(paramName) {
+  return (req, res, next) => {
+    if (!UUID_RE.test(req.params[paramName] || '')) {
+      return res.status(400).json({ error: 'Invalid ID format.' });
+    }
+    next();
+  };
+}
 const { registryStatus, refreshCbkRegistry } = require('../services/cbkRegistryService');
 const internationalDb = require('../services/internationalScamDatabases');
 
@@ -56,7 +66,7 @@ router.get('/jobs', requireAdmin, async (req, res) => {
   res.json({ jobs: rows });
 });
 
-router.post('/jobs/:id/approve', requireAdmin, async (req, res) => {
+router.post('/jobs/:id/approve', requireAdmin, requireUuid('id'), async (req, res) => {
   const { rows } = await pool.query(
     `UPDATE jobs SET status='approved', reviewed_by=$1, reviewed_at=now() WHERE id=$2 RETURNING *`,
     [req.admin.id, req.params.id]
@@ -65,7 +75,7 @@ router.post('/jobs/:id/approve', requireAdmin, async (req, res) => {
   res.json({ job: rows[0] });
 });
 
-router.post('/jobs/:id/reject', requireAdmin, async (req, res) => {
+router.post('/jobs/:id/reject', requireAdmin, requireUuid('id'), async (req, res) => {
   const { reason } = req.body;
   const { rows } = await pool.query(
     `UPDATE jobs SET status='rejected', reviewed_by=$1, reviewed_at=now(), rejection_reason=$2 WHERE id=$3 RETURNING *`,
@@ -151,7 +161,7 @@ router.get('/users', requireAdmin, async (req, res) => {
   res.json({ users: rows });
 });
 
-router.get('/users/:id', requireAdmin, async (req, res) => {
+router.get('/users/:id', requireAdmin, requireUuid('id'), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, account_type, full_name, email, phone, national_id, id_verification_status,
             id_verification_notes, business_name, business_reg_number, kra_pin, created_at
@@ -202,7 +212,7 @@ router.get('/id-verifications/pending', requireAdmin, async (req, res) => {
 
 
 
-router.get('/id-verifications/:userId/document', requireAdmin, async (req, res) => {
+router.get('/id-verifications/:userId/document', requireAdmin, requireUuid('userId'), async (req, res) => {
   const { rows } = await pool.query('SELECT id_document_filename FROM users WHERE id=$1', [req.params.userId]);
   const filename = rows[0]?.id_document_filename;
   if (!filename) return res.status(404).json({ error: 'No document on file for this user.' });
@@ -214,7 +224,7 @@ router.get('/id-verifications/:userId/document', requireAdmin, async (req, res) 
   res.sendFile(filePath);
 });
 
-router.post('/id-verifications/:userId/approve', requireAdmin, async (req, res) => {
+router.post('/id-verifications/:userId/approve', requireAdmin, requireUuid('userId'), async (req, res) => {
   const { rows } = await pool.query(
     `UPDATE users SET id_verification_status='approved', id_verification_reviewed_by=$1, id_verification_reviewed_at=now(), id_verification_notes=NULL
      WHERE id=$2 RETURNING id, full_name, id_verification_status`,
@@ -224,7 +234,7 @@ router.post('/id-verifications/:userId/approve', requireAdmin, async (req, res) 
   res.json({ user: rows[0] });
 });
 
-router.post('/id-verifications/:userId/reject', requireAdmin, async (req, res) => {
+router.post('/id-verifications/:userId/reject', requireAdmin, requireUuid('userId'), async (req, res) => {
   const { reason } = req.body;
   const { rows } = await pool.query(
     `UPDATE users SET id_verification_status='rejected', id_verification_reviewed_by=$1, id_verification_reviewed_at=now(), id_verification_notes=$2
@@ -307,7 +317,7 @@ router.get('/forensics-cases', requireAdmin, async (req, res) => {
   res.json({ cases: rows });
 });
 
-router.post('/forensics-cases/:caseId/status', requireAdmin, async (req, res) => {
+router.post('/forensics-cases/:caseId/status', requireAdmin, requireUuid('caseId'), async (req, res) => {
   const validStatuses = ['under_review', 'in_progress', 'resolved', 'closed'];
   const { status, note } = req.body;
   if (!validStatuses.includes(status)) {

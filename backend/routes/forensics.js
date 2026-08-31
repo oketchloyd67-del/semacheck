@@ -35,6 +35,12 @@ router.post('/intake', requireAuth, generalLimiter, async (req, res) => {
   if (!scamDescription || scamDescription.trim().length < 20) {
     return res.status(400).json({ error: 'Describe what happened in a bit more detail (at least a couple of sentences) — this is what the investigator starts from.' });
   }
+  if (scamDescription.trim().length > 10000) {
+    return res.status(400).json({ error: 'Description too long (max 10000 characters).' });
+  }
+  if (evidenceNotes && evidenceNotes.trim().length > 5000) {
+    return res.status(400).json({ error: 'Evidence notes too long (max 5000 characters).' });
+  }
 
   const normalizedPhone = contactPhone ? normalizeKenyanPhone(contactPhone) : normalizeKenyanPhone(req.user.phone);
 
@@ -56,7 +62,10 @@ router.get('/my-cases', requireAuth, async (req, res) => {
   res.json({ cases: rows });
 });
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 router.get('/:caseId', requireAuth, async (req, res) => {
+  if (!UUID_RE.test(req.params.caseId)) return res.status(400).json({ error: 'Invalid case ID.' });
   const { rows } = await pool.query(
     `SELECT id, amount_lost, scam_description, evidence_notes, status, created_at, updated_at FROM forensics_cases WHERE id=$1 AND user_id=$2`,
     [req.params.caseId, req.user.id]

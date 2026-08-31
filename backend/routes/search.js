@@ -12,6 +12,7 @@ router.post('/', requireAuth, searchLimiter, async (req, res) => {
     return res.status(400).json({ error: 'queryType must be paybill, phone, or job_offer.' });
   }
   if (!queryValue || !queryValue.trim()) return res.status(400).json({ error: 'Enter something to search.' });
+  if (queryValue.trim().length > 2000) return res.status(400).json({ error: 'Search query too long (max 2000 characters).' });
 
   const validRegion = ['kenya', 'international'].includes(region) ? region : 'kenya';
 

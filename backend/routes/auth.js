@@ -62,10 +62,13 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
       return res.status(400).json({ error: 'accountType must be "regular" or "job_owner".' });
     }
     if (!fullName || fullName.trim().length < 3) { cleanupUpload(); return res.status(400).json({ error: 'Enter your full name.' }); }
+    if (fullName.trim().length > 100) { cleanupUpload(); return res.status(400).json({ error: 'Name too long (max 100 characters).' }); }
     if (!isValidEmail(email)) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid email address.' }); }
+    if (email.trim().length > 254) { cleanupUpload(); return res.status(400).json({ error: 'Email too long.' }); }
     const normalizedPhone = normalizeKenyanPhone(phone);
     if (!normalizedPhone) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid Kenyan phone number.' }); }
     if (!isValidNationalId(nationalId)) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid national ID number (7-8 digits).' }); }
+    if (nationalId.trim().length > 20) { cleanupUpload(); return res.status(400).json({ error: 'ID number too long.' }); }
     if (!idDocumentFile) { cleanupUpload(); return res.status(400).json({ error: 'Upload a clear photo or scan of your national ID.' }); }
 
     const strength = scorePasswordStrength(password || '');
@@ -108,9 +111,6 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
     const user = rows[0];
 
     
-    console.log('Sending OTP to email:', user.email);
-    console.log('OTP code:', otp);
-
     let otpSent = false;
     let emailError = null;
 

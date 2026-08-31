@@ -168,7 +168,10 @@ router.post('/tuma/callback', express.json(), async (req, res) => {
 
 
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 router.get('/status/:paymentId', requireAuth, async (req, res) => {
+  if (!UUID_RE.test(req.params.paymentId)) return res.status(400).json({ error: 'Invalid payment ID.' });
   const { rows } = await pool.query('SELECT id, purpose, status, amount, reference_id FROM payments WHERE id=$1 AND user_id=$2', [req.params.paymentId, req.user.id]);
   if (!rows[0]) return res.status(404).json({ error: 'Payment not found.' });
   res.json(rows[0]);
