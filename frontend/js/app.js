@@ -14,7 +14,7 @@ async function loadRecentScamsTicker() {
     container.innerHTML = data.scams.map((s, i) => {
       const ago = timeAgo(new Date(s.reported_at));
       return `<div class="ticker-item" style="animation-delay:${i * 0.05}s">
-        <span class="ticker-verdict ${s.verdict}">${s.verdict === 'scam' ? '⚠ SCAM' : '⚡ SUSPICIOUS'}</span>
+        <span class="ticker-verdict ${s.verdict}">${s.verdict === 'scam' ? '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>SCAM' : '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>SUSPICIOUS'}</span>
         <span class="ticker-type">${typeLabels[s.type] || s.type}</span>
         <span class="ticker-value">${escapeHtml(s.value)}</span>
         <span class="ticker-time">${ago}</span>
@@ -441,7 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearInterval(timer);
         circular.classList.add('done');
         statusText.textContent = 'Payment confirmed!';
-        hint.innerHTML = '<span class="receipt-printing-icon">⚙</span> Printing your receipt…';
+        hint.innerHTML = '<span class="receipt-printing-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></span> Printing your receipt…';
         await new Promise((r) => setTimeout(r, 700));
         try {
           await onConfirmed();
@@ -500,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <hr class="receipt-divider">
         <div class="receipt-row"><span class="r-label">Date</span><span class="r-value">${timestamp}</span></div>
         <div class="receipt-row"><span class="r-label">Query type</span><span class="r-value">${searchType.replace('_', ' ')}</span></div>
-        <div class="receipt-row"><span class="r-label">Search scope</span><span class="r-value">${searchRegion === 'international' ? '🌍 Worldwide' : '🇰🇪 Kenya only'}</span></div>
+        <div class="receipt-row"><span class="r-label">Search scope</span><span class="r-value">${searchRegion === 'international' ? '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="vertical-align:-2px;margin-right:3px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>Worldwide' : '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="vertical-align:-2px;margin-right:3px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>Kenya only'}</span></div>
         <div class="receipt-row"><span class="r-label">Amount paid</span><span class="r-value">KES ${searchTier}</span></div>
         <hr class="receipt-divider">
         <div class="receipt-verdict-line v-${r.verdict}">
@@ -509,12 +509,12 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         ${r.summary ? `<hr class="receipt-divider"><div class="receipt-summary">${r.summary}</div>` : ''}
         ${sourceCount !== null ? `<div class="receipt-sources">Sources checked: ${sourceCount} web result(s), ${dbCount || 0} internal report(s)</div>` : ''}
-        ${payload.fromCache ? '<div class="receipt-sources">⚡ Instant result — already verified by SemaCheck.</div>' : ''}
+        ${payload.fromCache ? '<div class="receipt-sources"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-2px;margin-right:3px;"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>Instant result — already verified by SemaCheck.</div>' : ''}
         <div class="receipt-barcode"></div>
         <div class="receipt-footer">THANK YOU FOR USING SEMACHECK &middot; SEMACHECK.CO.KE</div>
       </div>
       <div class="receipt-actions">
-        <button class="btn btn-ghost" onclick="window.print()">🖨 Print receipt</button>
+        <button class="btn btn-ghost" onclick="window.print()"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>Print receipt</button>
       </div>
       ${isScam ? `<div class="reclaim-money-box"><p>Lost money to this scam? Get help tracing it and building a case.</p><a class="btn btn-amber" href="forensics.html?${forensicsParams.toString()}">Reclaim my money →</a></div>` : ''}
     `;

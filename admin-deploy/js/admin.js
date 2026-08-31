@@ -157,7 +157,7 @@ async function loadRevenue() {
     document.getElementById('revLast7').textContent = 'KES ' + r.last7Days.total.toLocaleString();
     document.getElementById('revLast30').textContent = 'KES ' + r.last30Days.total.toLocaleString();
 
-    const purposeLabels = { search: '🔍 Search', subscription: '⭐ Subscription', forensics_case: '🔎 Forensics' };
+    const purposeLabels = { search: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>Search', subscription: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>Subscription', forensics_case: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>Forensics' };
     const purposeBox = document.getElementById('revByPurpose');
     if (r.byPurpose.length === 0) {
       purposeBox.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">No payments yet.</p>';

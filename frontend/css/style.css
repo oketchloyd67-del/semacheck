@@ -74,7 +74,7 @@ button { font-family: inherit; cursor: pointer; }
 .payment-progress-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 26px 22px; margin-top: 16px; max-width: 640px; text-align: center; }
 .pp-circular { width: 54px; height: 54px; border-radius: 50%; border: 5px solid var(--border); border-top-color: var(--teal); margin: 0 auto 16px; animation: spin 0.9s linear infinite; }
 .pp-circular.done { border: 5px solid var(--legit-green); border-top-color: var(--legit-green); animation: none; display: flex; align-items: center; justify-content: center; }
-.pp-circular.done::after { content: '✓'; color: var(--legit-green); font-size: 1.5rem; font-weight: 800; }
+.pp-circular.done::after { content: ''; width: 24px; height: 24px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2323A46A'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E") center/contain no-repeat; display: block; margin: 0 auto; }
 .pp-status-text { font-weight: 700; font-size: 0.95rem; color: var(--navy); margin-bottom: 4px; }
 .pp-hint { font-size: 0.82rem; color: var(--text-muted); }
 
