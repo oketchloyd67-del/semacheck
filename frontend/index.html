@@ -120,10 +120,12 @@
       <p class="search-hint">You'll need an account to search. Results already checked by someone else load instantly and don't need a second lookup.</p>
     </div>
 
-    <div class="payment-progress-card" id="paymentProgressCard" style="display:none;">
-      <div class="pp-circular" id="ppCircular"></div>
-      <div class="pp-status-text" id="ppStatusText">Waiting for M-Pesa confirmation…</div>
-      <p class="pp-hint" id="ppHint">Check your phone and enter your M-Pesa PIN. This usually takes a few seconds.</p>
+    <div class="payment-popup-overlay" id="paymentPopupOverlay">
+      <div class="payment-progress-card" id="paymentProgressCard">
+        <div class="pp-circular" id="ppCircular"></div>
+        <div class="pp-status-text" id="ppStatusText">Waiting for M-Pesa confirmation…</div>
+        <p class="pp-hint" id="ppHint">Check your phone and enter your M-Pesa PIN. This usually takes a few seconds.</p>
+      </div>
     </div>
 
     <div class="receipt-outer" id="receiptOuter"><div id="receiptPaperSlot"></div></div>

@@ -71,7 +71,10 @@ button { font-family: inherit; cursor: pointer; }
 .region-btn:hover { border-color: var(--teal); }
 
 
-.payment-progress-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 26px 22px; margin-top: 16px; max-width: 640px; text-align: center; }
+.payment-popup-overlay { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(11,31,58,0.45); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); align-items: center; justify-content: center; }
+.payment-popup-overlay.open { display: flex; }
+.payment-progress-card { background: var(--card); border-radius: var(--radius); box-shadow: 0 20px 60px rgba(0,0,0,0.3); padding: 36px 32px; max-width: 380px; width: 90%; text-align: center; animation: popupIn 0.3s ease-out; }
+@keyframes popupIn { 0% { opacity: 0; transform: scale(0.9) translateY(20px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
 .pp-circular { width: 54px; height: 54px; border-radius: 50%; border: 5px solid var(--border); border-top-color: var(--teal); margin: 0 auto 16px; animation: spin 0.9s linear infinite; }
 .pp-circular.done { border: 5px solid var(--legit-green); border-top-color: var(--legit-green); animation: none; display: flex; align-items: center; justify-content: center; }
 .pp-circular.failed { border: 5px solid var(--scam-red); border-top-color: var(--scam-red); animation: none; display: flex; align-items: center; justify-content: center; }

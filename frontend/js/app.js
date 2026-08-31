@@ -436,15 +436,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const searchBtn = document.getElementById('searchBtn');
     searchBtn.disabled = true;
+    const overlay = document.getElementById('paymentPopupOverlay');
     const pp = document.getElementById('paymentProgressCard');
     const ppCircular = document.getElementById('ppCircular');
     const ppStatus = document.getElementById('ppStatusText');
     const ppHint = document.getElementById('ppHint');
-    pp.style.display = 'block';
+    overlay.classList.add('open');
     ppCircular.className = 'pp-circular';
     ppStatus.textContent = 'Processing your results';
     ppHint.textContent = 'Sending M-Pesa STK push to your phone...';
-    pp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const pay = await api('/payments/search', { method: 'POST', body: JSON.stringify({ tier: searchTier, phone }) });
       ppStatus.textContent = 'Enter your M-Pesa PIN';
@@ -460,18 +460,20 @@ document.addEventListener('DOMContentLoaded', () => {
       ppCircular.className = 'pp-circular';
       ppStatus.textContent = 'Something went wrong.';
       ppHint.textContent = escapeHtml(err.message);
+      setTimeout(() => overlay.classList.remove('open'), 3000);
     } finally {
       searchBtn.disabled = false;
     }
   });
 
   async function waitForPaymentThenRun({ paymentId, onConfirmed }) {
+    const overlay = document.getElementById('paymentPopupOverlay');
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');
     const circular = document.getElementById('ppCircular');
     const hint = document.getElementById('ppHint');
 
-    card.style.display = 'block';
+    overlay.classList.add('open');
     circular.className = 'pp-circular';
 
     const POLL_EVERY_MS = 2500;
@@ -488,9 +490,10 @@ document.addEventListener('DOMContentLoaded', () => {
         await new Promise((r) => setTimeout(r, 1200));
         try {
           await onConfirmed();
-          card.style.display = 'none';
+          overlay.classList.remove('open');
         } catch (err) {
           hint.textContent = err.message || 'Something went wrong loading your result.';
+          setTimeout(() => overlay.classList.remove('open'), 3000);
         }
         resolve();
       };
@@ -500,6 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
         circular.className = 'pp-circular failed';
         statusText.textContent = statusMsg;
         hint.textContent = "If you completed the M-Pesa prompt and this persists, please get in touch via the contact form — don't try paying again until you hear back.";
+        setTimeout(() => overlay.classList.remove('open'), 5000);
         resolve();
       };
 
