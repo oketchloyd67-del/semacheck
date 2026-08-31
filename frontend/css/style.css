@@ -159,11 +159,23 @@ section { padding: 64px 0; }
 footer { background: #081428; color: #8fa1bf; padding: 36px 0 28px; font-size: 0.85rem; text-align: center; }
 .footer-social { margin-bottom: 18px; }
 .footer-social-title { font-size: 0.82rem; font-weight: 600; color: #cfd9ea; margin-bottom: 10px; letter-spacing: 0.02em; }
-.footer-social-links { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-.footer-social-links a { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: rgba(255,255,255,0.07); color: #cfd9ea; transition: background 0.15s ease, transform 0.15s ease; }
-.footer-social-links a:hover { background: rgba(15,163,163,0.25); color: #fff; transform: translateY(-2px); }
+.footer-social-links { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.footer-social-links a { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.08); color: #cfd9ea; transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; }
+.footer-social-links a:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
 .footer-social-links a:active { transform: scale(0.95); }
-.footer-social-links a svg { width: 18px; height: 18px; fill: currentColor; }
+.footer-social-links a svg { width: 20px; height: 20px; fill: currentColor; }
+.footer-social-links a[href*="instagram"] { color: #E4405F; }
+.footer-social-links a[href*="instagram"]:hover { background: #E4405F; color: #fff; }
+.footer-social-links a[href*="x.com"] { color: #cfd9ea; }
+.footer-social-links a[href*="x.com"]:hover { background: #000; color: #fff; }
+.footer-social-links a[href*="youtube"] { color: #FF0000; }
+.footer-social-links a[href*="youtube"]:hover { background: #FF0000; color: #fff; }
+.footer-social-links a[href*="threads"] { color: #cfd9ea; }
+.footer-social-links a[href*="threads"]:hover { background: #000; color: #fff; }
+.footer-social-links a[href*="tiktok"] { color: #00f2ea; }
+.footer-social-links a[href*="tiktok"]:hover { background: #010101; color: #00f2ea; }
+.footer-social-links a[href*="linkedin"] { color: #0A66C2; }
+.footer-social-links a[href*="linkedin"]:hover { background: #0A66C2; color: #fff; }
 .footer-divider { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 0 0 16px; }
 
 
