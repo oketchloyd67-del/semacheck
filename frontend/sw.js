@@ -1,4 +1,4 @@
-const CACHE_NAME = 'semacheck-v2';
+const CACHE_NAME = 'semacheck-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -45,13 +45,10 @@ self.addEventListener('fetch', (event) => {
 
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/whatsapp')) {
     event.respondWith(
-      fetchWithRetry(event.request, {}, 2, 1500).catch(() => {
-        return caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          return new Response(JSON.stringify({ error: 'Offline — please check your connection.' }), {
-            headers: { 'Content-Type': 'application/json' },
-            status: 503,
-          });
+      fetch(event.request).catch(() => {
+        return new Response(JSON.stringify({ error: 'Server is temporarily unavailable. Please try again.' }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 503,
         });
       })
     );
