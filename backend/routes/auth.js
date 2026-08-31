@@ -69,7 +69,7 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
     if (!normalizedPhone) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid Kenyan phone number.' }); }
     if (!isValidNationalId(nationalId)) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid national ID number (7-8 digits).' }); }
     if (nationalId.trim().length > 20) { cleanupUpload(); return res.status(400).json({ error: 'ID number too long.' }); }
-    if (!idDocumentFile) { cleanupUpload(); return res.status(400).json({ error: 'Upload a clear photo or scan of your national ID.' }); }
+    if (accountType === 'job_owner' && !idDocumentFile) { cleanupUpload(); return res.status(400).json({ error: 'Upload a clear photo of your national ID — required for job owner accounts.' }); }
 
     const strength = scorePasswordStrength(password || '');
     if (strength.score < 2) {
@@ -104,7 +104,7 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
        RETURNING id, account_type, full_name, email, phone, id_verification_status, created_at`,
       [
         accountType, fullName.trim(), email.trim().toLowerCase(), normalizedPhone, nationalId.trim(),
-        passwordHash, idDocumentFile.filename, initialVerificationStatus, businessName || null, businessRegNumber || null, kraPin || null,
+        passwordHash, idDocumentFile ? idDocumentFile.filename : null, initialVerificationStatus, businessName || null, businessRegNumber || null, kraPin || null,
         otpHash, otpExpiryDate(),
       ]
     );

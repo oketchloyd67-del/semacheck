@@ -216,8 +216,8 @@ document.addEventListener('DOMContentLoaded', () => {
     consentMsg.style.display = 'none';
 
     const idFile = document.getElementById('suIdDocument').files[0];
-    if (!idFile) {
-      alertBox.innerHTML = '<div class="alert alert-err">Upload a photo or scan of your ID.</div>';
+    if (currentAccountType === 'job_owner' && !idFile) {
+      alertBox.innerHTML = '<div class="alert alert-err">Upload a photo of your ID — required for job owner accounts.</div>';
       return;
     }
 
@@ -240,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('nationalId', document.getElementById('suNationalId').value.trim());
     formData.append('password', password);
     formData.append('consentAccepted', document.getElementById('suConsent').checked);
-    formData.append('idDocument', idFile);
+    if (idFile) formData.append('idDocument', idFile);
     if (currentAccountType === 'job_owner') {
       formData.append('businessName', document.getElementById('suBusinessName').value.trim());
       formData.append('businessRegNumber', document.getElementById('suBusinessReg').value.trim());

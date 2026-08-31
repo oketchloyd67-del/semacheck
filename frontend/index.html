@@ -288,11 +288,6 @@
       <input type="text" id="suNationalId" placeholder="e.g. 30112233">
     </div>
     <div class="field">
-      <label>Upload a photo or scan of your ID</label>
-      <input type="file" id="suIdDocument" accept=".jpg,.jpeg,.png,.webp,.pdf">
-      <div class="field-msg" id="suIdDocMsg">JPG, PNG, or PDF, under 8MB. An admin manually reviews this against the name and ID number you entered — usually within 24 hours. You can use the platform while it's pending.</div>
-    </div>
-    <div class="field">
       <label>Password</label>
       <input type="password" id="suPassword" placeholder="Create a password" autocomplete="new-password">
       <div class="strength-meter">
@@ -319,6 +314,11 @@
       <div class="field">
         <label>KRA PIN</label>
         <input type="text" id="suKraPin" placeholder="e.g. A012345678Z">
+      </div>
+      <div class="field">
+        <label>Upload a photo of your ID</label>
+        <input type="file" id="suIdDocument" accept=".jpg,.jpeg,.png">
+        <div class="field-msg" id="suIdDocMsg">JPG or PNG, under 8MB. An admin reviews this against your name and ID number.</div>
       </div>
     </div>
 
