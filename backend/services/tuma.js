@@ -1,14 +1,4 @@
 
-
-
-
-
-
-
-
-
-
-
 const axios = require('axios');
 
 const BASE_URL = process.env.TUMA_BASE_URL || 'https://api.tuma.co.ke';
