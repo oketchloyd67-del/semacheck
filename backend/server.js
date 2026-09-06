@@ -15,7 +15,6 @@ const jobRoutes = require('./routes/jobs');
 const adminRoutes = require('./routes/admin');
 const contactRoutes = require('./routes/contact');
 const forensicsRoutes = require('./routes/forensics');
-const sandboxTestRoutes = require('./routes/sandboxTest');
 
 const app = express();
 
@@ -62,7 +61,6 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/admin', adminRoutes); 
 app.use('/api/contact', contactRoutes);
 app.use('/api/forensics', forensicsRoutes);
-app.use('/api/sandbox-test', sandboxTestRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Not found.' }));
 
