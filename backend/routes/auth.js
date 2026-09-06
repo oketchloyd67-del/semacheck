@@ -256,27 +256,6 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 
     const loginIp = req.ip;
-    const isNewLocation = user.last_login_ip && user.last_login_ip !== loginIp;
-
-    if (isNewLocation) {
-      const otp = generateOtp();
-      const otpHash = await hashOtp(otp);
-      await pool.query(
-        `UPDATE users SET otp_code_hash = $1, otp_expires_at = $2, otp_attempts = 0, requires_reverification = TRUE WHERE id = $3`,
-        [otpHash, otpExpiryDate(), user.id]
-      );
-      try {
-        await sendOtpEmail({ toEmail: user.email, fullName: user.full_name, code: otp });
-      } catch (e) {
-        console.error('Location re-verification email failed:', e.message);
-      }
-      return res.status(403).json({
-        error: 'New login location detected. A verification code has been sent to your email.',
-        requiresLocationReverify: true,
-        email: user.email,
-      });
-    }
-
     await pool.query(
       `UPDATE users SET last_login_ip = $1, last_login_at = now() WHERE id = $2`,
       [loginIp, user.id]

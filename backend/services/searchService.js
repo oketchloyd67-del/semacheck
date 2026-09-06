@@ -178,7 +178,7 @@ function computeVerdict(dbSignal, external, cbkMatch, internationalMatch) {
 
 function shapeForTier(result, tier) {
   const base = { verdict: result.verdict, confidence_score: result.confidence_score };
-  if (tier === 50) return base;
+  if (tier === 1) return base;
   if (tier === 100) return { ...base, summary: result.summary };
   return { ...base, summary: result.summary, sources: result.sources_json };
 }

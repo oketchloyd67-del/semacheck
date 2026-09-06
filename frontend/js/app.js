@@ -368,7 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   let searchType = 'paybill';
-  let searchTier = 50;
+  let searchTier = 1;
   let searchRegion = 'kenya';
 
   const regionRow = document.getElementById('regionRow');

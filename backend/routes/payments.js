@@ -8,7 +8,7 @@ const { normalizeKenyanPhone } = require('../utils/validators');
 
 const router = express.Router();
 
-const SEARCH_TIERS = [50, 100, 150]; 
+const SEARCH_TIERS = [1, 100, 150]; 
 const SUBSCRIPTION_AMOUNT = 459; 
 const FORENSICS_CASE_FEE = 849; 
 
