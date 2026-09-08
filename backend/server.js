@@ -51,7 +51,36 @@ app.use('/api/payments/tuma/callback', express.json());
 app.use(express.json({ limit: '100kb' }));
 app.use(generalLimiter);
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+app.get('/api/health', (req, res) => {
+  const health = {
+    status: 'ok',
+    time: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + 'MB',
+    },
+    db: 'connected',
+    redis: process.env.REDIS_URL ? 'configured' : 'not configured',
+  };
+  res.json(health);
+});
+
+app.get('/api/ping', (req, res) => res.json({ pong: true, time: Date.now() }));
+
+const KEEPALIVE_INTERVAL_MS = 10 * 60 * 1000;
+function startKeepAlive() {
+  setInterval(() => {
+    const http = require('http');
+    const url = `http://127.0.0.1:${PORT}/api/ping`;
+    http.get(url, (res) => {
+      let body = '';
+      res.on('data', (c) => (body += c));
+      res.on('end', () => console.log('Keep-alive ping:', body.substring(0, 80)));
+    }).on('error', (e) => console.error('Keep-alive ping failed:', e.message));
+  }, KEEPALIVE_INTERVAL_MS);
+  console.log(`Keep-alive pinger started (every ${KEEPALIVE_INTERVAL_MS / 1000}s)`);
+}
 
 app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
@@ -79,6 +108,7 @@ app.listen(PORT, () => {
     hasCallbackUrl: !!process.env.TUMA_CALLBACK_URL,
     callbackUrl: process.env.TUMA_CALLBACK_URL || 'NOT SET',
   });
+  startKeepAlive();
 });
 
 if (process.env.DISABLE_IN_PROCESS_SCHEDULER !== 'true') {
