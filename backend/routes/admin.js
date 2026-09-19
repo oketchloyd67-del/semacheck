@@ -13,7 +13,7 @@ const pool = require('../db/pool');
 const { requireAdmin } = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { UPLOAD_DIR } = require('../middleware/upload');
-const { saveAdminSubscription, removeSubscription } = require('../services/pushNotificationService');
+const { saveAdminSubscription, removeSubscription, broadcastToUsers, sendToAdmins } = require('../services/pushNotificationService');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function requireUuid(paramName) {
@@ -358,6 +358,45 @@ router.post('/push/unsubscribe', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Admin push unsubscribe error:', err);
     res.status(500).json({ error: 'Could not remove push subscription.' });
+  }
+});
+
+// How many user devices an admin broadcast would reach right now
+router.get('/push/status', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         count(*) FILTER (WHERE user_id IS NOT NULL)::int AS user_devices,
+         count(*) FILTER (WHERE admin_id IS NOT NULL)::int AS admin_devices,
+         count(DISTINCT user_id) FILTER (WHERE user_id IS NOT NULL)::int AS users_reached
+       FROM push_subscriptions`
+    );
+    const pushConfigured = Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+    res.json({ pushConfigured, ...rows[0] });
+  } catch (err) {
+    console.error('Push status error:', err);
+    res.status(500).json({ error: 'Could not load push status.' });
+  }
+});
+
+// Broadcast a push notification to ALL users with a saved subscription
+router.post('/push/broadcast', requireAdmin, async (req, res) => {
+  const { title, body, url } = req.body;
+  if (!title || !String(title).trim()) return res.status(400).json({ error: 'A notification title is required.' });
+  if (!body || !String(body).trim()) return res.status(400).json({ error: 'A notification message is required.' });
+  if (title.length > 100) return res.status(400).json({ error: 'Title must be 100 characters or fewer.' });
+  if (body.length > 300) return res.status(400).json({ error: 'Message must be 300 characters or fewer.' });
+  if (url && !/^\/[a-zA-Z0-9._\/?=&-]*$/.test(url)) return res.status(400).json({ error: 'URL must be a relative path starting with /.' });
+
+  try {
+    const result = await broadcastToUsers(String(title).trim(), String(body).trim(), url);
+    console.log(`[admin] Broadcast sent by ${req.admin.email}: ${result.sent}/${result.targeted} devices.`);
+    // Mirror to admins so they can see what went out
+    sendToAdmins({ title: `📣 ${title}`.substring(0, 100), body: `Broadcast to users: ${body}`.substring(0, 300), url: '/admin/deploy/dashboard.html' }).catch(() => {});
+    res.json({ message: `Broadcast delivered to ${result.sent} of ${result.targeted} device(s).`, ...result });
+  } catch (err) {
+    console.error('Admin broadcast error:', err);
+    res.status(err.message.includes('not configured') ? 503 : 500).json({ error: err.message });
   }
 });
 

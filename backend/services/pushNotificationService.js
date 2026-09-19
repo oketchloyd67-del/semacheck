@@ -1,24 +1,34 @@
-const webpush = require('web-push');
 const pool = require('../db/pool');
 
-// VAPID keys — generate once and persist in env. Fallback generates ephemeral keys (won't survive restarts).
+// Load web-push defensively: a missing/stale node_modules on the host must never
+// crash the whole API at require-time (this bit us on Render — MODULE_NOT_FOUND
+// in this file cascaded through every route into server.js).
+let webpush = null;
+try {
+  webpush = require('web-push');
+} catch (err) {
+  console.error('[push] web-push module not installed — push notifications disabled. Run `npm install` in backend/.');
+}
+
+// VAPID keys — generate once and persist in env.
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || null;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || null;
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:semacheck254@gmail.com';
 
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+if (webpush && VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(
-    'mailto:semacheck254@gmail.com',
+    VAPID_SUBJECT,
     VAPID_PUBLIC_KEY,
     VAPID_PRIVATE_KEY
   );
-} else {
+} else if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
   console.warn('[push] VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY not set — push notifications will not work. Run: node -e "const w=require(\'web-push\');const k=w.generateVAPIDKeys();console.log(JSON.stringify(k))"');
 }
 
 /**
  * Generate and log VAPID keys (run once: node services/pushNotificationService.js)
  */
-if (require.main === module) {
+if (require.main === module && webpush) {
   const keys = webpush.generateVAPIDKeys();
   console.log('VAPID_PUBLIC_KEY=' + keys.publicKey);
   console.log('VAPID_PRIVATE_KEY=' + keys.privateKey);
@@ -59,7 +69,7 @@ async function removeSubscription(endpoint) {
  * Returns true on success, false if the subscription is expired/invalid.
  */
 async function sendPush(subscription, payload) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false;
+  if (!webpush || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false;
 
   try {
     await webpush.sendNotification(
@@ -84,19 +94,22 @@ async function sendPush(subscription, payload) {
  * Send a push notification to all subscriptions of a given user.
  */
 async function sendToUser(userId, payload) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+  if (!webpush || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return { targeted: 0, sent: 0 };
 
   const { rows } = await pool.query(
     'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1',
     [userId]
   );
 
+  let sent = 0;
   for (const sub of rows) {
-    await sendPush(
+    const ok = await sendPush(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       payload
     );
+    if (ok) sent++;
   }
+  return { targeted: rows.length, sent };
 }
 
 /**
@@ -156,18 +169,45 @@ async function saveAdminSubscription(adminId, subscription, userAgent) {
  * Send a push notification to all admin subscriptions.
  */
 async function sendToAdmins(payload) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+  if (!webpush || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return { targeted: 0, sent: 0 };
 
   const { rows } = await pool.query(
     'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE admin_id IS NOT NULL'
   );
 
+  let sent = 0;
   for (const sub of rows) {
-    await sendPush(
+    const ok = await sendPush(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       payload
     );
+    if (ok) sent++;
   }
+  return { targeted: rows.length, sent };
+}
+
+/**
+ * Broadcast a push notification to ALL user subscriptions (admin broadcast).
+ * Throws when push is not configured so the admin gets explicit feedback.
+ */
+async function broadcastToUsers(title, body, url) {
+  if (!webpush || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    throw new Error('Push notifications are not configured on this server.');
+  }
+
+  const { rows } = await pool.query(
+    'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id IS NOT NULL'
+  );
+
+  let sent = 0;
+  for (const sub of rows) {
+    const ok = await sendPush(
+      { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+      { title, body, url: url || '/' }
+    );
+    if (ok) sent++;
+  }
+  return { targeted: rows.length, sent };
 }
 
 /**
@@ -203,4 +243,5 @@ module.exports = {
   sendToAdmins,
   notifyAdminsNewUser,
   notifyAdminsForensicsCase,
+  broadcastToUsers,
 };

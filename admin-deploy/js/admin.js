@@ -75,6 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
   loadForensicsCases('submitted');
   loadMessages();
   loadKenyaRegistryStatus();
+  loadPushStatus();
+  initBroadcast();
 
   document.getElementById('regStatusFilter').addEventListener('change', (e) => loadRegistrations(e.target.value));
   document.getElementById('jobStatusFilter').addEventListener('change', (e) => loadJobs(e.target.value));
@@ -497,6 +499,54 @@ async function saveSettings() {
   } catch (err) {
     alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
   }
+}
+
+// ---------------- push broadcast ----------------
+async function loadPushStatus() {
+  const box = document.getElementById('pushStatusBox');
+  if (!box) return;
+  try {
+    const s = await adminApi('/admin/push/status');
+    box.innerHTML = `
+      <ul style="margin:6px 0 0 18px;color:var(--text);font-size:0.9rem;line-height:1.8;">
+        <li>Push service: ${s.pushConfigured ? '✅ configured' : '⚠️ <strong>not configured</strong> — broadcasts will fail until VAPID keys are set in the server environment'}</li>
+        <li>User devices reachable: <strong>${s.userDevices}</strong> (across ${s.usersReached} user${s.usersReached === 1 ? '' : 's'})</li>
+        <li>Admin devices subscribed: <strong>${s.adminDevices}</strong></li>
+      </ul>`;
+  } catch (err) {
+    box.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function initBroadcast() {
+  const sendBtn = document.getElementById('broadcastSendBtn');
+  if (!sendBtn) return;
+  sendBtn.addEventListener('click', async () => {
+    const alertBox = document.getElementById('broadcastAlert');
+    const title = document.getElementById('broadcastTitle').value.trim();
+    const body = document.getElementById('broadcastBody').value.trim();
+    const url = document.getElementById('broadcastUrl').value.trim();
+    alertBox.innerHTML = '';
+    if (!title || !body) {
+      alertBox.innerHTML = '<div class="alert alert-err">Both a title and a message are required.</div>';
+      return;
+    }
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Sending…';
+    try {
+      const r = await adminApi('/admin/push/broadcast', { method: 'POST', body: JSON.stringify({ title, body, url: url || undefined }) });
+      alertBox.innerHTML = `<div class="alert alert-ok">${escapeHtml(r.message)}</div>`;
+      document.getElementById('broadcastTitle').value = '';
+      document.getElementById('broadcastBody').value = '';
+      document.getElementById('broadcastUrl').value = '';
+    } catch (err) {
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send broadcast';
+      loadPushStatus();
+    }
+  });
 }
 
 // ---------------- shared ----------------

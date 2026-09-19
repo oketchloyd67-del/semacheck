@@ -22,6 +22,7 @@ require('dotenv').config();
 const pool = require('../db/pool');
 const { sendSubscriptionReminderEmail } = require('../services/emailService');
 const { sendSubscriptionReminderWhatsApp } = require('../services/whatsappService');
+const { sendToUser } = require('../services/pushNotificationService');
 
 async function expireLapsedSubscriptions() {
   const { rows } = await pool.query(
@@ -67,6 +68,18 @@ async function sendRemindersForWindow(daysOut, columnName) {
       whatsappOk = true;
     } catch (e) {
       console.warn(`Reminder WhatsApp message failed for ${row.phone}: ${e.message}`);
+    }
+
+    // Best-effort push reminder alongside email/WhatsApp
+    try {
+      const { sent } = await sendToUser(row.user_id, {
+        title: '⏰ Subscription expiring soon',
+        body: `Hi ${row.full_name || 'there'}, your SemaCheck subscription expires in ${daysOut} day${daysOut === 1 ? '' : 's'}. Renew now to keep verifying without interruption.`,
+        url: '/dashboard.html',
+      });
+      if (sent > 0) console.log(`Reminder push sent to user ${row.user_id} (${sent} device(s)).`);
+    } catch (e) {
+      console.warn(`Reminder push failed for user ${row.user_id}: ${e.message}`);
     }
 
     
