@@ -13,6 +13,7 @@ const pool = require('../db/pool');
 const { requireAdmin } = require('../middleware/adminAuth');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { UPLOAD_DIR } = require('../middleware/upload');
+const { saveAdminSubscription, removeSubscription } = require('../services/pushNotificationService');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function requireUuid(paramName) {
@@ -332,6 +333,33 @@ router.post('/forensics-cases/:caseId/status', requireAdmin, requireUuid('caseId
   res.json({ case: rows[0] });
 });
 
+
+router.post('/push/subscribe', requireAdmin, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: 'Invalid subscription.' });
+    }
+    await saveAdminSubscription(req.admin.id, subscription, req.headers['user-agent']);
+    res.json({ message: 'Push notifications enabled for admin.' });
+  } catch (err) {
+    console.error('Admin push subscribe error:', err);
+    res.status(500).json({ error: 'Could not save push subscription.' });
+  }
+});
+
+router.post('/push/unsubscribe', requireAdmin, async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (endpoint) {
+      await removeSubscription(endpoint);
+    }
+    res.json({ message: 'Push notifications disabled for this device.' });
+  } catch (err) {
+    console.error('Admin push unsubscribe error:', err);
+    res.status(500).json({ error: 'Could not remove push subscription.' });
+  }
+});
 
 router.get('/kenya-registry/status', requireAdmin, async (req, res) => {
   const status = await registryStatus();

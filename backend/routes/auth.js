@@ -10,6 +10,7 @@ const {
 } = require('../utils/validators');
 const { generateOtp, hashOtp, verifyOtp, otpExpiryDate, OTP_MAX_ATTEMPTS } = require('../utils/otp');
 const { sendOtpEmail } = require('../services/emailService');
+const { notifyAccountCreated, notifyAdminsNewUser } = require('../services/pushNotificationService');
 const { uploadIdDocument } = require('../middleware/upload');
 const fs = require('fs');
 
@@ -193,6 +194,11 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
       token,
       user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email },
     });
+
+    // Fire-and-forget: send welcome push notification
+    notifyAccountCreated(user.id, user.full_name).catch(() => {});
+    // Fire-and-forget: notify admins of new registration
+    notifyAdminsNewUser(user.full_name, user.account_type, user.email).catch(() => {});
   } catch (err) {
     console.error('Verify OTP error:', err);
     res.status(500).json({ error: 'Could not verify code. Please try again.' });

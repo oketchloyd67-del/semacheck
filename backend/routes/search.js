@@ -3,6 +3,7 @@ const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { searchLimiter } = require('../middleware/rateLimiter');
 const searchService = require('../services/searchService');
+const { notifySearchResults } = require('../services/pushNotificationService');
 
 const router = express.Router();
 
@@ -35,6 +36,9 @@ router.post('/', requireAuth, searchLimiter, async (req, res) => {
     });
 
     res.json({ fromCache, result });
+
+    // Fire-and-forget: push notification that results are ready
+    notifySearchResults(req.user.id, queryType, queryValue.trim(), result.verdict).catch(() => {});
   } catch (err) {
     console.error('Search error:', err);
     res.status(500).json({ error: 'Search failed. Please try again.' });

@@ -14,6 +14,7 @@ const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const { generalLimiter } = require('../middleware/rateLimiter');
 const { normalizeKenyanPhone } = require('../utils/validators');
+const { notifyAdminsForensicsCase } = require('../services/pushNotificationService');
 
 const router = express.Router();
 
@@ -51,6 +52,9 @@ router.post('/intake', requireAuth, generalLimiter, async (req, res) => {
   );
 
   res.status(201).json({ case: rows[0], message: 'Case created. Pay the case-opening fee to submit it for review.' });
+
+  // Fire-and-forget: notify admins of new forensics case
+  notifyAdminsForensicsCase(rows[0].id, req.user.full_name, amount).catch(() => {});
 });
 
 

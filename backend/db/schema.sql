@@ -248,3 +248,19 @@ ALTER TABLE payments DROP COLUMN IF EXISTS manual_code_submitted;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip VARCHAR(64);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS requires_reverification BOOLEAN NOT NULL DEFAULT FALSE;
+
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID REFERENCES users(id) ON DELETE CASCADE,
+    admin_id        UUID REFERENCES admins(id) ON DELETE CASCADE,
+    endpoint        TEXT NOT NULL,
+    p256dh          TEXT NOT NULL,
+    auth            TEXT NOT NULL,
+    user_agent      TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (user_id IS NOT NULL OR admin_id IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint ON push_subscriptions(endpoint);

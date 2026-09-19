@@ -51,6 +51,56 @@ function clearSession() {
   sessionStorage.removeItem('semacheck_user');
 }
 
+// ── Push Notifications ──────────────────────────────────────────────
+async function registerPushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    // Fetch VAPID public key from backend
+    const res = await fetch(`${API_BASE}/notifications/vapid-public-key`);
+    if (!res.ok) return;
+    const { publicKey } = await res.json();
+    if (!publicKey) return;
+
+    // Request notification permission
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    // Get existing service worker registration
+    const registration = await navigator.serviceWorker.ready;
+
+    // Check for existing subscription
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+
+    // Send subscription to backend
+    await fetch(`${API_BASE}/notifications/subscribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify({ subscription: subscription.toJSON() }),
+    });
+  } catch (err) {
+    // Silently fail — notifications are optional
+    console.log('[push] Registration skipped:', err.message);
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
 
 async function api(path, options = {}) {
   const isFormData = options.body instanceof FormData;
@@ -277,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         updateAuthUI();
       }
+      registerPushNotifications();
     } catch (err) {
       alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
     } finally {
@@ -344,6 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
         closeModal('loginOverlay');
         updateAuthUI();
       }
+      registerPushNotifications();
     } catch (err) {
       if (err.requiresOtp) {
         pendingOtpEmail = err.email || document.getElementById('loginId').value.trim();
@@ -368,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   let searchType = 'paybill';
-  let searchTier = 1;
+  let searchTier = 50;
   let searchRegion = 'kenya';
 
   const regionRow = document.getElementById('regionRow');
