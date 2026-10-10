@@ -418,7 +418,13 @@ router.get('/push/status', requireAdmin, async (req, res) => {
        FROM push_subscriptions`
     );
     const pushConfigured = Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
-    res.json({ pushConfigured, ...rows[0] });
+    // camelCase — the admin panel reads userDevices/adminDevices/usersReached
+    res.json({
+      pushConfigured,
+      userDevices: rows[0].user_devices,
+      adminDevices: rows[0].admin_devices,
+      usersReached: rows[0].users_reached,
+    });
   } catch (err) {
     console.error('Push status error:', err);
     res.status(500).json({ error: 'Could not load push status.' });

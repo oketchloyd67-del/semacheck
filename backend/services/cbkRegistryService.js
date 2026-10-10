@@ -26,10 +26,9 @@ const pool = require('../db/pool');
 let pdfParse = null;
 try {
   pdfParse = require('pdf-parse');
-} catch {
-  
-  
-  
+} catch (err) {
+  // Keep the real reason visible — on Render this was swallowed for weeks.
+  console.error('[cbk] pdf-parse failed to load:', err && err.message ? err.message : err);
 }
 
 

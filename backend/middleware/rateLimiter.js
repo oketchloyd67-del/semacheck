@@ -19,15 +19,32 @@ let redisErrorLogged = false;
 
 const REDIS_MAX_RETRIES = 3;
 
+// REDIS_URL has been set to a whole `redis-cli -u redis://…` command line in
+// the past, which made `new URL()` throw "Invalid URL" and silently disabled
+// Redis. Accept a bare URL, or dig the URL out of a pasted command.
+function normalizeRedisUrl(raw) {
+  if (!raw) return null;
+  const trimmed = String(raw).trim().replace(/^["']|["']$/g, '');
+  if (/^rediss?:\/\//i.test(trimmed)) return trimmed;
+  const match = trimmed.match(/rediss?:\/\/\S+/i);
+  if (match) {
+    console.warn('[redis] REDIS_URL contained a command instead of a bare URL — extracted the URL automatically.');
+    return match[0];
+  }
+  console.warn('[redis] REDIS_URL is not a usable redis:// URL — falling back to in-memory rate limiting.');
+  return null;
+}
+
 function getRedisClient() {
   if (redisClient) return redisClient;
   if (redisGaveUp) return null;
 
-  if (process.env.REDIS_URL) {
+  const redisUrl = normalizeRedisUrl(process.env.REDIS_URL);
+  if (redisUrl) {
     try {
       const { createClient } = require('redis');
       redisClient = createClient({
-        url: process.env.REDIS_URL,
+        url: redisUrl,
         socket: {
           connectTimeout: 5000,
           reconnectStrategy: (retries) =>

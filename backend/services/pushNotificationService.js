@@ -7,7 +7,7 @@ let webpush = null;
 try {
   webpush = require('web-push');
 } catch (err) {
-  console.error('[push] web-push module not installed — push notifications disabled. Run `npm install` in backend/.');
+  console.error('[push] web-push module not installed — push notifications disabled. Run `npm install` in backend/.', '| reason:', err && err.message);
 }
 
 // VAPID keys — generate once and persist in env.

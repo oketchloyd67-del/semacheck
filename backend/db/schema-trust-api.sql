@@ -172,6 +172,10 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
 CREATE INDEX IF NOT EXISTS idx_webhooks_due ON webhook_deliveries(status, next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_webhooks_account_time ON webhook_deliveries(account_id, created_at);
 
+-- delivery worker needs the HMAC signature and the target URL persisted
+ALTER TABLE webhook_deliveries ADD COLUMN IF NOT EXISTS signature TEXT;
+ALTER TABLE webhook_deliveries ADD COLUMN IF NOT EXISTS webhook_url VARCHAR(500);
+
 -- ---------------------------------------------------------------------------
 -- 5.2 Migration safety patches (existing tables)
 -- ---------------------------------------------------------------------------
@@ -207,7 +211,7 @@ ALTER TABLE api_accounts ADD CONSTRAINT api_accounts_status_check
 
 -- ---------------------------------------------------------------------------
 -- Sect 9.1: keyed-hash utilities for API keys
--- (documented as a helper for apiKeyAuth; keys are stored keyed-hashed)
+-- (documented as a helper for apiKeyAuth - keys are stored keyed-hashed)
 -- ---------------------------------------------------------------------------
 
 -- users: admin deactivation keeps every record, payment and report for audit

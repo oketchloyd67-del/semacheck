@@ -29,6 +29,47 @@ const notificationsRoutes = require('./routes/notifications');
 
 const app = express();
 
+// Express 4 does not catch rejected promises from async route handlers — on
+// Node >= 15 an unhandled rejection is fatal, so a single SQL error used to
+// take the whole API down (every endpoint answered 503 with no CORS headers,
+// which the dashboard reported as "Offline"). Wrap every route handler so any
+// thrown/rejected error flows into the JSON error middleware instead.
+function wrapAsyncHandlers(router) {
+  (router.stack || []).forEach((layer) => {
+    if (layer.route) {
+      (layer.route.stack || []).forEach((routeLayer) => {
+        const handler = routeLayer.handle;
+        if (typeof handler !== 'function' || handler.length >= 4) return; // error middleware
+        routeLayer.handle = function guarded(req, res, next) {
+          try {
+            const result = handler.apply(this, arguments);
+            if (result && typeof result.then === 'function') result.catch(next);
+          } catch (err) {
+            next(err);
+          }
+        };
+      });
+    } else if (layer.handle && layer.handle.stack) {
+      wrapAsyncHandlers(layer.handle); // nested router
+    }
+  });
+  return router;
+}
+
+[
+  apiV1Routes, reportsRoutes, apiAccountRoutes, publicStatsRoutes,
+  whatsappRoutes, publicRoutes, authRoutes, searchRoutes, paymentRoutes,
+  jobRoutes, adminRoutes, contactRoutes, forensicsRoutes, notificationsRoutes,
+].forEach(wrapAsyncHandlers);
+
+// Last line of defence: log, never silently die.
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] Unhandled promise rejection (kept alive):', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] Uncaught exception:', err && err.stack ? err.stack : err);
+});
+
 app.use('/whatsapp', whatsappRoutes);
 app.set('trust proxy', 1); 
 app.use(helmet({
@@ -53,14 +94,26 @@ app.use((req, res, next) => {
   next();
 });
 app.use(compression());
-const allowedOrigins = (process.env.ALLOWED_ORIGIN || '*').split(',').map((s) => s.trim());
+const allowedOrigins = (process.env.ALLOWED_ORIGIN || '*').split(',').map((s) => s.trim()).filter(Boolean);
+// Always allow the first-party deployments, regardless of what is (or isn't)
+// set in ALLOWED_ORIGIN — a missing env var used to turn every cross-origin
+// request into a CORS failure.
+const firstPartyOrigins = [
+  'https://contsemacheck.vercel.app',
+  'https://semacheck.vercel.app',
+  'https://semacheck-admin.vercel.app',
+  'https://semacheck.onrender.com',
+];
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
+    const allowed = !origin
+      || allowedOrigins.includes('*')
+      || allowedOrigins.includes(origin)
+      || firstPartyOrigins.includes(origin);
+    if (!allowed) console.warn(`[cors] Blocked origin: ${origin}`);
+    // Never throw here — an exception in this callback skips the CORS headers
+    // and surfaces to the browser as an unreadable "CORS error".
+    callback(null, allowed);
   },
   credentials: true,
 }));
@@ -136,6 +189,21 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 4800;
 app.listen(PORT, () => {
+  // Make optional-module problems visible immediately in the Render logs
+  // (they were previously swallowed and only discovered weeks later).
+  ['web-push', 'pdf-parse'].forEach((dep) => {
+    try { require(dep); console.log(`[deps] ${dep}: OK`); }
+    catch (e) { console.error(`[deps] ${dep} FAILED to load:`, e && e.message ? e.message : e); }
+  });
+
+  // Self-heal the schema on boot. Render's free tier has no shell and the
+  // build command is not guaranteed to run migrations, so apply the idempotent
+  // schema on every start instead of letting the DB drift behind the code.
+  if (process.env.SKIP_STARTUP_MIGRATE !== 'true') {
+    require('./db/migrate').migrate({ closePool: false })
+      .then(() => console.log('Startup schema migration OK.'))
+      .catch((e) => console.error('Startup schema migration failed:', e && e.message ? e.message : e));
+  }
   console.log(`SemaCheck API listening on port ${PORT}`);
   console.log('Tuma config:', {
     hasEmail: !!process.env.TUMA_EMAIL,

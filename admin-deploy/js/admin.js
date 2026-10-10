@@ -84,24 +84,32 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPushStatus();
   initBroadcast();
 
-  document.getElementById('regStatusFilter').addEventListener('change', (e) => loadRegistrations(e.target.value));
-  document.getElementById('jobStatusFilter').addEventListener('change', (e) => loadJobs(e.target.value));
-  document.getElementById('reportStatusFilter').addEventListener('change', () => loadReportsQueue());
-  document.getElementById('reportTypeFilter').addEventListener('change', () => loadReportsQueue());
+  // Never assume an element exists: one missing id used to throw here and
+  // silently kill every listener registered after it ("nothing works").
+  const on = (id, event, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(event, fn);
+    else console.warn(`[admin] #${id} missing — listener skipped`);
+  };
+
+  on('regStatusFilter', 'change', (e) => loadRegistrations(e.target.value));
+  on('jobStatusFilter', 'change', (e) => loadJobs(e.target.value));
+  on('reportStatusFilter', 'change', () => loadReportsQueue());
+  on('reportTypeFilter', 'change', () => loadReportsQueue());
   document.querySelectorAll('[data-rev-days]').forEach((btn) => btn.addEventListener('click', () => {
     document.querySelectorAll('.rev-period-btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     currentRevDays = Number(btn.dataset.revDays);
     loadRevenue(currentRevDays);
   }));
-  document.getElementById('forensicsStatusFilter').addEventListener('change', (e) => loadForensicsCases(e.target.value));
-  document.getElementById('userFilterBtn').addEventListener('click', loadUsers);
-  document.getElementById('userSearchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') loadUsers(); });
+  on('forensicsStatusFilter', 'change', (e) => loadForensicsCases(e.target.value));
+  on('userFilterBtn', 'click', loadUsers);
+  on('userSearchInput', 'keydown', (e) => { if (e.key === 'Enter') loadUsers(); });
 
-  document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+  on('saveSettingsBtn', 'click', saveSettings);
 
   document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { closeDocModal(); closeUserDetailModal(); }));
-  document.getElementById('docPreviewOverlay').addEventListener('click', (e) => { if (e.target.id === 'docPreviewOverlay') closeDocModal(); });
+  on('docPreviewOverlay', 'click', (e) => { if (e.target.id === 'docPreviewOverlay') closeDocModal(); });
   document.getElementById('userDetailOverlay')?.addEventListener('click', (e) => { if (e.target.id === 'userDetailOverlay') closeUserDetailModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDocModal(); closeUserDetailModal(); } });
 
@@ -411,9 +419,9 @@ async function loadUsers() {
   tbody.innerHTML = '<tr><td colspan="8" style="color:var(--text-muted);">Loading…</td></tr>';
   try {
     const params = new URLSearchParams();
-    const q = document.getElementById('userSearchInput').value.trim();
-    const type = document.getElementById('userTypeFilter').value;
-    const status = document.getElementById('userStatusFilter').value;
+    const q = document.getElementById('userSearchInput')?.value?.trim();
+    const type = document.getElementById('userTypeFilter')?.value;
+    const status = document.getElementById('userStatusFilter')?.value;
     if (q) params.set('q', q);
     if (type) params.set('accountType', type);
     if (status) params.set('verificationStatus', status);
@@ -729,8 +737,8 @@ async function loadWebhookFailures() {
 
 async function loadReportsQueue() {
   try {
-    const status = document.getElementById('reportStatusFilter').value || 'pending';
-    const type = document.getElementById('reportTypeFilter').value || '';
+    const status = document.getElementById('reportStatusFilter')?.value || 'pending';
+    const type = document.getElementById('reportTypeFilter')?.value || '';
     const params = new URLSearchParams({ status });
     if (type) params.set('type', type);
     const data = await adminApi(`/admin/reports?${params.toString()}`);
@@ -935,14 +943,17 @@ async function loadApiUsage() {
           <div style="height:100%;width:${Math.round((t.count / maxN) * 100)}%;background:#0FA3A3;"></div>
         </div>`).join('');
     }
-  } catch (err) { document.getElementById('apiUsage').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`; }
+  } catch (err) {
+    const box = document.getElementById('apiUsage');
+    if (box) box.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+  }
 }
 
 async function loadTab(tab) {
   try {
     if (tab === 'revenue') { await loadRevenue(currentRevDays); }
     else if (tab === 'users') { await loadUsers(); }
-    else if (tab === 'jobs') { await loadJobs(document.getElementById('jobStatusFilter').value || 'pending'); }
+    else if (tab === 'jobs') { await loadJobs(document.getElementById('jobStatusFilter')?.value || 'pending'); }
     else if (tab === 'api-accounts') { await loadApiAccounts(); }
     else if (tab === 'webhook-failures') { await loadWebhookFailures(); }
     else if (tab === 'reports') { await loadReportsQueue(); }

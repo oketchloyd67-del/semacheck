@@ -7,7 +7,13 @@ const pool = require('./pool');
 async function readStatements(filePath) {
   if (!fs.existsSync(filePath)) return [];
   const sql = fs.readFileSync(filePath, 'utf8');
-  return sql
+  // Semicolons inside `--` comments must not split a statement in two.
+  // (One such comment in schema-trust-api.sql silently aborted every migration.)
+  const sanitized = sql
+    .split('\n')
+    .map(function (line) { return /^\s*--/.test(line) ? line.replace(/;/g, '') : line; })
+    .join('\n');
+  return sanitized
     .split(';')
     .map(function(stmt) { return stmt.trim(); })
     .filter(function(stmt) { return stmt.length > 0; });
@@ -37,7 +43,10 @@ async function runStatements(client, statements, label) {
   }
 }
 
-async function migrate() {
+async function migrate(options) {
+  // closePool: set false when the caller (server.js) shares this pool and must
+  // keep it alive after migrating.
+  const closePool = !options || options.closePool !== false;
   const schemaSqlPath = path.join(__dirname, 'schema.sql');
 
   if (!fs.existsSync(schemaSqlPath)) {
@@ -72,10 +81,22 @@ async function migrate() {
     process.exitCode = 1;
   } finally {
     client.release();
-    await pool.end();
-    console.log('Database connection closed.');
+    if (closePool) {
+      await pool.end();
+      console.log('Database connection closed.');
+    }
   }
 }
 
 
 module.exports = { migrate };
+
+// `node db/migrate.js` / `npm run migrate` must actually migrate — this file
+// previously only exported the function, so every deploy-time migration was a
+// silent no-op and the production schema drifted behind the code.
+if (require.main === module) {
+  migrate().catch((err) => {
+    console.error('Migration crashed:', err);
+    process.exit(1);
+  });
+}
