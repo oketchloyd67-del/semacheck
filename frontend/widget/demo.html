@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SemaCheck — Widget demo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@exampledev/new.css@1.1.2/new.min.css">
+  <style>
+    body { background: #f6f8fb; }
+    header { padding: 40px 24px; max-width: 900px; margin: 0 auto; }
+    .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SemaCheck — Widget demo</h1>
+    <p>This is a live demo of the embeddable widget. Enter a phone number, paybill or business name and check.</p>
+    <p class="meta">API origin: <code>http://localhost:4800</code></p>
+  </header>
+
+  <div class="container">
+    <div id="semacheck-check"></div>
+  </div>
+
+  <script src="/widget/semacheck-widget.js" data-key="pk_live_DEMO" data-types="phone,paybill" data-target="#semacheck-check" async></script>
+</body>
+</html>

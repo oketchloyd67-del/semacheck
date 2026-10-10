@@ -10,13 +10,15 @@ async function loadRecentScamsTicker() {
       container.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">No recent scam reports yet. Be the first to verify a number.</p>';
       return;
     }
-    const typeLabels = { paybill: 'Paybill', phone: 'Phone', job_offer: 'Job' };
+    const typeLabels = { paybill: 'Paybill', phone: 'Phone', job_offer: 'Job', job: 'Job', business: 'Business', website: 'Website', other: 'Other' };
     container.innerHTML = data.scams.map((s, i) => {
       const ago = timeAgo(new Date(s.reported_at));
+      const amount = s.amountLostKes ? `<span class="ticker-amount">KES ${Number(s.amountLostKes).toLocaleString()} lost</span>` : '';
+      const badge = s.source === 'report' ? '<span class="ticker-source" title="Admin-approved community report">REPORTED</span>' : '';
       return `<div class="ticker-item" style="animation-delay:${i * 0.05}s">
         <span class="ticker-verdict ${s.verdict}">${s.verdict === 'scam' ? '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>SCAM' : '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>SUSPICIOUS'}</span>
-        <span class="ticker-type">${typeLabels[s.type] || s.type}</span>
-        <span class="ticker-value">${escapeHtml(s.value)}</span>
+        <span class="ticker-type">${typeLabels[s.type] || escapeHtml(s.type)}</span>
+        <span class="ticker-value">${escapeHtml(s.value)}</span>${badge}${amount}
         <span class="ticker-time">${ago}</span>
       </div>`;
     }).join('');
@@ -187,7 +189,7 @@ window.addEventListener('pageshow', (e) => {
 document.addEventListener('DOMContentLoaded', () => {
   updateAuthUI();
 
-  document.getElementById('openLogin')?.addEventListener('click', () => openModal('loginOverlay'));
+  document.getElementById('openLogin')?.addEventListener('click', () => { resetLoginStep(); openModal('loginOverlay'); });
   document.getElementById('openSignup')?.addEventListener('click', () => openModal('signupOverlay'));
   document.getElementById('openSignupJobOwner')?.addEventListener('click', () => {
     openModal('signupOverlay');
@@ -200,7 +202,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === ov) closeModal(ov.id);
   }));
   document.querySelectorAll('[data-switch-to]').forEach((btn) => btn.addEventListener('click', () => {
-    closeModal('loginOverlay'); closeModal('signupOverlay');
+    closeModal('loginOverlay'); closeModal('signupOverlay'); closeModal('forgotOverlay');
+    if (btn.dataset.switchTo === 'login') resetLoginStep();
     openModal(btn.dataset.switchTo === 'signup' ? 'signupOverlay' : 'loginOverlay');
   }));
 
@@ -213,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeModal('whatsappConfirmOverlay');
   });
 
-  let currentAccountType = 'regular';
+  let currentAccountType = 'job_owner';
   document.querySelectorAll('[data-account-type]').forEach((btn) => btn.addEventListener('click', () => {
     document.querySelectorAll('[data-account-type]').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
@@ -222,6 +225,90 @@ document.addEventListener('DOMContentLoaded', () => {
   }));
 
   document.getElementById('suPassword')?.addEventListener('input', (e) => renderStrengthMeter(e.target.value));
+
+  let pendingTwoFactorToken = null;
+
+  function resetLoginStep() {
+    pendingTwoFactorToken = null;
+    const section = document.getElementById('login2faSection');
+    if (section) section.style.display = 'none';
+    const idField = document.getElementById('loginId');
+    if (idField && idField.closest('.field')) idField.closest('.field').style.display = '';
+    const pwField = document.getElementById('loginPasswordField');
+    if (pwField) pwField.style.display = '';
+    const foot = document.getElementById('loginSignupFoot');
+    if (foot) foot.style.display = '';
+    const codeInput = document.getElementById('login2faCode');
+    if (codeInput) codeInput.value = '';
+    const loginBtn = document.getElementById('loginSubmit');
+    if (loginBtn) loginBtn.style.display = '';
+    const alertBox = document.getElementById('loginAlert');
+    if (alertBox) alertBox.innerHTML = '';
+  }
+
+  function showLogin2faStep() {
+    document.getElementById('login2faSection').style.display = 'block';
+    document.getElementById('loginId').closest('.field').style.display = 'none';
+    document.getElementById('loginPasswordField').style.display = 'none';
+    document.getElementById('loginSignupFoot').style.display = 'none';
+    document.getElementById('loginSubmit').style.display = 'none';
+    document.getElementById('login2faCode').focus();
+  }
+
+  document.getElementById('forgotPasswordBtn')?.addEventListener('click', () => {
+    document.getElementById('forgotAlert').innerHTML = '';
+    document.getElementById('forgotEmail').value = document.getElementById('loginId').value.trim();
+    closeModal('loginOverlay');
+    openModal('forgotOverlay');
+  });
+
+  document.getElementById('forgotSubmit')?.addEventListener('click', async () => {
+    const alertBox = document.getElementById('forgotAlert');
+    const btn = document.getElementById('forgotSubmit');
+    const label = document.getElementById('forgotBtnLabel');
+    const email = document.getElementById('forgotEmail').value.trim();
+    alertBox.innerHTML = '';
+    if (!isValidEmailClient(email)) {
+      alertBox.innerHTML = '<div class="alert alert-err">Enter a valid email address.</div>';
+      return;
+    }
+    btn.disabled = true; label.innerHTML = '<span class="spinner"></span> Sending...';
+    try {
+      const r = await api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
+      alertBox.innerHTML = `<div class="alert alert-ok">${escapeHtml(r.message)}</div>`;
+      btn.style.display = 'none';
+    } catch (err) {
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+    } finally {
+      btn.disabled = false; label.textContent = 'Send reset link';
+    }
+  });
+
+  document.getElementById('login2faSubmit')?.addEventListener('click', async () => {
+    const alertBox = document.getElementById('loginAlert');
+    const btn = document.getElementById('login2faSubmit');
+    const label = document.getElementById('login2faBtnLabel');
+    const code = document.getElementById('login2faCode').value.trim();
+    alertBox.innerHTML = '';
+    if (!/^\d{6}$/.test(code)) { alertBox.innerHTML = '<div class="alert alert-err">Enter the 6-digit code from your authenticator app.</div>'; return; }
+    btn.disabled = true; label.innerHTML = '<span class="spinner"></span> Verifying...';
+    try {
+      const r = await api('/auth/2fa/verify', { method: 'POST', body: JSON.stringify({ twoFactorToken: pendingTwoFactorToken, code }) });
+      setSession(r.token, r.user);
+      resetLoginStep();
+      if (r.user.accountType === 'job_owner') {
+        window.location.href = 'dashboard.html';
+      } else {
+        closeModal('loginOverlay');
+        updateAuthUI();
+      }
+      registerPushNotifications();
+    } catch (err) {
+      alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+    } finally {
+      btn.disabled = false; label.textContent = 'Verify';
+    }
+  });
 
   const checkEmail = debounce(async (email) => {
     const msg = document.getElementById('suEmailMsg');
@@ -388,6 +475,11 @@ document.addEventListener('DOMContentLoaded', () => {
           password: document.getElementById('loginPassword').value,
         }),
       });
+      if (r.requires2fa) {
+        pendingTwoFactorToken = r.twoFactorToken;
+        showLogin2faStep();
+        return;
+      }
       setSession(r.token, r.user);
       if (r.user.accountType === 'job_owner') {
         window.location.href = 'dashboard.html';
@@ -422,22 +514,50 @@ document.addEventListener('DOMContentLoaded', () => {
   let searchType = 'paybill';
   let searchTier = 50;
   let searchRegion = 'kenya';
+  let lastConsumerTier = 50;
 
   const regionRow = document.getElementById('regionRow');
+
+  function selectTier(n) {
+    document.querySelectorAll('.tier').forEach((x) => {
+      x.classList.toggle('selected', Number(x.dataset.tier) === n);
+    });
+  }
 
   document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
     tab.classList.add('active');
     searchType = tab.dataset.type;
+    const isWebsite = searchType === 'website';
     document.getElementById('searchInput').placeholder =
-      searchType === 'paybill' ? 'e.g. 400200' : searchType === 'phone' ? 'e.g. 0712345678' : 'Paste the job offer text here';
+      searchType === 'paybill' ? 'e.g. 400200' :
+      searchType === 'phone' ? 'e.g. 0712345678' :
+      isWebsite ? 'e.g. deals-ke.com or the agency name' :
+      'Paste the job offer text here';
     regionRow.style.display = searchType === 'job_offer' ? 'flex' : 'none';
+
+    document.querySelectorAll('.tier').forEach((t) => {
+      const isWebTier = Number(t.dataset.tier) === 80;
+      t.style.display = isWebsite ? (isWebTier ? '' : 'none') : (isWebTier ? 'none' : '');
+    });
+
+    if (isWebsite) {
+      searchTier = 80;
+      searchRegion = 'international';
+      selectTier(80);
+    } else {
+      searchTier = lastConsumerTier;
+      selectTier(lastConsumerTier);
+      if (searchType !== 'job_offer') searchRegion = 'kenya';
+    }
+    document.querySelectorAll('.region-btn').forEach((b) => b.classList.toggle('active', b.dataset.region === searchRegion));
   }));
 
   document.querySelectorAll('.tier').forEach((t) => t.addEventListener('click', () => {
     document.querySelectorAll('.tier').forEach((x) => x.classList.remove('selected'));
     t.classList.add('selected');
     searchTier = Number(t.dataset.tier);
+    if (searchTier !== 80) lastConsumerTier = searchTier;
   }));
 
   document.querySelectorAll('.region-btn').forEach((btn) => btn.addEventListener('click', () => {
@@ -478,11 +598,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('searchBtn')?.addEventListener('click', async () => {
     const value = document.getElementById('searchInput').value.trim();
     if (!value) return;
-    if (!getToken()) {
-      openModal('loginOverlay');
-      document.getElementById('loginAlert').innerHTML = '<div class="alert alert-err">Create an account or log in first — every search is tied to your account.</div>';
-      return;
-    }
+    // Regular users don't need an account to search — the M-Pesa payment
+    // identifies the request. Job owners and API partners sign up separately.
     const phone = await askForPhone();
     if (!phone) return;
 
@@ -577,19 +694,50 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function openPrintSim(forensicsHref) {
+    const paper = document.getElementById('receiptPaper');
+    if (!paper) return;
+    let ov = document.getElementById('printSimOverlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'printSimOverlay';
+      ov.className = 'print-sim-overlay';
+      document.body.appendChild(ov);
+      ov.addEventListener('click', (e) => { if (e.target === ov) ov.classList.remove('open'); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ov.classList.remove('open'); });
+    }
+    const clone = paper.cloneNode(true);
+    clone.removeAttribute('id');
+    ov.innerHTML = `
+      <div class="print-sim-stage">
+        <div class="print-sim-toolbar">
+          <span class="print-sim-title">Print simulation</span>
+          <button class="btn print-sim-close" type="button">Done</button>
+        </div>
+        <div class="print-sim-sheet">
+          <div class="print-sim-front"></div>
+          ${clone.outerHTML}
+        </div>
+        ${forensicsHref ? `<div class="print-sim-forensics"><p>This subject was reported. Connect to our forensic team to trace the money and build a case.</p><a class="btn btn-amber" href="${forensicsHref}">Proceed to forensics &middot; KES 849 case fee</a></div>` : ''}
+      </div>`;
+    ov.querySelector('.print-sim-close').addEventListener('click', () => ov.classList.remove('open'));
+    ov.classList.add('open');
+  }
+
   function renderSearchResult(payload, queryValue) {
     const r = payload.result;
     const outer = document.getElementById('receiptOuter');
     const slot = document.getElementById('receiptPaperSlot');
 
-    const verdictLabels = { legit: 'LEGIT', scam: 'SCAM', suspicious: 'SUSPICIOUS', unverified: 'UNVERIFIED' };
+    const verdictLabels = { reported: 'REPORTED', caution: 'CAUTION', registered: 'REGISTERED', unverified: 'UNVERIFIED', legit: 'LEGIT', scam: 'SCAM', suspicious: 'SUSPICIOUS' };
     const now = new Date();
     const timestamp = now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const sourceCount = r.sources ? (r.sources.external_sources || []).length : null;
     const dbCount = r.sources && r.sources.db_signal ? r.sources.db_signal.reduce((a, b) => a + b.n, 0) : null;
 
-    const isScam = r.verdict === 'scam' || r.verdict === 'suspicious';
+    const showForensics = ['reported', 'caution', 'scam', 'suspicious'].includes(r.verdict);
     const forensicsParams = new URLSearchParams({ q: queryValue, type: searchType, verdict: r.verdict });
+    const forensicsHref = `forensics.html?${forensicsParams.toString()}`;
 
     slot.innerHTML = `
       <div class="receipt-paper" id="receiptPaper">
@@ -614,10 +762,13 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="receipt-footer">THANK YOU FOR USING SEMACHECK &middot; SEMACHECK.CO.KE</div>
       </div>
       <div class="receipt-actions">
-        <button class="btn btn-ghost" onclick="window.print()"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>Print receipt</button>
+        <button class="btn btn-ghost" id="printSimBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>Print receipt</button>
+        <button class="btn btn-ghost" onclick="window.open('/report.html?type=phone&value=' + encodeURIComponent(JSON.parse(decodeURIComponent(document.querySelector('script[type="application/json"].receipt-data')?.textContent || '{}')).subject || ''), '_blank')"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M11 20a1 1 0 0 1 .707-.293l8-8a1 1 0 0 1 1.414 1.414l-8 8A1 1 0 0 1 11 20zm6-12V4H7v4c0 4.418 2.944 8 6.635 8.011-.376.016-.75.025-1.124.025A5.986 5.986 0 0 1 17 12c0-1.59-.668-2.86-1.727-3.723V7.97zm1-1.832A6.015 6.015 0 0 0 12 5a6.015 6.015 0 0 0-5.086 1.45c-.374-.012-.747-.024-1.123-.024A5.987 5.987 0 0 0 3 12c0 1.59.668 2.86 1.727 3.73V16.03l5.801-1.894v-2.06z"/></svg>Report this</button>
       </div>
-      ${isScam ? `<div class="reclaim-money-box"><p>Lost money to this scam? Get help tracing it and building a case.</p><a class="btn btn-amber" href="forensics.html?${forensicsParams.toString()}">Reclaim my money →</a></div>` : ''}
+      ${showForensics ? `<div class="reclaim-money-box"><p>Lost money to this subject? Get help tracing it and building a case.</p><a class="btn btn-amber" href="${forensicsHref}">Reclaim my money →</a></div>` : ''}
     `;
+
+    document.getElementById('printSimBtn')?.addEventListener('click', () => openPrintSim(showForensics ? forensicsHref : null));
 
     outer.classList.remove('open');
    

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SemaCheck — Transparency stats</title>
+  <meta name="description" content="How the platform is doing: checks served, reports approved, active accounts, latency.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="navbar">
+    <div class="container" style="justify-content:space-between;">
+      <a href="index.html" class="brand" aria-label="SemaCheck — go to the homepage"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
+      <nav class="subnav">
+        <a href="developers.html">Developers</a>
+        <a href="docs.html">Docs</a>
+        <a href="api-dashboard.html">Dashboard</a>
+        <a href="stats.html" style="color:#fff; font-weight:600;">Stats</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" style="padding:32px 0 80px;">
+    <h1>Transparency stats</h1>
+    <p class="hint">Numbers update every ten minutes. All data comes straight from the production database.  
+
+    <div id="stats" style="display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+      <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:22px; text-align:center;">
+        <div class="hint">Checks served</div>
+        <div id="st-checks" style="font-size:1.8rem; font-weight:800;">—</div>
+      </div>
+      <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:22px; text-align:center;">
+        <div class="hint">Approved reports</div>
+        <div id="st-reports" style="font-size:1.8rem; font-weight:800;">—</div>
+      </div>
+      <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:22px; text-align:center;">
+        <div class="hint">Active API accounts</div>
+        <div id="st-accounts" style="font-size:1.8rem; font-weight:800;">—</div>
+      </div>
+      <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:22px; text-align:center;">
+        <div class="hint">Median latency (7 days)</div>
+        <div id="st-p50" style="font-size:1.8rem; font-weight:800;">—</div>
+      </div>
+      <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:22px; text-align:center;">
+        <div class="hint">P95 latency (7 days)</div>
+        <div id="st-p95" style="font-size:1.8rem; font-weight:800;">—</div>
+      </div>
+    </div>
+
+    <div id="chart" style="margin-top:18px; border:1px solid var(--border); border-radius:10px; padding:18px;">
+      <div class="hint">Checks served per day (last 7 days)</div>
+      <canvas id="daily-chart" height="160" style="max-width:100%;"></canvas>
+    </div>
+  </main>
+
+  <script src="js/stats.js"></script>
+</body>
+</html>

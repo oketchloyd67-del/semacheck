@@ -173,6 +173,99 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   
+  document.getElementById('cpNew')?.addEventListener('input', (e) => renderStrengthMeter(e.target.value));
+
+  function secMsg(kind, text) {
+    document.getElementById('secAlert').innerHTML = `<div class="alert alert-${kind}">${escapeHtml(text)}</div>`;
+  }
+
+  document.getElementById('cpSubmit')?.addEventListener('click', async () => {
+    const confirmMsg = document.getElementById('cpConfirmMsg');
+    confirmMsg.textContent = '';
+    confirmMsg.className = 'field-msg';
+    const current = document.getElementById('cpCurrent').value;
+    const next = document.getElementById('cpNew').value;
+    const confirm = document.getElementById('cpConfirm').value;
+    if (!current) { secMsg('err', 'Enter your current password.'); return; }
+    if (next !== confirm) {
+      confirmMsg.textContent = 'Passwords do not match.';
+      confirmMsg.className = 'field-msg err';
+      return;
+    }
+    if (next.length < 8) {
+      confirmMsg.textContent = 'Use at least 8 characters.';
+      confirmMsg.className = 'field-msg err';
+      return;
+    }
+    try {
+      const r = await api('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword: current, newPassword: next }) });
+      secMsg('ok', r.message);
+      document.getElementById('cpCurrent').value = '';
+      document.getElementById('cpNew').value = '';
+      document.getElementById('cpConfirm').value = '';
+      renderStrengthMeter('');
+    } catch (err) {
+      secMsg('err', err.message);
+    }
+  });
+
+  async function load2faStatus() {
+    try {
+      const r = await api('/auth/2fa/status');
+      document.getElementById('tfaStatus').textContent = r.enabled
+        ? 'Two-factor authentication is ON. You enter a code from your app each time you log in.'
+        : 'Two-factor authentication is off. Turn it on so a stolen password alone cannot open your account.';
+      document.getElementById('tfaSetupBtn').style.display = r.enabled ? 'none' : 'inline-flex';
+      document.getElementById('tfaDisableRow').style.display = r.enabled ? 'block' : 'none';
+      document.getElementById('tfaSetup').style.display = 'none';
+    } catch {
+      document.getElementById('tfaStatus').textContent = 'Two-factor status unavailable right now.';
+    }
+  }
+  load2faStatus();
+
+  document.getElementById('tfaSetupBtn')?.addEventListener('click', async () => {
+    try {
+      const r = await api('/auth/2fa/setup', { method: 'POST' });
+      document.getElementById('tfaSecret').textContent = r.secret;
+      document.getElementById('tfaCode').value = '';
+      document.getElementById('tfaSetup').style.display = 'block';
+      document.getElementById('tfaSetupBtn').style.display = 'none';
+    } catch (err) {
+      secMsg('err', err.message);
+    }
+  });
+
+  document.getElementById('tfaCancelBtn')?.addEventListener('click', () => {
+    document.getElementById('tfaSetup').style.display = 'none';
+    document.getElementById('tfaSetupBtn').style.display = 'inline-flex';
+  });
+
+  document.getElementById('tfaEnableBtn')?.addEventListener('click', async () => {
+    const code = document.getElementById('tfaCode').value.trim();
+    if (!/^\d{6}$/.test(code)) { secMsg('err', 'Enter the 6-digit code from your authenticator app.'); return; }
+    try {
+      const r = await api('/auth/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) });
+      secMsg('ok', r.message);
+      load2faStatus();
+    } catch (err) {
+      secMsg('err', err.message);
+    }
+  });
+
+  document.getElementById('tfaDisableBtn')?.addEventListener('click', async () => {
+    const code = document.getElementById('tfaDisableCode').value.trim();
+    if (!/^\d{6}$/.test(code)) { secMsg('err', 'Enter the 6-digit code from your app to confirm.'); return; }
+    try {
+      const r = await api('/auth/2fa/disable', { method: 'POST', body: JSON.stringify({ code }) });
+      secMsg('ok', r.message);
+      document.getElementById('tfaDisableCode').value = '';
+      load2faStatus();
+    } catch (err) {
+      secMsg('err', err.message);
+    }
+  });
+
   async function waitForPaymentThenRun({ paymentId, onConfirmed }) {
     const card = document.getElementById('paymentProgressCard');
     const statusText = document.getElementById('ppStatusText');

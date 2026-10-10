@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SemaCheck — Dispute a scam alert</title>
+  <meta name="description" content="Open a dispute against a scam alert that affects your business.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="navbar">
+    <div class="container" style="justify-content:space-between;">
+      <a href="index.html" class="brand" aria-label="SemaCheck — go to the homepage"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
+      <nav class="subnav">
+        <a href="developers.html">Developers</a>
+        <a href="alerts.html">Alerts</a>
+        <a href="report.html">Report a scam</a>
+        <a href="dispute.html" style="color:#fff; font-weight:600;">Dispute</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" style="padding:32px 0 80px;">
+    <h1>Dispute this listing</h1>
+    <p class="hint">Open a dispute if a scam alert reports something that affects your business or you.  
+
+    <div id="report-summary" style="border:1px solid var(--border); border-radius:10px; padding:18px; display:none;">
+      <h2 id="ds-report-title">Report summary</h2>
+      <p id="ds-report-subject" class="hint"></p>
+      <p id="ds-report-type" class="hint"></p>
+      <p id="ds-report-description" class="hint" style="white-space:pre-line;"></p>
+    </div>
+
+    <form id="dispute-form" style="border:1px solid var(--border); border-radius:10px; padding:24px; display:none;">
+      <div style="display:grid; gap:18px;">
+        <div>
+          <label for="ds-name">Your name</label>
+          <input id="ds-name" type="text" required style="width:100%; padding:11px;border:1.5px solid var(--border);border-radius:8px;">
+        </div>
+        <div>
+          <label for="ds-email">Your email</label>
+          <input id="ds-email" type="email" required style="width:100%; padding:11px;border:1.5px solid var(--border);border-radius:8px;">
+        </div>
+        <div>
+          <label for="ds-phone">Your phone</label>
+          <input id="ds-phone" type="text" style="width:100%; padding:11px;border:1.5px solid var(--border);border-radius:8px;">
+        </div>
+        <div>
+          <label for="ds-rel">Your relationship to this listing</label>
+          <select id="ds-rel" style="width:100%; padding:11px;border:1.5px solid var(--border);border-radius:8px;">
+            <option value="owner">I am the owner of the business listed</option>
+            <option value="authorised_rep">I am an authorised representative</option>
+          </select>
+        </div>
+        <div>
+          <label for="ds-msg">Explain why this listing is wrong. What evidence helps?</label>
+          <textarea id="ds-msg" rows="5" required minlength="40" style="width:100%; padding:11px;border:1.5px solid var(--border);border-radius:8px;"></textarea>
+        </div>
+        <div>
+          <label for="ds-evidence">Supporting evidence (optional)</label>
+          <input id="ds-evidence" type="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" style="width:100%; padding:9px;border:1.5px dashed var(--border);border-radius:8px;">
+          <div class="hint" style="margin-top:4px;">JPG, PNG, PDF, DOC or DOCX up to 8MB — registration papers, contracts or messages that prove ownership.</div>
+        </div>
+        <div id="ds-feedback"></div>
+        <button class="btn btn-primary" type="submit" id="ds-submit">Submit dispute</button>
+      </div>
+    </form>
+
+    <p class="hint" style="margin-top:18px;">A first response is promised within three working days. We email the outcome.  
+
+    <script src="js/dispute.js"></script>
+  </main>
+</body>
+</html>

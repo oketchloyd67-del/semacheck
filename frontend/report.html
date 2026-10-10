@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SemaCheck — Report a scam</title>
+  <meta name="description" content="Report a scam or fraud with supporting evidence. Our admin team reviews every report before it goes public on the homepage scam reports tab.">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+</head>
+<body>
+  <header class="navbar">
+    <div class="container" style="justify-content:space-between;">
+      <a href="index.html" class="brand" aria-label="SemaCheck — go to the homepage"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
+      <nav class="subnav">
+        <a href="developers.html">Developers</a>
+        <a href="alerts.html">Alerts</a>
+        <a href="report.html" style="color:#fff; font-weight:600;">Report a scam</a>
+        <a href="dispute.html">Dispute</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" style="padding:32px 0 80px;">
+    <h1>Report a scam</h1>
+    <p class="hint">Tell us what happened and attach evidence — a screenshot, message thread or payment confirmation. <b>Every report must include evidence</b>, and nothing goes live until our admin team has reviewed and approved it.</p>
+
+    <div id="report-progress" style="border:1px solid var(--border); border-radius:10px; padding:18px; display:none; text-align:center;">
+      <div style="font-size:1.6rem;">✓</div>
+      <p id="rp-ref" style="font-weight:700;"></p>
+      <p class="hint">What happens next</p>
+      <ul class="hint" style="text-align:left; max-width:520px; margin:8px auto 0; padding-left:20px;">
+        <li>Our admin team reviews your report <b>and its evidence</b> within 24 hours.</li>
+        <li>If it is approved, it is posted on the Scam reports tab of the homepage and the alerts page, with the phone number masked.</li>
+        <li>If it is rejected, we explain why.</li>
+      </ul>
+    </div>
+
+    <form id="report-form" style="border:1px solid var(--border); border-radius:10px; padding:24px; display:none;">
+      <div id="reportAlert" aria-live="polite"></div>
+      <div style="display:grid; gap:18px;">
+        <div>
+          <label for="r-type">What kind of subject?</label>
+          <select id="r-type" style="width:100%; padding:11px;border:1.5px solid var(--border);border-radius:8px;">
+            <option value="phone">Phone number</option>
+            <option value="paybill">M-Pesa paybill</option>
+            <option value="business">Business name</option>
+            <option value="website">Website</option>
+            <option value="job">Job offer</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label for="r-subject">Subject</label>
+          <input id="r-subject" type="text" required placeholder="Phone number, paybill, business, URL or job employer" style="width:100%; padding:11px;border:1.5px solid var(--border);border-radius:8px;">
+        </div>
+        <div>
+          <label for="r-desc">What happened? (at least 40 characters)</label>
+          <textarea id="r-desc" rows="6" required style="width:100%; padding:11px;border:1.5px solid var(--border);border-radius:8px;"></textarea>
+          <p class="hint" id="r-desc-hint"></p>
+        </div>
+        <div>
+          <label for="r-amount">Amount lost (KES) — optional</label>
+          <input id="r-amount" type="number" min="0" step="1" placeholder="e.g. 4500" style="width:100%; padding:11px;border:1.5px solid var(--border);border-radius:8px;">
+        </div>
+        <div id="r-evidence">
+          <label for="r-ev-file">Evidence file <b>(required)</b></label>
+          <input id="r-ev-file" type="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" required style="width:100%; padding:9px;border:1.5px dashed var(--border);border-radius:8px;background:var(--bg);">
+          <p class="hint">Screenshots, messages, or payment confirmations help our team review faster — reports without evidence are not accepted. JPG, PNG, PDF, DOC or DOCX, under 8MB.</p>
+        </div>
+        <div>
+          <label for="r-email">Your email — optional, for review updates</label>
+          <input id="r-email" type="email" placeholder="you@email.com" autocomplete="email" style="width:100%; padding:11px;border:1.5px solid var(--border);border-radius:8px;">
+        </div>
+        <div style="border-top:1px dashed var(--border); padding-top:14px;">
+          <label for="r-consent" style="display:flex; gap:9px; align-items:flex-start; font-size:0.92rem; line-height:1.5; cursor:pointer;">
+            <input id="r-consent" type="checkbox" required style="margin-top:4px; width:16px; height:16px; flex-shrink:0; accent-color:#0FA3A3;">
+            <span>I consent to this report being shown publicly in masked form and used to improve SemaCheck's checks, and I confirm the evidence is genuine.</span>
+          </label>
+        </div>
+        <div aria-hidden="true" style="position:absolute; left:-9999px; height:1px; width:1px; overflow:hidden;">
+          <label for="r-website-check">Leave this field empty</label>
+          <input id="r-website-check" type="text" name="contact_website" tabindex="-1" autocomplete="off">
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-primary" type="submit" id="r-submit">Submit report</button>
+        </div>
+      </div>
+    </form>
+
+    <p class="hint" style="margin-top:18px;">Privacy: we only store the reporter email and a fingerprint hash. Your name, phone, and messages are only visible to our moderation team. Reports are published only after admin approval.</p>
+
+    <script src="js/report.js"></script>
+  </main>
+</body>
+</html>

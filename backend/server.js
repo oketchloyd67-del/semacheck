@@ -6,6 +6,16 @@ const cors = require('cors');
 const compression = require('compression');
 
 const { generalLimiter } = require('./middleware/rateLimiter');
+const { requestId } = require('./middleware/requestId');
+const { apiKeyAuth } = require('./middleware/apiKeyAuth');
+const { apiRateLimit } = require('./middleware/apiRateLimit');
+const { quotaMeter } = require('./middleware/quotaMeter');
+const { widgetOrigin } = require('./middleware/widgetOrigin');
+const { reportAbuseGuard } = require('./middleware/reportAbuseGuard');
+const apiV1Routes = require('./routes/apiV1');
+const reportsRoutes = require('./routes/reports');
+const apiAccountRoutes = require('./routes/apiAccount');
+const publicStatsRoutes = require('./routes/publicStats');
 const whatsappRoutes = require('./routes/whatsapp');
 const publicRoutes = require('./routes/public');
 const authRoutes = require('./routes/auth');
@@ -24,13 +34,22 @@ app.set('trust proxy', 1);
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
+  strictTransportSecurity: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: false,
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  crossOriginResourcePolicy: false,
 }));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.removeHeader('X-Powered-By');
   next();
 });
 app.use(compression());
@@ -47,9 +66,10 @@ app.use(cors({
 }));
 
 
-app.use('/api/payments/tuma/callback', express.json());
+app.use('/api/payments/tuma/callback', express.json({ limit: '50kb' }));
 
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '100kb', strict: true }));
+app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 app.use(generalLimiter);
 
 app.get('/api/health', (req, res) => {
@@ -68,6 +88,19 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/api/ping', (req, res) => res.json({ pong: true, time: Date.now() }));
+
+// ---- Trust Check API ----
+// /v1/* — API-key authenticated
+app.use('/v1', apiV1Routes);
+
+// Public report + alerts
+app.use('/api/reports', reportsRoutes);
+
+// Customer API account dashboard (session auth, verified email required)
+app.use('/api/account', apiAccountRoutes);
+
+// Transparency page — 10-minute cache
+app.use('/api/public/stats', publicStatsRoutes);
 
 const KEEPALIVE_INTERVAL_MS = 10 * 60 * 1000;
 function startKeepAlive() {

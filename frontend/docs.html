@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SemaCheck — Developer docs</title>
+  <meta name="description" content="Complete API reference for the SemaCheck Trust Check API.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="navbar">
+    <div class="container" style="justify-content:space-between;">
+      <a href="index.html" class="brand" aria-label="SemaCheck — go to the homepage"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
+      <nav class="subnav">
+        <a href="developers.html">Developers</a>
+        <a href="docs.html" style="color:#fff; font-weight:600;">Docs</a>
+        <a href="api-dashboard.html">Dashboard</a>
+        <a href="stats.html">Stats</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" style="padding:32px 0 80px;">
+    <h1>Developer docs</h1>
+    <p class="hint">Authentication, requests, responses, quotas, webhooks, and the widget guide.  
+
+    <h2>Authentication</h2>
+    <p>API customers send a <code>sk_live_</code> secret key as a bearer token. The dashboard issues keys, one per account. Never log or store the raw key.</p>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">Authorization: Bearer sk_live_YOUR_API_KEY_HERE</div>
+
+    <h2>Check</h2>
+    <p>POST <code>/v1/check</code>. Returns a verdict, confidence, and reasons.</p>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">POST /v1/check
+Authorization: Bearer sk_live_...
+Content-Type: application/json
+
+{
+  "checkType": "phone",
+  "subject": "254712345678"
+}</div>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">{
+  "requestId": "abc123…",
+  "cached": false,
+  "verdict": "reported",
+  "confidence": 72,
+  "displayVerdict": "Reported",
+  "reasons": [
+    { "code": "reported", "label": "Some reports link this subject to a scam.", "source": "reports" },
+    { "code": "web_result", "label": "Web results raise caution.", "source": "external" }
+  ],
+  "subject": "254712345678",
+  "meta": { "plan": "Free", "planCode": "free" }
+}</div>
+
+    <h2>Verdict values</h2>
+    <div style="display:grid; gap:10px;">
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--scam-red); color:#fff;">reported</span> <span style="font-weight:600;">Reported</span> — proof points exist.</div>
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--suspicious-amber); color:#3a2400;">caution</span> <span style="font-weight:600;">Caution</span> — something is off.</div>
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--legit-green); color:#fff;">registered</span> <span style="font-weight:600;">Registered</span> — matches a known public record.</div>
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--border); color:var(--text-muted);">unverified</span> <span style="font-weight:600;">Unverified</span> — nothing yet says either way.</div>
+    </div>
+
+    <h2>Rate limits, quotas, headers</h2>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 41
+X-RateLimit-Reset: 23
+X-Quota-Limit: 100
+X-Quota-Remaining: 87
+X-Request-Id: abc123</div>
+
+    <h2>Error shape</h2>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">{ "error": "rate_limited", "retryAfter": 60 }
+{ "error": "quota_exceeded", "quotaLimit": 100, "checksUsed": 101 }
+{ "error": "invalid_api_key" }
+{ "error": "check_failed", "message": "…" }</div>
+
+    <h2>Webhooks</h2>
+    <p>The Growth plan sends signed POST requests when a watched subject changes verdict.</p>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">POST https://your-server.com/webhooks
+X-SemaCheck-Event: subject.verdict_changed
+X-SemaCheck-Signature: t=1760000000,v1=9f2b…e41c
+
+{
+  "event": "subject.verdict_changed",
+  "created_at": "2026-10-04T11:02:10Z",
+  "data": {
+    "type": "phone",
+    "value": "254712345678",
+    "previous_verdict": "unverified",
+    "verdict": "reported",
+    "confidence": 72
+  }
+}</div>
+
+    <h2>Widget guide</h2>
+    <p>Embed one script tag and one <code>&lt;div&gt;</code>. The widget calls <code>SemaCheckWidget.check()</code>. See <code>/widget/semacheck-widget.js</code> for the full source.</p>
+  </main>
+</body>
+</html>

@@ -106,4 +106,46 @@ function uploadIdDocument(req, res, next) {
   });
 }
 
-module.exports = { uploadIdDocument, UPLOAD_DIR, validateMagicBytes, detectFileType };
+// ---- Report evidence (screenshots, messages, payment confirmations) ----
+const REPORT_MIME = [
+  ...ALL_ALLOWED_MIME,
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
+
+const evidenceUpload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (!REPORT_MIME.includes(file.mimetype)) {
+      return cb(new Error('Evidence must be a JPG, PNG, PDF, DOC or DOCX file.'));
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: MAX_BYTES, files: 1 },
+}).single('evidence');
+
+function uploadEvidence(req, res, next) {
+  evidenceUpload(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'Evidence file must be under 8MB.' });
+      return res.status(400).json({ error: `Upload error: ${err.message}` });
+    }
+    if (err) return res.status(400).json({ error: err.message });
+
+    if (!req.file) return next();
+
+    // Magic-byte check for images/PDFs; Word docs are accepted by MIME only.
+    if (ALL_ALLOWED_MIME.includes(req.file.mimetype)) {
+      const validationError = validateMagicBytes(req.file.path, req.file.mimetype);
+      if (validationError) {
+        fs.unlink(req.file.path, () => {});
+        req.file = null;
+        return res.status(400).json({ error: validationError });
+      }
+    }
+
+    next();
+  });
+}
+
+module.exports = { uploadIdDocument, uploadEvidence, UPLOAD_DIR, validateMagicBytes, detectFileType };

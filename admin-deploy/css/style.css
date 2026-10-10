@@ -307,3 +307,10 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0; font-size: 0.85re
   .receipt-outer.open { max-height: none !important; }
   .receipt-actions, .reclaim-money-box, .payment-progress-card, .navbar, .hero > .container > h1, .hero > .container > p, .search-card, .receipt-printing-icon { display: none !important; }
 }
+
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid var(--border); background: #fff; color: var(--navy); cursor: pointer; padding: 0; transition: border-color .15s ease, color .15s ease; }
+.icon-btn:hover { border-color: var(--teal); color: var(--teal); }
+.icon-btn-danger:hover { border-color: var(--scam-red); color: var(--scam-red); }
+.icon-btn svg { width: 16px; height: 16px; fill: currentColor; display: block; }
+.rev-period-btn.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+.user-disabled-row td { opacity: 0.65; }

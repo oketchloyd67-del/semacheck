@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scam Check API — SemaCheck | API Providing Organization for Scam Checking</title>
+  <meta name="description" content="SemaCheck is an API providing organization for scam checking. Integrate a scam verification API to check phone numbers, M-Pesa paybills, business names, websites and job offers against community scam reports, the CBK registry, FTC, BBB and Interpol — free plan available.">
+  <meta name="keywords" content="scam check API, scam verification API, scam checking API provider, API providing organization for scam checking, fraud detection API Kenya, anti-fraud API, check phone number for scam API, M-Pesa paybill verification API, scam reporting API, SemaCheck API">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+  <link rel="canonical" href="https://semacheck.vercel.app/developers.html">
+  <meta name="theme-color" content="#0B1F3A">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Scam Check API — SemaCheck | Scam Verification API for Businesses">
+  <meta property="og:description" content="Add scam checking to your product. Verify phone numbers, paybills, websites and job offers with a single API call — verdict, confidence and evidence.">
+  <meta property="og:url" content="https://semacheck.vercel.app/developers.html">
+  <meta property="og:site_name" content="SemaCheck">
+  <meta property="og:image" content="https://semacheck.vercel.app/assets/og-image.png">
+  <meta property="og:locale" content="en_KE">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Scam Check API — SemaCheck | Scam Verification API for Businesses">
+  <meta name="twitter:description" content="Scam verification API for phone numbers, paybills, websites and job offers. Free plan available.">
+  <meta name="twitter:image" content="https://semacheck.vercel.app/assets/og-image.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://semacheck.vercel.app/#organization",
+        "name": "SemaCheck",
+        "url": "https://semacheck.vercel.app",
+        "description": "API providing organization for scam checking and fraud verification.",
+        "areaServed": ["KE", "Worldwide"],
+        "knowsAbout": ["Scam verification", "Fraud detection API", "Scam checking"]
+      },
+      {
+        "@type": "WebAPI",
+        "name": "SemaCheck Trust Check API",
+        "url": "https://semacheck.vercel.app/developers.html",
+        "description": "Scam checking API. Verify phone numbers, M-Pesa paybills, business names, websites and job offers against community scam reports and worldwide fraud databases.",
+        "provider": { "@id": "https://semacheck.vercel.app/#organization",
+          "sameAs": "https://semacheck.vercel.app" },
+        "documentation": "https://semacheck.vercel.app/docs.html",
+        "termsOfService": "https://semacheck.vercel.app/terms-api.html",
+        "endpoint": {
+          "@type": "APIEndpoint",
+          "url": "https://semacheck.onrender.com/v1/check"
+        },
+        "offers": [
+          { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "KES", "description": "100 scam checks per month" },
+          { "@type": "Offer", "name": "Starter", "price": "5000", "priceCurrency": "KES", "description": "2,000 scam checks per month" },
+          { "@type": "Offer", "name": "Growth", "price": "20000", "priceCurrency": "KES", "description": "10,000 scam checks per month with webhooks" }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230B1F3A'/><path d='M16 3l2.5 5.5L21 10l-5.5 2.5L16 17l-2.5-4.5L11 10l5.5-1.5z' fill='%230FA3A3'/></svg>">
+</head>
+<body>
+
+<nav class="navbar" role="navigation" aria-label="Main navigation">
+  <div class="container">
+    <a href="index.html" class="brand" aria-label="SemaCheck — go to the homepage"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
+    <div class="subnav">
+      <a href="index.html">Home</a>
+      <a href="docs.html">Docs</a>
+      <a href="api-dashboard.html">Dashboard</a>
+      <a href="alerts.html">Alerts</a>
+      <a href="stats.html">Stats</a>
+      <a href="report.html">Report a scam</a>
+    </div>
+  </div>
+</nav>
+
+  <header class="hero">
+    <div class="container">
+      <h1>Trust Check API — scam checking for your product</h1>
+      <p>An embeddable verification API from SemaCheck, an API providing organization for scam checking. Add a &quot;Check before you pay&quot; box to your site, or call the API from your server — no signup needed for your visitors, no data stored.</p>
+      <div class="nav-actions" style="margin-top:22px;">
+        <a class="btn btn-primary" href="docs.html">Developer docs</a>
+        <a class="btn btn-outline" href="api-dashboard.html">Get API access</a>
+        <a class="btn btn-outline" href="alerts.html">Public scam alerts</a>
+        <a class="btn btn-outline" href="stats.html">Transparency stats</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding: 40px 0 80px;">
+    <section class="card" style="padding:28px;">
+      <h2>Try a scam check</h2>
+      <p class="hint">This runs against a demo publishable key restricted to this domain.</p>
+      <div id="demo-widget" style="max-width:420px;"></div>
+      <p class="hint" style="margin-top:14px;">Public numbers you check are never stored or sold.</p>
+    </section>
+
+    <section class="card" style="padding:28px;">
+      <h2>Three ways to use our scam checking API</h2>
+      <div style="display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">
+        <div class="tier" style="border:1.5px solid var(--border); border-radius:12px; padding:18px; text-align:left;">
+          <div style="font-size:1.6rem;">⌘</div>
+          <div style="font-weight:700;">Check on your site</div>
+          <div class="hint">Drop in the widget. Visitors check without leaving your page.</div>
+        </div>
+        <div class="tier" style="border:1.5px solid var(--border); border-radius:12px; padding:18px; text-align:left;">
+          <div style="font-size:1.6rem;">≡</div>
+          <div style="font-weight:700;">API checks (your server)</div>
+          <div class="hint">Invoices, rate limits, monthly quotas. Read the docs.</div>
+        </div>
+        <div class="tier" style="border:1.5px solid var(--border); border-radius:12px; padding:18px; text-align:left;">
+          <div style="font-size:1.6rem;">⋮</div>
+          <div style="font-weight:700;">Public alerts</div>
+          <div class="hint">Anyone can report a scam with evidence. Approved reports show up here.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="padding:28px;">
+      <h2>Why teams pick our scam-checking API</h2>
+      <p style="color:var(--text-muted); font-size:0.93rem; line-height:1.6;">
+        SemaCheck is an <b>API providing organization for scam checking</b> built for African and global
+        fintechs, marketplaces, banks and job boards. Every call merges our community scam report
+        database with the CBK licensed-lender registry, live web results, FTC and BBB scam trackers and
+        Interpol fraud alerts, then returns a verdict, a confidence score and the evidence behind it —
+        so your users know if a phone number, M-Pesa paybill, business name, website or job offer is safe
+        before they send money or documents.
+      </p>
+      <ul style="color:var(--text-muted); font-size:0.9rem; line-height:1.8; margin-top:10px; padding-left:20px;">
+        <li><b>Scam verification API</b> for phone numbers, paybills, websites, businesses and job offers.</li>
+        <li><b>Admin-approved reports</b> only — every scam report is checked with supporting evidence before it reaches the API.</li>
+        <li><b>Webhooks</b> that tell you when a watched subject changes verdict.</li>
+        <li><b>Free tier</b> of 100 scam checks every month — no card required.</li>
+      </ul>
+      <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn btn-outline" href="docs.html" style="color:var(--navy);border-color:var(--border);">Read the API docs</a>
+        <a class="btn btn-outline" href="terms-api.html" style="color:var(--navy);border-color:var(--border);">API terms</a>
+      </div>
+    </section>
+
+    <section class="card" style="padding:28px;">
+      <h2>Plans</h2>
+      <div style="display:grid; gap:12px;">
+        <div class="tier" style="border:1.5px solid var(--border); border-radius:12px; padding:16px; text-align:left;">
+          <div style="font-weight:800;">Free</div>
+          <div class="hint">KES 0 · 100 checks / month · no webhooks · badge required</div>
+        </div>
+        <div class="tier" style="border:1.5px solid var(--border); border-radius:12px; padding:16px; text-align:left;">
+          <div style="font-weight:800;">Starter</div>
+          <div class="hint">KES 5,000 · 2,000 checks / month · 60 req/min</div>
+        </div>
+        <div class="tier" style="border:1.5px solid var(--border); border-radius:12px; padding:16px; text-align:left;">
+          <div style="font-weight:800;">Growth</div>
+          <div class="hint">KES 20,000 · 10,000 checks / month · webhooks · batch checks</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;"><a class="btn btn-primary btn-block" href="api-dashboard.html">Create your account &amp; get API access</a></div>
+      <p class="hint" style="margin-top:10px;">API partners create an account and verify it by email (OTP) before keys are issued — this keeps the scam-checking API out of the hands of abusers.</p>
+    </section>
+  </main>
+
+  <script src="widget/semacheck-widget.js" data-key="pk_live_" data-types="phone,paybill" data-theme="light" data-target="#demo-widget" async></script>
+</body>
+</html>

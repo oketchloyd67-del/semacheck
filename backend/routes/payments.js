@@ -1,14 +1,15 @@
 
 const express = require('express');
 const pool = require('../db/pool');
-const { requireAuth, requireJobOwner } = require('../middleware/auth');
+const { requireAuth, requireJobOwner, optionalAuth } = require('../middleware/auth');
 const { paymentLimiter } = require('../middleware/rateLimiter');
 const tuma = require('../services/tuma');
 const { normalizeKenyanPhone } = require('../utils/validators');
+const billingService = require('../services/billingService');
 
 const router = express.Router();
 
-const SEARCH_TIERS = [50, 100, 150]; 
+const SEARCH_TIERS = [50, 100, 150, 80];
 const SUBSCRIPTION_AMOUNT = 459; 
 const FORENSICS_CASE_FEE = 849; 
 
@@ -25,14 +26,23 @@ async function applyPaymentSuccessSideEffects(payment) {
   if (payment.purpose === 'forensics_case') {
     await pool.query(`UPDATE forensics_cases SET status='submitted', updated_at=now() WHERE id=$1 AND status='awaiting_payment'`, [payment.reference_id]);
   }
-  
-  
+  if (payment.purpose === 'api_invoice' && payment.api_invoice_id) {
+    // API plan purchase confirmed — mark the invoice paid and switch the plan on.
+    await billingService.markInvoicePaid(Number(payment.api_invoice_id), payment.id);
+    const { rows } = await pool.query(
+      `SELECT i.account_id, p.code FROM api_invoices i JOIN api_plans p ON p.id = i.plan_id WHERE i.id=$1`,
+      [payment.api_invoice_id]
+    );
+    if (rows[0]) {
+      await billingService.changePlan(Number(rows[0].account_id), rows[0].code);
+    }
+  }
 }
 
 
-router.post('/search', requireAuth, paymentLimiter, async (req, res) => {
+router.post('/search', optionalAuth, paymentLimiter, async (req, res) => {
   const { tier, phone } = req.body;
-  const normalizedPhone = normalizeKenyanPhone(phone) || normalizeKenyanPhone(req.user.phone);
+  const normalizedPhone = normalizeKenyanPhone(phone) || normalizeKenyanPhone(req.user ? req.user.phone : null);
   if (!SEARCH_TIERS.includes(Number(tier))) {
     return res.status(400).json({ error: `tier must be one of ${SEARCH_TIERS.join(', ')}` });
   }
@@ -41,7 +51,7 @@ router.post('/search', requireAuth, paymentLimiter, async (req, res) => {
   const { rows } = await pool.query(
     `INSERT INTO payments (user_id, purpose, amount, phone, status)
      VALUES ($1,'search',$2,$3,'initiated') RETURNING id`,
-    [req.user.id, tier, normalizedPhone]
+    [req.user ? req.user.id : null, tier, normalizedPhone]
   );
   const paymentId = rows[0].id;
 
@@ -52,6 +62,44 @@ router.post('/search', requireAuth, paymentLimiter, async (req, res) => {
       [stk.checkout_request_id, stk.merchant_request_id, paymentId]
     );
     res.json({ paymentId, checkoutRequestId: stk.checkout_request_id, message: stk.customer_message || 'STK push sent. Enter your M-Pesa PIN to complete payment.' });
+  } catch (err) {
+    console.error('STK push failed:', err.response ? JSON.stringify(err.response.data) : err.message);
+    await pool.query(`UPDATE payments SET status='failed', updated_at=now() WHERE id=$1`, [paymentId]);
+    res.status(502).json({ error: err.message, paymentId });
+  }
+});
+
+
+const ALERT_VIEW_PRICE = 30;
+
+router.post('/alert-view', optionalAuth, paymentLimiter, async (req, res) => {
+  const reportId = Number(req.body.reportId);
+  if (!Number.isInteger(reportId) || reportId < 1) {
+    return res.status(400).json({ error: 'reportId is required.' });
+  }
+  const { rows: reportRows } = await pool.query(
+    `SELECT id FROM scam_reports WHERE id=$1 AND status='approved'`,
+    [reportId]
+  );
+  if (!reportRows[0]) return res.status(404).json({ error: 'That report is not available.' });
+
+  const normalizedPhone = normalizeKenyanPhone(req.body.phone) || normalizeKenyanPhone(req.user ? req.user.phone : null);
+  if (!normalizedPhone) return res.status(400).json({ error: 'A valid M-Pesa phone number is required.' });
+
+  const { rows } = await pool.query(
+    `INSERT INTO payments (user_id, purpose, reference_int, amount, phone, status)
+     VALUES ($1,'alert_view',$2,$3,$4,'initiated') RETURNING id`,
+    [req.user ? req.user.id : null, reportId, ALERT_VIEW_PRICE, normalizedPhone]
+  );
+  const paymentId = rows[0].id;
+
+  try {
+    const stk = await tuma.stkPush({ phone: normalizedPhone, amount: ALERT_VIEW_PRICE, description: `SemaCheck alert view #${reportId}` });
+    await pool.query(
+      `UPDATE payments SET status='pending', tuma_checkout_request_id=$1, tuma_merchant_request_id=$2, updated_at=now() WHERE id=$3`,
+      [stk.checkout_request_id, stk.merchant_request_id, paymentId]
+    );
+    res.json({ paymentId, checkoutRequestId: stk.checkout_request_id, message: stk.customer_message || 'STK push sent. Enter your M-Pesa PIN to unlock this report.' });
   } catch (err) {
     console.error('STK push failed:', err.response ? JSON.stringify(err.response.data) : err.message);
     await pool.query(`UPDATE payments SET status='failed', updated_at=now() WHERE id=$1`, [paymentId]);
@@ -180,16 +228,22 @@ router.post('/tuma/callback', express.json(), async (req, res) => {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-router.get('/status/:paymentId', requireAuth, async (req, res) => {
+router.get('/status/:paymentId', optionalAuth, async (req, res) => {
   if (!UUID_RE.test(req.params.paymentId)) return res.status(400).json({ error: 'Invalid payment ID.' });
-  const { rows } = await pool.query('SELECT id, purpose, status, amount, reference_id FROM payments WHERE id=$1 AND user_id=$2', [req.params.paymentId, req.user.id]);
-  if (!rows[0]) return res.status(404).json({ error: 'Payment not found.' });
+  const { rows } = await pool.query('SELECT id, purpose, status, amount, reference_id, user_id FROM payments WHERE id=$1', [req.params.paymentId]);
+  const payment = rows[0];
+  if (!payment) return res.status(404).json({ error: 'Payment not found.' });
+  // Owned payments are only visible to their owner; guest payments (no
+  // account) are readable by the unguessable payment id alone.
+  if (payment.user_id && (!req.user || String(req.user.id) !== String(payment.user_id))) {
+    return res.status(404).json({ error: 'Payment not found.' });
+  }
 
-  if (rows[0].status === 'pending') {
+  if (payment.status === 'pending') {
     console.log('Payment still pending for', req.params.paymentId, '- waiting for Tuma callback');
   }
 
-  res.json(rows[0]);
+  res.json(payment);
 });
 
 module.exports = router;

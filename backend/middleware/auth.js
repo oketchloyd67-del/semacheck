@@ -9,7 +9,8 @@ async function requireAuth(req, res, next) {
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) return res.status(401).json({ error: 'Not authenticated.' });
 
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    if (!payload.sessionId) return res.status(401).json({ error: 'Invalid or expired token.' });
 
     const { rows } = await pool.query(
       `SELECT s.id, s.is_active, s.expires_at, u.id AS user_id, u.account_type, u.email, u.full_name
@@ -37,4 +38,29 @@ function requireJobOwner(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireJobOwner };
+// Attaches req.user when a valid token is present, but never rejects:
+// guests (no account) continue as guests, and a stale token degrades to one.
+async function optionalAuth(req, res, next) {
+  try {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) return next();
+    const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    if (!payload.sessionId) return next();
+    const { rows } = await pool.query(
+      `SELECT s.id, s.is_active, s.expires_at, u.id AS user_id, u.account_type, u.email, u.full_name
+       FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.id = $1`,
+      [payload.sessionId]
+    );
+    const session = rows[0];
+    if (!session || !session.is_active || new Date(session.expires_at) < new Date()) return next();
+    req.user = { id: session.user_id, accountType: session.account_type, email: session.email, fullName: session.full_name };
+    req.sessionId = session.id;
+    next();
+  } catch (err) {
+    next();
+  }
+}
+
+module.exports = { requireAuth, requireJobOwner, optionalAuth };

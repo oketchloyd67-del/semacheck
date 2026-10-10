@@ -37,6 +37,12 @@ function showToast(message, isError) {
   showToast._t = setTimeout(() => { box.innerHTML = ''; }, 3000);
 }
 
+const TICK_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+const BIN_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+const RESTORE_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>';
+const X_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
+let currentRevDays = 28;
+
 document.addEventListener('DOMContentLoaded', () => {
   // ---- login page ----
   const loginBtn = document.getElementById('adminLoginBtn');
@@ -80,6 +86,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('regStatusFilter').addEventListener('change', (e) => loadRegistrations(e.target.value));
   document.getElementById('jobStatusFilter').addEventListener('change', (e) => loadJobs(e.target.value));
+  document.getElementById('reportStatusFilter').addEventListener('change', () => loadReportsQueue());
+  document.getElementById('reportTypeFilter').addEventListener('change', () => loadReportsQueue());
+  document.querySelectorAll('[data-rev-days]').forEach((btn) => btn.addEventListener('click', () => {
+    document.querySelectorAll('.rev-period-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentRevDays = Number(btn.dataset.revDays);
+    loadRevenue(currentRevDays);
+  }));
   document.getElementById('forensicsStatusFilter').addEventListener('change', (e) => loadForensicsCases(e.target.value));
   document.getElementById('userFilterBtn').addEventListener('click', loadUsers);
   document.getElementById('userSearchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') loadUsers(); });
@@ -111,6 +125,7 @@ function switchTab(tab) {
   document.querySelectorAll('.admin-tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.admin-tab-panel').forEach((p) => p.classList.toggle('active', p.id === `tab-${tab}`));
   document.getElementById('adminSidebar').classList.remove('open');
+  loadTab(tab);
 }
 
 // ---------------- overview ----------------
@@ -151,13 +166,79 @@ async function loadStats() {
 }
 
 // ---------------- revenue ----------------
-async function loadRevenue() {
+function drawRevenueChart(series, days) {
+  const canvas = document.getElementById('revChart');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const cssWidth = canvas.clientWidth || 600;
+  const cssHeight = 180;
+  canvas.width = cssWidth * dpr;
+  canvas.height = cssHeight * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+  const padLeft = 52, padRight = 10, padTop = 12, padBottom = 24;
+  const w = cssWidth - padLeft - padRight;
+  const h = cssHeight - padTop - padBottom;
+  const data = [];
+  const end = new Date();
+  const byDay = {};
+  (series || []).forEach((s) => { byDay[s.day] = s; });
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(end);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    data.push({ day: key, total: byDay[key] ? Number(byDay[key].total) : 0 });
+  }
+  if (!data.length) return;
+  const max = Math.max(...data.map((d) => d.total), 1);
+  ctx.strokeStyle = '#e4e9f2';
+  ctx.fillStyle = '#7c8aa5';
+  ctx.font = '10px system-ui, sans-serif';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padTop + (h / 4) * i;
+    ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(padLeft + w, y); ctx.stroke();
+    ctx.fillText(Math.round(max - (max / 4) * i).toLocaleString(), 4, y + 3);
+  }
+  const step = data.length > 1 ? w / (data.length - 1) : 0;
+  const pts = data.map((d, i) => ({ x: padLeft + (data.length > 1 ? i * step : w / 2), y: padTop + h - (d.total / max) * h }));
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, padTop + h);
+  pts.forEach((p) => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length - 1].x, padTop + h);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(15,163,163,0.12)';
+  ctx.fill();
+  ctx.beginPath();
+  pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+  ctx.strokeStyle = '#0FA3A3';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  const labelEvery = Math.max(1, Math.ceil(data.length / 8));
+  data.forEach((d, i) => {
+    if (i % labelEvery !== 0 && i !== data.length - 1) return;
+    ctx.fillStyle = '#7c8aa5';
+    ctx.font = '9px system-ui, sans-serif';
+    ctx.fillText(d.day.slice(5), Math.min(pts[i].x, cssWidth - 26), cssHeight - 8);
+  });
+}
+
+async function loadRevenue(days) {
+  if (days) currentRevDays = days;
   try {
-    const r = await adminApi('/admin/revenue');
+    const r = await adminApi(`/admin/revenue?days=${currentRevDays}`);
     document.getElementById('revTotal').textContent = 'KES ' + r.totalRevenue.toLocaleString();
     document.getElementById('revTransactions').textContent = r.totalTransactions.toLocaleString();
     document.getElementById('revLast7').textContent = 'KES ' + r.last7Days.total.toLocaleString();
     document.getElementById('revLast30').textContent = 'KES ' + r.last30Days.total.toLocaleString();
+    if (r.period) {
+      document.getElementById('revPeriodTotal').textContent = 'KES ' + r.period.total.toLocaleString();
+      document.getElementById('revPeriodCount').textContent = r.period.count.toLocaleString();
+      document.getElementById('revPeriodLabel').textContent = r.period.label;
+      document.getElementById('revChartTitle').textContent = `Revenue per day — ${r.period.label}`;
+    }
+    drawRevenueChart(r.series || [], currentRevDays);
 
     const purposeLabels = { search: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>Search', subscription: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>Subscription', forensics_case: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>Forensics' };
     const purposeBox = document.getElementById('revByPurpose');
@@ -232,7 +313,7 @@ async function loadRegistrations(status) {
         </div>
         ${status === 'pending' ? `
         <div class="action-btns">
-          <button class="btn btn-primary" data-approve-id="${u.id}">Approve</button>
+          <button class="icon-btn" data-approve-id="${u.id}" title="Approve registration" aria-label="Approve registration">${TICK_ICON}</button>
           <button class="btn btn-ghost" data-reject-id="${u.id}">Reject</button>
         </div>
         <div class="reject-reason-box" id="reject-box-${u.id}" style="display:none;">
@@ -265,6 +346,8 @@ async function loadRegistrations(status) {
 async function viewDocument(userId) {
   const overlay = document.getElementById('docPreviewOverlay');
   const body = document.getElementById('docPreviewBody');
+  const title = overlay.querySelector('h2');
+  if (title) title.textContent = 'Uploaded ID document';
   body.innerHTML = '<p style="color:var(--text-muted);">Loading…</p>';
   overlay.classList.add('open');
   try {
@@ -325,7 +408,7 @@ function closeUserDetailModal() { document.getElementById('userDetailOverlay')?.
 // ---------------- all accounts ----------------
 async function loadUsers() {
   const tbody = document.getElementById('usersTableBody');
-  tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted);">Loading…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" style="color:var(--text-muted);">Loading…</td></tr>';
   try {
     const params = new URLSearchParams();
     const q = document.getElementById('userSearchInput').value.trim();
@@ -336,22 +419,43 @@ async function loadUsers() {
     if (status) params.set('verificationStatus', status);
 
     const r = await adminApi(`/admin/users?${params.toString()}`);
-    if (!r.users.length) { tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted);">No accounts match.</td></tr>'; return; }
+    if (!r.users.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--text-muted);">No accounts match.</td></tr>'; return; }
 
     tbody.innerHTML = r.users.map((u) => `
-      <tr data-user-row="${u.id}" style="cursor:pointer;">
-        <td data-label="Name"><b>${escapeHtml(u.full_name)}</b>${u.business_name ? `<div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(u.business_name)}</div>` : ''}</td>
+      <tr data-user-row="${u.id}" style="cursor:pointer;"${u.disabled_at ? ' class="user-disabled-row"' : ''}>
+        <td data-label="Name"><b>${escapeHtml(u.full_name)}</b>${u.business_name ? `<div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(u.business_name)}</div>` : ''}${u.disabled_at ? '<div><span class="pill pill-rejected">deactivated</span></div>' : ''}</td>
         <td data-label="Type"><span class="pill pill-${u.account_type}">${u.account_type === 'job_owner' ? 'Job owner' : 'Regular'}</span></td>
         <td data-label="Email">${escapeHtml(u.email)}</td>
         <td data-label="Phone">${escapeHtml(u.phone)}</td>
         <td data-label="ID number">${escapeHtml(u.national_id)}</td>
         <td data-label="Verification">${pill(u.id_verification_status)}</td>
         <td data-label="Joined">${new Date(u.created_at).toLocaleDateString()}</td>
+        <td data-label="Actions">${u.disabled_at
+          ? `<button class="icon-btn" data-restore-user="${u.id}" title="Reactivate account" aria-label="Reactivate account">${RESTORE_ICON}</button>`
+          : `<button class="icon-btn icon-btn-danger" data-delete-user="${u.id}" title="Deactivate account" aria-label="Deactivate account">${BIN_ICON}</button>`}</td>
       </tr>
     `).join('');
     tbody.querySelectorAll('[data-user-row]').forEach((row) => {
       row.addEventListener('click', () => viewUserDetail(row.dataset.userRow));
     });
+    tbody.querySelectorAll('[data-delete-user]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('Deactivate this account? Their records, payments and reports are kept for audit.')) return;
+      try {
+        const res = await adminApi(`/admin/users/${btn.dataset.deleteUser}/delete`, { method: 'POST' });
+        showToast(res.message || 'Account deactivated.');
+        loadUsers();
+        loadStats();
+      } catch (err) { showToast(err.message, true); }
+    }));
+    tbody.querySelectorAll('[data-restore-user]').forEach((btn) => btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        const res = await adminApi(`/admin/users/${btn.dataset.restoreUser}/restore`, { method: 'POST' });
+        showToast(res.message || 'Account reactivated.');
+        loadUsers();
+      } catch (err) { showToast(err.message, true); }
+    }));
   } catch (err) { handleAuthError(err); }
 }
 
@@ -366,13 +470,14 @@ async function loadJobs(status) {
       <div class="job-item" style="flex-direction:column;align-items:stretch;gap:10px;">
         <div>
           <b>${escapeHtml(j.title)}</b> — ${escapeHtml(j.company_name)} ${pill(j.status)}
-          <div style="font-size:0.82rem;color:var(--text-muted);">${escapeHtml(j.location || '')} &middot; Reg#: ${escapeHtml(j.business_reg_number || 'n/a')} &middot; KRA: ${escapeHtml(j.kra_pin || 'n/a')} &middot; ${escapeHtml(j.owner_email)}</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);">Owner: <b>${escapeHtml(j.owner_name || '—')}</b> · ${escapeHtml(j.owner_email)}</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);">${escapeHtml(j.location || '')} &middot; Reg#: ${escapeHtml(j.business_reg_number || 'n/a')} &middot; KRA: ${escapeHtml(j.kra_pin || 'n/a')}</div>
           <p style="font-size:0.85rem;margin-top:6px;">${escapeHtml(j.description)}</p>
           ${j.rejection_reason ? `<div style="font-size:0.8rem;color:var(--scam-red);margin-top:4px;">Reason: ${escapeHtml(j.rejection_reason)}</div>` : ''}
         </div>
         ${status === 'pending' ? `
         <div class="action-btns">
-          <button class="btn btn-primary" data-approve="${j.id}">Approve</button>
+          <button class="icon-btn" data-approve="${j.id}" title="Approve job" aria-label="Approve job">${TICK_ICON}</button>
           <button class="btn btn-ghost" data-reject="${j.id}">Reject</button>
         </div>` : ''}
       </div>
@@ -554,3 +659,297 @@ function handleAuthError(err) {
   if (err.message.includes('token') || err.message.includes('authenticated')) window.location.href = 'login.html';
   else document.getElementById('globalAlert').innerHTML = `<div class="alert alert-err">${err.message}</div>`;
 }
+
+// ---------------- Trust API admin tabs ----------------
+
+async function loadApiAccounts() {
+  try {
+    const data = await adminApi('/admin/api-accounts');
+    const rows = data.accounts || [];
+    const el = document.getElementById('apiAccounts');
+    const pending = rows.filter((a) => a.status === 'pending').length;
+    const badge = document.getElementById('badgeApiAccounts');
+    if (badge) { badge.textContent = String(pending); badge.style.display = pending ? 'inline-block' : 'none'; }
+    if (!rows.length) {
+      el.innerHTML = '<p class="hint">No API accounts yet.</p>';
+      return;
+    }
+    const statusLabel = { pending: 'Awaiting approval', active: 'Active', past_due: 'Past due', suspended: 'Suspended', closed: 'Closed' };
+    const pillClass = { pending: 'pill-pending', active: 'pill-approved', past_due: 'pill-pending', suspended: 'pill-rejected', closed: 'pill-regular' };
+    el.innerHTML = rows.map((a) => {
+      return `<div class="card" style="padding:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <strong>${escapeHtml(a.companyName)}</strong>
+          <span class="pill ${pillClass[a.status] || 'pill-regular'}">${statusLabel[a.status] || escapeHtml(a.status)}</span>
+        </div>
+        <div class="hint">Plan: ${escapeHtml(a.planCode)} · KES ${Number(a.planPriceKes || 0).toLocaleString()}/mo · Checks this month: ${a.usageThisMonth || 0}/${a.monthlyQuota ?? '—'} · Active keys: ${a.activeKeys || 0} · Last activity: ${a.lastActivity ? new Date(a.lastActivity).toLocaleString() : '—'}</div>
+        <div class="hint">API key owner: <b>${escapeHtml(a.ownerName || '—')}</b> · ${escapeHtml(a.ownerEmail || '')}${a.ownerPhone ? ' · ' + escapeHtml(a.ownerPhone) : ''}</div>
+        ${a.website ? `<div class="hint">${escapeHtml(a.website)}</div>` : ''}
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          ${a.status === 'pending' ? `<button class="icon-btn" data-api-action="approve" data-id="${a.id}" title="Approve API account" aria-label="Approve API account">${TICK_ICON}</button><button class="btn btn-ghost" data-api-action="reject" data-id="${a.id}">Reject</button>` : ''}
+          ${a.status === 'active' || a.status === 'past_due' ? `<button class="btn btn-ghost" data-api-action="suspend" data-id="${a.id}">Suspend</button>` : ''}
+          ${a.status === 'suspended' || a.status === 'past_due' ? `<button class="btn btn-ghost" data-api-action="reactivate" data-id="${a.id}">Reactivate</button>` : ''}
+          ${a.status !== 'closed' ? `<button class="btn btn-ghost" data-api-action="close" data-id="${a.id}">Close</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('[data-api-action]').forEach((b) => b.addEventListener('click', async () => {
+      try {
+        const r = await adminApi(`/admin/api-accounts/${b.dataset.id}/${b.dataset.apiAction}`, { method: 'POST' });
+        showToast(r.message || 'Done.');
+        await loadApiAccounts();
+      } catch (err) {
+        el.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+      }
+    }));
+  } catch (err) { document.getElementById('apiAccounts').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`; }
+}
+
+async function loadWebhookFailures() {
+  try {
+    const data = await adminApi('/admin/webhook-failures');
+    const rows = data.deliveries || [];
+    const el = document.getElementById('webhookFailures');
+    if (!rows.length) {
+      el.innerHTML = '<p class="hint">No failed deliveries.</p>';
+      return;
+    }
+    el.innerHTML = rows.map((w) => `<div class="card" style="padding:10px;">
+      <strong>${escapeHtml(w.company_name || 'Account ' + w.account_id)}</strong> · ${escapeHtml(w.event || '')} · last code: ${w.last_response_code || '—'} · attempts: ${w.attempts || 0}
+      <div style="margin-top:6px;display:flex;gap:8px;">
+        <button class="btn btn-ghost" data-retry="${w.id}">Retry</button>
+      </div>
+    </div>`).join('');
+    el.querySelectorAll('[data-retry]').forEach((b) => b.addEventListener('click', async () => {
+      await adminApi('/admin/webhook-failures/' + b.dataset.retry + '/retry', { method: 'POST' });
+      loadWebhookFailures();
+    }));
+  } catch (err) { document.getElementById('webhookFailures').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`; }
+}
+
+async function loadReportsQueue() {
+  try {
+    const status = document.getElementById('reportStatusFilter').value || 'pending';
+    const type = document.getElementById('reportTypeFilter').value || '';
+    const params = new URLSearchParams({ status });
+    if (type) params.set('type', type);
+    const data = await adminApi(`/admin/reports?${params.toString()}`);
+    const rows = data.reports || [];
+    const el = document.getElementById('reportsList');
+    const badge = document.getElementById('badgeReportsPending');
+    if (badge) { badge.textContent = String(rows.length); badge.style.display = rows.length ? 'inline-block' : 'none'; }
+    if (!rows.length) {
+      el.innerHTML = '<p class="hint">No reports pending.</p>';
+      return;
+    }
+    const queueDescriptions = {};
+    rows.forEach((r) => { queueDescriptions[r.id] = r.description || ''; });
+    el.innerHTML = rows.map((r) => `<div class="card" style="padding:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>${escapeHtml(r.type)}${r.subjectName ? ' — ' + escapeHtml(r.subjectName) : ''}</strong>
+        <span class="pill pill-pending">pending review</span>
+      </div>
+      <div class="hint"><b>Subject:</b> ${escapeHtml(r.subject)}${r.amountLostKes ? ` · <b>Lost:</b> KES ${Number(r.amountLostKes).toLocaleString()}` : ''} · ${r.reporterEmail ? escapeHtml(r.reporterEmail) + ' · ' : ''}${r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</div>
+      <div class="hint" style="margin-top:4px;">${escapeHtml(r.description || '')}</div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        ${r.status === 'pending' ? `<button class="icon-btn" data-rp="approve" data-id="${r.id}" title="Approve and publish" aria-label="Approve and publish">${TICK_ICON}</button>
+        <button class="btn btn-ghost" data-rp="reject" data-id="${r.id}">Reject</button>
+        <button class="btn btn-ghost" data-rp="duplicate" data-id="${r.id}">Mark duplicate</button>` : ''}
+        <button class="btn btn-ghost" data-rp-edit="${r.id}">Edit text</button>
+        ${r.evidence ? `<button class="btn btn-ghost" data-evidence="${r.id}">View evidence</button>` : '<span class="hint">No evidence attached</span>'}
+      </div>
+    </div>`).join('');
+    el.querySelectorAll('[data-rp-edit]').forEach((b) => b.addEventListener('click', async () => {
+      const id = b.dataset.rpEdit;
+      const next = prompt('Edit the description — remove victim names, phone numbers and other personal data before approval:', queueDescriptions[id] || '');
+      if (next === null) return;
+      if (next.trim().length < 40) { showToast('Edited description must be at least 40 characters.', true); return; }
+      try {
+        await adminApi(`/admin/reports/${id}/edit`, { method: 'POST', body: JSON.stringify({ description: next.trim() }) });
+        showToast('Report text updated.');
+        await loadReportsQueue();
+      } catch (err) { showToast(err.message, true); }
+    }));
+    el.querySelectorAll('[data-rp]').forEach((b) => b.addEventListener('click', async () => {
+      try {
+        const opts = { method: 'POST' };
+        if (b.dataset.rp === 'reject') opts.body = JSON.stringify({ reason: 'Rejected during review' });
+        await adminApi(`/admin/reports/${b.dataset.id}/${b.dataset.rp}`, opts);
+        showToast(b.dataset.rp === 'approve'
+          ? 'Report approved — it is now live on the homepage Scam reports tab.'
+          : b.dataset.rp === 'duplicate'
+            ? 'Report marked as duplicate.'
+            : 'Report rejected.');
+        await loadReportsQueue();
+      } catch (err) {
+        document.getElementById('reportsList').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+      }
+    }));
+    el.querySelectorAll('[data-evidence]').forEach((b) => b.addEventListener('click', () => viewReportEvidence(b.dataset.evidence)));
+  } catch (err) { document.getElementById('reportsList').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`; }
+}
+
+// Open the evidence file the reporter attached (image/PDF) in the preview modal.
+async function viewReportEvidence(reportId) {
+  const overlay = document.getElementById('docPreviewOverlay');
+  const body = document.getElementById('docPreviewBody');
+  const title = overlay.querySelector('h2');
+  if (title) title.textContent = 'Report evidence';
+  body.innerHTML = '<p style="color:var(--text-muted);">Loading…</p>';
+  overlay.classList.add('open');
+  try {
+    const res = await fetch(`${API_BASE}/admin/reports/${reportId}/evidence`, {
+      headers: { Authorization: `Bearer ${getAdminToken()}` },
+    });
+    if (!res.ok) throw new Error('Could not load evidence.');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    body.innerHTML = blob.type === 'application/pdf'
+      ? `<a href="${url}" target="_blank" class="btn btn-outline" style="color:var(--navy);border-color:var(--navy);">Open PDF in new tab</a>`
+      : `<img src="${url}" style="max-width:100%;border-radius:8px;border:1px solid var(--border);">`;
+  } catch (err) {
+    body.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function loadDisputes() {
+  try {
+    const data = await adminApi('/admin/disputes');
+    const rows = data.disputes || [];
+    const el = document.getElementById('disputesList');
+    if (!rows.length) {
+      el.innerHTML = '<p class="hint">No open disputes.</p>';
+      return;
+    }
+    el.innerHTML = rows.map((d) => `<div class="card" style="padding:12px;">
+      <strong>${escapeHtml(d.submitter_name || '')}</strong> · ${escapeHtml(d.relationship || '')}
+      <div class="hint">${escapeHtml(d.message || '')} · status: ${escapeHtml(d.status || '')}</div>
+      <div style="margin-top:6px;display:flex;gap:8px;">
+        <button class="btn btn-ghost" data-dsp="uphold" data-id="${d.id}">Uphold</button>
+        <button class="btn btn-ghost" data-dsp="dismiss" data-id="${d.id}">Dismiss</button>
+      </div>
+    </div>`).join('');
+    el.querySelectorAll('[data-dsp]').forEach((b) => b.addEventListener('click', async () => {
+      try {
+        const opts = { method: 'POST' };
+        if (b.dataset.dsp === 'dismiss') opts.body = JSON.stringify({ note: 'Dismissed' });
+        const r = await adminApi(`/admin/disputes/${b.dataset.id}/${b.dataset.dsp}`, opts);
+        showToast(r.message || 'Done.');
+        await loadDisputes();
+      } catch (err) { document.getElementById('disputesList').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`; }
+    }));
+  } catch (err) { document.getElementById('disputesList').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`; }
+}
+
+function drawUsageChart(series) {
+  const canvas = document.getElementById('usageChart');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const cssWidth = canvas.clientWidth || 600;
+  const cssHeight = 170;
+  canvas.width = cssWidth * dpr;
+  canvas.height = cssHeight * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+  const padLeft = 40, padRight = 10, padTop = 12, padBottom = 24;
+  const w = cssWidth - padLeft - padRight;
+  const h = cssHeight - padTop - padBottom;
+  const data = [];
+  const end = new Date();
+  const byDay = {};
+  (series || []).forEach((s) => { byDay[s.day] = s.n; });
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(end);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    data.push({ day: key, n: Number(byDay[key] || 0) });
+  }
+  const max = Math.max(...data.map((d) => d.n), 1);
+  ctx.strokeStyle = '#e4e9f2';
+  ctx.fillStyle = '#7c8aa5';
+  ctx.font = '10px system-ui, sans-serif';
+  for (let i = 0; i <= 4; i++) {
+    const y = padTop + (h / 4) * i;
+    ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(padLeft + w, y); ctx.stroke();
+    ctx.fillText(String(Math.round(max - (max / 4) * i)), 4, y + 3);
+  }
+  const step = w / data.length;
+  data.forEach((d, i) => {
+    const barH = (d.n / max) * h;
+    const x = padLeft + i * step + 1;
+    ctx.fillStyle = '#0FA3A3';
+    ctx.fillRect(x, padTop + h - barH, Math.max(step - 2, 1), barH);
+    if (i % 6 === 0) {
+      ctx.fillStyle = '#7c8aa5';
+      ctx.font = '9px system-ui, sans-serif';
+      ctx.fillText(d.day.slice(5), x, cssHeight - 8);
+    }
+  });
+}
+
+async function loadApiUsage() {
+  try {
+    const data = await adminApi('/admin/api-usage');
+    const el = document.getElementById('apiUsage');
+    const totals = data.platformTotals || {};
+    el.innerHTML = `<div class="card" style="padding:14px;">
+      <div class="hint">Checks served (7 days)</div>
+      <div style="font-size:1.6rem;font-weight:800;">${totals.checksServed || 0}</div>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="hint">Active API accounts</div>
+      <div style="font-size:1.6rem;font-weight:800;">${totals.activeAccounts || 0}</div>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="hint">Verified verdicts</div>
+      <div style="font-size:1.6rem;font-weight:800;">${totals.verdictMix || 0}</div>
+      <div class="hint">${(totals.verdictBreakdown || []).map((v) => `${escapeHtml(v.verdict)}: ${v.count}`).join(' · ') || 'No verdicts yet'}</div>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="hint">Error rate (30 days)</div>
+      <div style="font-size:1.6rem;font-weight:800;">${data.errorRate ?? 0}%</div>
+      <div class="hint">${(data.requests30d || 0).toLocaleString()} requests</div>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="hint">Median latency (p50)</div>
+      <div style="font-size:1.6rem;font-weight:800;">${data.latencyP50 || 0} ms</div>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="hint">P95 latency</div>
+      <div style="font-size:1.6rem;font-weight:800;">${data.latencyP95 || 0} ms</div>
+    </div>`;
+    drawUsageChart(data.dailySeries || []);
+    const topBox = document.getElementById('topAccountsList');
+    const top = data.topAccounts || [];
+    if (!top.length) {
+      topBox.innerHTML = '<p class="hint">No API traffic in the last 30 days.</p>';
+    } else {
+      const maxN = Math.max(...top.map((t) => t.count), 1);
+      topBox.innerHTML = top.map((t) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="font-weight:600;font-size:0.92rem;">${escapeHtml(t.companyName || 'Unnamed account')}</span>
+          <span class="hint">${t.count.toLocaleString()} checks</span>
+        </div>
+        <div style="height:6px;background:var(--bg);border-radius:4px;overflow:hidden;margin-bottom:6px;">
+          <div style="height:100%;width:${Math.round((t.count / maxN) * 100)}%;background:#0FA3A3;"></div>
+        </div>`).join('');
+    }
+  } catch (err) { document.getElementById('apiUsage').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`; }
+}
+
+async function loadTab(tab) {
+  try {
+    if (tab === 'revenue') { await loadRevenue(currentRevDays); }
+    else if (tab === 'users') { await loadUsers(); }
+    else if (tab === 'jobs') { await loadJobs(document.getElementById('jobStatusFilter').value || 'pending'); }
+    else if (tab === 'api-accounts') { await loadApiAccounts(); }
+    else if (tab === 'webhook-failures') { await loadWebhookFailures(); }
+    else if (tab === 'reports') { await loadReportsQueue(); }
+    else if (tab === 'disputes') { await loadDisputes(); }
+    else if (tab === 'usage') { await loadApiUsage(); }
+  } catch (err) {
+    document.getElementById('globalAlert').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+  }
+}
+

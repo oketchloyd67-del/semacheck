@@ -64,6 +64,28 @@ async function runOneQuery(url, key, isSerpApi, isBing, q) {
   return normalizeSearchResults(response.data);
 }
 
+async function aiWebBrief(queryType, value) {
+  const key = process.env.AI_API_KEY;
+  if (!key) return null;
+  const url = process.env.AI_API_URL || 'https://api.openai.com/v1/chat/completions';
+  const model = process.env.AI_MODEL || 'gpt-4o-mini';
+  try {
+    const response = await axios.post(url, {
+      model,
+      messages: [
+        { role: 'system', content: 'You summarise what is currently online about a subject. Reply with at most 3 short bullet lines of factual findings only.' },
+        { role: 'user', content: `What is currently online about this ${queryType}: ${value}? Include scam complaints, reviews, news and official presence.` },
+      ],
+      max_tokens: 220,
+      temperature: 0.2,
+    }, { headers: { Authorization: `Bearer ${key}` }, timeout: 4000 });
+    const text = response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message && response.data.choices[0].message.content;
+    return text ? text.trim() : null;
+  } catch (err) {
+    return null;
+  }
+}
+
 async function searchExternalWeb(queryType, queryValue, region = 'kenya') {
   const url = process.env.SEARCH_PROVIDER_URL;
   const key = process.env.SEARCH_PROVIDER_KEY;
@@ -82,12 +104,20 @@ async function searchExternalWeb(queryType, queryValue, region = 'kenya') {
     subject = isInternational
       ? `"${queryValue}" ${scamPatterns} job offer`
       : `"${queryValue}" scam OR fraud OR legit job offer`;
+  } else if (queryType === 'website') {
+    subject = `"${queryValue}" scam OR fraud OR fake OR complaint OR review`;
   } else {
     subject = `"${queryValue}" scam OR fraud OR legit Mpesa`;
   }
 
   let queries;
-  if (isInternational && queryType === 'job_offer') {
+  if (queryType === 'website') {
+    queries = [
+      { tier: 'general', q: subject },
+      { tier: 'government', q: `${subject} (${buildSiteRestrict(isInternational ? INTERNATIONAL_SCAM_DOMAINS : KENYA_GOV_DOMAINS)})` },
+      { tier: 'news', q: `${subject} (${buildSiteRestrict(KENYA_NEWS_DOMAINS)})` },
+    ];
+  } else if (isInternational && queryType === 'job_offer') {
     queries = [
       { tier: 'general', q: `${subject}` },
       { tier: 'government', q: `${subject} (${buildSiteRestrict(INTERNATIONAL_SCAM_DOMAINS)})` },
@@ -179,6 +209,7 @@ function computeVerdict(dbSignal, external, cbkMatch, internationalMatch) {
 function shapeForTier(result, tier) {
   const base = { verdict: result.verdict, confidence_score: result.confidence_score };
   if (tier === 50) return base;
+  if (tier === 80) return { ...base, summary: result.summary };
   if (tier === 100) return { ...base, summary: result.summary };
   return { ...base, summary: result.summary, sources: result.sources_json };
 }
@@ -249,6 +280,13 @@ async function performSearch({ userId, queryType, queryValue, tier, amountPaid, 
   if (cbkMatch?.matched) {
     const entry = cbkMatch.entries[0];
     summary += ` Matches a CBK-licensed digital lender on file: "${entry.company_name}"${entry.date_licensed_raw ? ` (licensed ${entry.date_licensed_raw})` : ''}.`;
+  }
+
+  if (queryType === 'website') {
+    const brief = await aiWebBrief(queryType, queryValue);
+    if (brief) {
+      summary += ` What is online right now: ${brief.replace(/\s+/g, ' ').slice(0, 600)}`;
+    }
   }
 
   const sourcesData = {

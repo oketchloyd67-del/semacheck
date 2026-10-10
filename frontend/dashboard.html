@@ -40,7 +40,7 @@
 
 <div class="dash-header" role="banner" aria-label="Job owner dashboard header">
   <div class="container">
-    <div class="brand" style="color:#fff;"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></div>
+    <a href="index.html" class="brand" style="color:#fff;" aria-label="SemaCheck — go to the homepage"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
     <div>
       <span id="dashUserName" style="margin-right:14px;color:#cfd9ea;"></span>
       <button class="btn btn-outline" id="dashLogout">Log out</button>
@@ -91,6 +91,44 @@
         <div class="pp-circular" id="ppCircular"></div>
         <div class="pp-status-text" id="ppStatusText">Waiting for M-Pesa confirmation…</div>
         <p class="pp-hint" id="ppHint">Check your phone and enter your M-Pesa PIN. This usually takes a few seconds.</p>
+      </div>
+
+      <div class="card" style="margin-top:22px;">
+        <h3>Security</h3>
+        <div id="secAlert" aria-live="polite"></div>
+
+        <div style="margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
+          <b style="font-size:0.95rem;">Change password</b>
+          <div class="field" style="margin-top:10px;"><label>Current password</label><input type="password" id="cpCurrent" autocomplete="current-password" placeholder="••••••••"></div>
+          <div class="field"><label>New password</label><input type="password" id="cpNew" autocomplete="new-password" placeholder="Create a password">
+            <div class="strength-meter">
+              <div class="strength-bar" id="strengthBar"><div></div><div></div><div></div><div></div></div>
+              <div class="strength-label" id="strengthLabel"></div>
+              <div class="strength-feedback" id="strengthFeedback"></div>
+            </div>
+          </div>
+          <div class="field"><label>Confirm new password</label><input type="password" id="cpConfirm" autocomplete="new-password" placeholder="Re-enter your password"><div class="field-msg" id="cpConfirmMsg"></div></div>
+          <button class="btn btn-ghost" id="cpSubmit">Change password</button>
+        </div>
+
+        <div style="margin-top:16px; padding-top:14px; border-top:1px dashed var(--border);">
+          <b style="font-size:0.95rem;">Two-factor authentication</b>
+          <p class="hint" id="tfaStatus" style="margin-top:4px;">Checking…</p>
+          <div id="tfaSetup" style="display:none;">
+            <p class="hint">Add this key to Google Authenticator, Authy or any authenticator app, then enter the 6-digit code it shows:</p>
+            <div id="tfaSecret" style="font-family:monospace; font-size:1rem; letter-spacing:2px; background:var(--bg); border:1.5px dashed var(--border); border-radius:8px; padding:12px; text-align:center; word-break:break-all;"></div>
+            <div class="field" style="margin-top:10px;"><label>6-digit code from the app</label><input type="text" id="tfaCode" maxlength="6" inputmode="numeric" placeholder="000000" autocomplete="one-time-code"></div>
+            <div class="action-btns">
+              <button class="btn btn-primary" id="tfaEnableBtn">Turn on two-factor</button>
+              <button class="btn btn-ghost" id="tfaCancelBtn">Cancel</button>
+            </div>
+          </div>
+          <div id="tfaDisableRow" style="display:none;">
+            <div class="field" style="margin-top:10px;"><label>6-digit code to confirm</label><input type="text" id="tfaDisableCode" maxlength="6" inputmode="numeric" placeholder="000000" autocomplete="one-time-code"></div>
+            <button class="btn btn-ghost" id="tfaDisableBtn">Turn off two-factor</button>
+          </div>
+          <button class="btn btn-ghost" id="tfaSetupBtn" style="display:none; margin-top:8px;">Set up authenticator app</button>
+        </div>
       </div>
     </div>
   </div>

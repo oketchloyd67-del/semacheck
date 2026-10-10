@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SemaCheck — Scam alerts</title>
+  <meta name="description" content="Public scroll of scams reported and approved by our moderation team.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="navbar">
+    <div class="container" style="justify-content:space-between;">
+      <a href="index.html" class="brand" aria-label="SemaCheck — go to the homepage"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
+      <nav class="subnav">
+        <a href="developers.html">Developers</a>
+        <a href="alerts.html" style="color:#fff; font-weight:600;">Alerts</a>
+        <a href="report.html">Report a scam</a>
+        <a href="stats.html">Stats</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" style="padding:32px 0 80px;">
+    <h1>Scam alerts</h1>
+    <p class="hint">Scams people have reported and our team has approved. Listings are shown masked — pay KES 30 once per report to open the full details. Once you have paid for a report it stays unlocked for you. Disputed listings stay visible until a decision is reached.</p>
+
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+      <input id="filter" type="text" placeholder="Search by name, paybill…" style="flex:1; min-width:220px; padding:10px;border:1.5px solid var(--border);border-radius:8px;">
+      <select id="type-filter" style="padding:10px;border:1.5px solid var(--border);border-radius:8px;">
+        <option value="">All types</option>
+        <option value="phone">Phone</option>
+        <option value="paybill">Paybill</option>
+        <option value="business">Business</option>
+        <option value="website">Website</option>
+        <option value="job">Job</option>
+      </select>
+    </div>
+
+    <div id="alerts" style="display:grid; gap:14px;"></div>
+
+    <div style="text-align:center; margin-top:18px; display:none;" id="more-wrap">
+      <button class="btn btn-ghost" id="moreBtn">Load more</button>
+    </div>
+
+    <p class="hint" id="no-alerts" style="display:none;">No reports match your filters.</p>
+
+    <footer>
+      <p class="hint" style="margin-top:28px;">Only approved reports are shown. Phone numbers are masked. Disputed listings stay visible until a decision is reached. Report a scam · Dispute a listing</p>
+    </footer>
+  </main>
+
+  <div class="payment-popup-overlay" id="paymentPopupOverlay">
+    <div class="payment-progress-card" id="paymentProgressCard">
+      <div class="pp-circular" id="ppCircular"></div>
+      <div class="pp-status-text" id="ppStatusText">Waiting for M-Pesa confirmation…</div>
+      <p class="pp-hint" id="ppHint">Check your phone and enter your M-Pesa PIN. This usually takes a few seconds.</p>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="phoneOverlay">
+    <div class="modal" style="max-width:380px;">
+      <button class="modal-close" data-close>&times;</button>
+      <h2>Confirm M-Pesa Number</h2>
+      <p class="sub">Enter the phone number to pay from. An STK push will be sent to this number.</p>
+      <div id="phoneAlert"></div>
+      <div class="field">
+        <label>M-Pesa phone number</label>
+        <input type="text" id="phoneInput" placeholder="07XXXXXXXX">
+        <div class="field-msg" id="phoneInputMsg"></div>
+      </div>
+      <div class="action-btns" style="justify-content:flex-end;gap:8px;margin-top:16px;">
+        <button class="btn btn-ghost" data-close>Cancel</button>
+        <button class="btn btn-primary" id="phoneConfirmBtn">Pay now</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/validation.js"></script>
+  <script src="js/alerts.js"></script>
+</body>
+</html>

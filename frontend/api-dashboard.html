@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SemaCheck — API dashboard | Verify before you trust</title>
+  <meta name="description" content="SemaCheck API dashboard: register, verify by OTP, and create API keys for scam checking. Developer dashboard for verifying phone numbers, Paybills, and job offers against scam databases.">
+  <meta name="keywords" content="SemaCheck API, scam verification API, developer dashboard, M-Pesa verification API, check job offer API">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+</head>
+<body>
+  <header class="navbar">
+    <div class="container" style="justify-content:space-between;">
+      <a href="index.html" class="brand" aria-label="SemaCheck — go to the homepage">
+        <img src="assets/logo.png" alt="SemaCheck" class="brand-logo">
+      </a>
+      <nav class="subnav">
+        <a href="developers.html">Developers</a>
+        <a href="docs.html">Docs</a>
+        <a href="api-dashboard.html" style="color:#fff; font-weight:600;">Dashboard</a>
+        <a href="stats.html">Stats</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" style="padding:32px 0 80px;">
+    <h1>API dashboard</h1>
+    <p class="hint">API partners create an account and verify it with an OTP before keys are issued. Manage keys, webhook, plans, invoices, and run a test check.</p>
+
+    <div id="globalAlert" aria-live="polite"></div>
+
+    <!-- ── Auth gate (shown when logged out) ─────────────────────── -->
+    <section class="card" id="authPanel" style="padding:24px; display:none; max-width:520px;">
+      <div class="type-toggle" style="margin-bottom:16px;">
+        <button type="button" class="active" id="tabLogin">Log in</button>
+        <button type="button" id="tabSignup">Create account</button>
+      </div>
+
+      <div id="authAlert" aria-live="polite"></div>
+
+      <!-- Login form -->
+      <div id="loginForm">
+        <div class="field">
+          <label>Email or phone number</label>
+          <input type="text" id="adLoginId" placeholder="you@email.com or 07XXXXXXXX" autocomplete="username">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="adLoginPassword" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary btn-block" id="adLoginBtn">Log in</button>
+        <p class="hint" style="margin-top:10px;">Logging in from a new location or device asks for a 6-digit code we email you.</p>
+      </div>
+
+      <!-- Signup form -->
+      <div id="signupForm" style="display:none;">
+        <div class="field">
+          <label>Full name</label>
+          <input type="text" id="adFullName" placeholder="As it appears on your ID" autocomplete="name">
+        </div>
+        <div class="field">
+          <label>Email address</label>
+          <input type="email" id="adEmail" placeholder="you@email.com" autocomplete="email">
+        </div>
+        <div class="field">
+          <label>Phone number (M-Pesa)</label>
+          <input type="text" id="adPhone" placeholder="07XXXXXXXX" autocomplete="tel">
+        </div>
+        <div class="field">
+          <label>National ID number</label>
+          <input type="text" id="adNationalId" placeholder="e.g. 30112233">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="adPassword" placeholder="Create a password (8+ chars, upper, lower, number, symbol)" autocomplete="new-password">
+        </div>
+        <div class="field" style="display:flex;align-items:flex-start;gap:10px;">
+          <input type="checkbox" id="adConsent" style="width:auto;margin-top:3px;flex-shrink:0;">
+          <label for="adConsent" style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">
+            I agree to the <a href="privacy.html" target="_blank" rel="noopener noreferrer" style="color:var(--teal);font-weight:600;">Privacy Policy</a> and consent to SemaCheck processing my personal data, including my national ID number.
+          </label>
+        </div>
+        <button class="btn btn-primary btn-block" id="adSignupBtn">Create account</button>
+      </div>
+
+      <!-- OTP step (signup verification + new location/device login) -->
+      <div id="otpForm" style="display:none;">
+        <p class="hint" id="otpMsg">Enter the 6-digit code we emailed you. It expires in 10 minutes.</p>
+        <div class="field">
+          <label>Verification code</label>
+          <input type="text" id="adOtpCode" class="otp-input" maxlength="6" inputmode="numeric" placeholder="000000">
+        </div>
+        <button class="btn btn-primary btn-block" id="adOtpBtn">Verify &amp; continue</button>
+        <p class="modal-foot">Didn't get it? <button id="adOtpResend" style="background:none;border:none;color:var(--teal);font-weight:700;cursor:pointer;">Resend code</button></p>
+      </div>
+    </section>
+
+    <!-- ── Dashboard (shown when logged in) ──────────────────────── -->
+    <div id="dashboardPanel" style="display:none;">
+
+      <div id="approvalBanner" class="alert" style="display:none; border-radius:10px;"></div>
+
+      <section class="card" id="setupPanel" style="padding:24px; display:none;">
+        <h2>Create your API account</h2>
+        <p class="hint">One step. New API accounts are approved by our admin team before their keys go live.</p>
+        <div class="field"><label>Company / organisation name</label><input type="text" id="acCompany" placeholder="e.g. PesaSafe Ltd"></div>
+        <div class="field"><label>Website (optional)</label><input type="text" id="acWebsite" placeholder="company.com"></div>
+        <div class="field"><label>What will you use the API for? (optional)</label><input type="text" id="acUseCase" placeholder="e.g. Checking paybills before customers pay"></div>
+        <div id="setupAlert"></div>
+        <button class="btn btn-primary" id="acCreateBtn">Create API account</button>
+      </section>
+
+      <section class="card" style="padding:24px;">
+        <h2>Overview — your account</h2>
+        <div id="overview" style="display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+          <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div class="hint">Plan</div>
+            <div id="ov-plan" style="font-weight:700;">—</div>
+          </div>
+          <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div class="hint">Checks used this month</div>
+            <div id="ov-used" style="font-weight:700;">—</div>
+          </div>
+          <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div class="hint">Quota remaining</div>
+            <div id="ov-left" style="font-weight:700;">—</div>
+          </div>
+          <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div class="hint">Active keys</div>
+            <div id="ov-keys" style="font-weight:700;">—</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" style="padding:24px;">
+        <h2>API keys</h2>
+        <div id="keyAlert"></div>
+        <div id="newKeyBox" style="display:none; border:1px solid var(--teal); background:rgba(15,163,163,0.06); border-radius:10px; padding:14px; margin-bottom:12px;">
+          <div class="hint" style="font-weight:700;">Copy your key now — it is shown only once:</div>
+          <code id="newKeyValue" style="display:block; word-break:break-all; font-size:0.82rem; margin:6px 0;"></code>
+          <button class="btn btn-outline" id="copyKeyBtn" style="color:var(--navy); border-color:var(--border);">Copy key</button>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+          <input id="key-label" type="text" placeholder="Label, e.g. Production" style="padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;flex:1;min-width:160px;">
+          <select id="key-type" style="padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;">
+            <option value="secret">Secret key</option>
+            <option value="publishable">Publishable key</option>
+          </select>
+          <button class="btn btn-primary" id="btn-new-key">Create key</button>
+        </div>
+        <ul id="key-list" style="list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px;"></ul>
+      </section>
+
+      <section class="card" style="padding:24px;">
+        <h2>Playground</h2>
+        <div style="display:grid; gap:10px;">
+          <input id="pg-type" type="text" list="pg-types" placeholder="checkType" style="padding:10px;border:1.5px solid var(--border);border-radius:8px;">
+          <datalist id="pg-types">
+            <option value="phone"></option>
+            <option value="paybill"></option>
+            <option value="business"></option>
+            <option value="website"></option>
+            <option value="job"></option>
+          </datalist>
+          <input id="pg-subject" type="text" placeholder="Subject to check" style="padding:10px;border:1.5px solid var(--border);border-radius:8px;">
+          <button class="btn btn-primary" id="btn-playground">Run check</button>
+          <div id="pg-verdict" style="display:none; border:1px solid var(--border); border-radius:10px; padding:16px; text-align:center;">
+            <div id="pg-verdict-word" style="font-size:1.5rem; font-weight:800;"></div>
+            <div id="pg-verdict-confidence" class="hint" style="font-weight:700;"></div>
+            <div id="pg-verdict-summary" class="hint" style="margin-top:8px; text-align:left;"></div>
+          </div>
+          <pre id="pg-result" style="background:#0b1220; color:#e6edf3; padding:14px; border-radius:10px; font-size:0.8rem; overflow:auto; max-height:260px; white-space:pre-wrap;"></pre>
+        </div>
+      </section>
+
+      <section class="card" style="padding:24px;">
+        <h2>Billing</h2>
+        <div id="billingAlert"></div>
+        <div id="billing" style="display:grid; gap:12px;">
+          <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div class="hint">Current plan</div>
+            <div id="bill-plan" style="font-weight:700;">—</div>
+          </div>
+          <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div class="hint">Invoices this month</div>
+            <div id="bill-invoices" style="font-weight:700;">—</div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <select id="plan-select" style="padding:10px;border:1.5px solid var(--border);border-radius:8px;">
+              <option value="free">Free</option>
+              <option value="starter">Starter — KES 5,000/mo</option>
+              <option value="growth">Growth — KES 20,000/mo</option>
+            </select>
+            <button class="btn btn-primary" id="btn-change-plan">Change plan</button>
+          </div>
+          <p class="hint">Paid plans are activated after the M-Pesa STK push is confirmed on your phone.</p>
+        </div>
+      </section>
+
+      <section class="card" style="padding:24px;">
+        <h2>Webhooks</h2>
+        <div id="webhookAlert"></div>
+        <div style="display:grid; gap:10px;">
+          <input id="wh-url" type="text" placeholder="https://your-server.com/webhooks" style="width:100%; padding:10px;border:1.5px solid var(--border);border-radius:8px;">
+          <input id="wh-secret" type="password" placeholder="Webhook secret" style="width:100%; padding:10px;border:1.5px solid var(--border);border-radius:8px;font-family:ui-monospace;">
+          <button class="btn btn-primary" id="btn-save-webhook">Save webhook</button>
+          <button class="btn btn-outline" id="btn-test-webhook">Send test</button>
+          <pre id="wh-result" style="background:#0b1220; color:#e6edf3; padding:14px; border-radius:10px; font-size:0.8rem; overflow:auto; max-height:180px; white-space:pre-wrap;"></pre>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="js/api-dashboard.js"></script>
+</body>
+</html>

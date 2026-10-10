@@ -154,8 +154,35 @@ async function sendSubscriptionReminderEmail({ toEmail, fullName, daysRemaining,
   }
 }
 
+async function sendPasswordResetEmail({ toEmail, fullName, resetUrl }) {
+  if (!BREVO_API_KEY) {
+    const err = new Error('Brevo API key is not configured.');
+    err.code = 'BREVO_NOT_CONFIGURED';
+    throw err;
+  }
+  const payload = {
+    sender: { email: SENDER_EMAIL, name: 'SemaCheck' },
+    to: [{ email: toEmail }],
+    subject: 'Reset your SemaCheck password',
+    textContent: 'Hi ' + (fullName || '') + ',\n\nUse the link below to choose a new password for your SemaCheck account:\n\n' + resetUrl + '\n\nThe link expires in 30 minutes. If you did not request this, you can ignore this email — your password stays unchanged.',
+    htmlContent: '<h2>Reset your password</h2><p>Hi ' + (fullName || '') + ',</p><p>Choose a new password for your SemaCheck account:</p><p><a href="' + resetUrl + '">Reset my password</a></p><p>This link expires in 30 minutes. If you did not request it, you can ignore this email — your password stays unchanged.</p>',
+  };
+  const response = await axios({
+    method: 'POST',
+    url: 'https://api.brevo.com/v3/smtp/email',
+    headers: {
+      'api-key': BREVO_API_KEY,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    data: payload,
+  });
+  return response.data;
+}
+
 module.exports = {
   sendOtpEmail,
   sendContactMessageToManagement,
   sendSubscriptionReminderEmail,
+  sendPasswordResetEmail,
 };
