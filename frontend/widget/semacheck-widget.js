@@ -207,6 +207,7 @@
       types.appendChild(s);
     });
     body.appendChild(types);
+    root.appendChild(body);
 
     const resultEl = document.createElement('div');
     resultEl.className = 'result';
@@ -248,9 +249,10 @@
     errEl.className = 'error';
     errEl.id = 'sc-widget-error';
     errEl.setAttribute('role', 'alert');
-    resultEl.appendChild(errEl);
 
     root.appendChild(resultEl);
+    root.appendChild(spacer);
+    root.appendChild(errEl);
 
     const footer = document.createElement('div');
     footer.className = 'footer';
@@ -342,6 +344,7 @@
           })
           .catch((err) => {
             spinner.classList.remove('visible');
+            statusEl.textContent = '';
             errEl.textContent = err.message || 'Could not check. Please try again.';
             errEl.classList.add('visible');
             btnCheck.disabled = false;

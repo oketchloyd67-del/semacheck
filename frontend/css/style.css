@@ -52,6 +52,11 @@ button { font-family: inherit; cursor: pointer; }
 .nav-links a { font-size: 0.95rem; color: #cfd9ea; }
 .nav-links a:hover { color: #fff; }
 .nav-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.nav-toggle { display: none; flex-direction: column; justify-content: center; align-items: center; gap: 4px; width: 42px; height: 42px; padding: 0; background: transparent; border: 1.5px solid rgba(255,255,255,0.35); border-radius: 9px; }
+.nav-toggle span { display: block; width: 18px; height: 2px; border-radius: 2px; background: #fff; transition: transform .2s ease, opacity .2s ease; }
+.navbar.nav-open .nav-toggle span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.navbar.nav-open .nav-toggle span:nth-child(2) { opacity: 0; }
+.navbar.nav-open .nav-toggle span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
 
 /* Inner-page navbar (logo + section links) — wraps cleanly on mobile */
 .subnav { display: flex; align-items: center; gap: 18px; font-size: 0.9rem; flex-wrap: wrap; justify-content: flex-end; }
@@ -359,12 +364,34 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0 28px; font-size: 0
   .contact-box { grid-template-columns: 1fr; }
   .dash-grid { grid-template-columns: 1fr; }
 
-  /* Keep every nav link reachable on mobile: links move to a scrollable
-     second row instead of disappearing. */
-  .navbar .container { flex-wrap: wrap; height: auto; padding-top: 10px; }
-  .nav-links { display: flex; order: 3; width: 100%; gap: 16px; overflow-x: auto; padding: 8px 0 10px; scrollbar-width: none; }
-  .nav-links::-webkit-scrollbar { display: none; }
-  .nav-links a { font-size: 0.85rem; white-space: nowrap; }
+  .navbar .container { flex-wrap: wrap; height: auto; padding: 10px 16px; gap: 8px; }
+  .nav-toggle { display: flex; margin-left: auto; }
+  .navbar .nav-actions { margin-left: auto; gap: 6px; }
+  .navbar .nav-actions .btn { padding: 9px 13px; font-size: 0.86rem; }
+  .navbar .nav-actions + .nav-toggle { margin-left: 0; }
+  .navbar .nav-links, .navbar .subnav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 2px;
+    width: auto;
+    order: initial;
+    overflow-x: visible;
+    padding: 10px 24px 16px;
+    background: var(--navy);
+    border-top: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 16px 30px rgba(0,0,0,0.3);
+    z-index: 50;
+  }
+  .navbar.nav-open .nav-links, .navbar.nav-open .subnav { display: flex; }
+  .navbar .nav-links a, .navbar .subnav a { padding: 11px 4px; font-size: 0.95rem; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .navbar .nav-links a:last-child, .navbar .subnav a:last-child { border-bottom: none; }
   .brand-logo { height: 36px; }
   .hero .nav-actions { flex-wrap: wrap; }
 }

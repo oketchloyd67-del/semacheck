@@ -14,40 +14,53 @@ const rateLimit = require('express-rate-limit');
 
 let redisClient = null;
 let redisConnected = false;
+let redisGaveUp = false;
+let redisErrorLogged = false;
+
+const REDIS_MAX_RETRIES = 3;
 
 function getRedisClient() {
   if (redisClient) return redisClient;
-  
+  if (redisGaveUp) return null;
+
   if (process.env.REDIS_URL) {
     try {
       const { createClient } = require('redis');
-      redisClient = createClient({ 
+      redisClient = createClient({
         url: process.env.REDIS_URL,
         socket: {
           connectTimeout: 5000,
+          reconnectStrategy: (retries) =>
+            retries >= REDIS_MAX_RETRIES ? false : Math.min(retries * 500, 3000),
         },
       });
-      
+
       redisClient.on('error', (err) => {
-        console.error('Redis error:', err.message);
         redisConnected = false;
+        if (redisErrorLogged) return;
+        redisErrorLogged = true;
+        console.warn(
+          'Redis unavailable, falling back to in-memory rate limiting:',
+          err && err.message ? err.message : err
+        );
       });
-      
-      redisClient.on('connect', () => {
-        console.log('✅ Redis connected for rate limiting');
+
+      redisClient.on('ready', () => {
         redisConnected = true;
+        redisErrorLogged = false;
+        console.log('Redis connected for rate limiting');
       });
-      
-      
-      redisClient.connect().catch((e) => {
-        console.warn('⚠️ Redis connect failed, falling back to memory store:', e.message);
+
+      redisClient.connect().catch(() => {
+        redisGaveUp = true;
         redisClient = null;
       });
-      
+
       return redisClient;
     } catch (e) {
-      console.warn('⚠️ Redis unavailable, falling back to in-memory:', e.message);
+      redisGaveUp = true;
       redisClient = null;
+      console.warn('Redis unavailable, using in-memory rate limiting:', e.message);
       return null;
     }
   }
