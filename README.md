@@ -136,7 +136,7 @@ Demo admin login (after seeding): `admin@semacheck.co.ke` / `AdminDemo#2026`
 4. Set `TUMA_CALLBACK_URL` to a public HTTPS URL that routes to `/api/payments/tuma/callback` on your server — Tuma's servers need to reach it, so `localhost` won't work; use `ngrok` for local testing or deploy first
 5. Tuma's STK push works with real Kenyan phone numbers even in early testing — there's no separate "sandbox mode" to toggle the way Daraja has one, so start with small real amounts (e.g. KES 10) when testing
 
-## Honest limitations — read before launch
+## Operational notes
 
 1. **"Search the entire internet"** — done, but it needs a search API key
    (SerpAPI, Google Programmable Search, or Bing Web Search all work — see
@@ -152,8 +152,7 @@ Demo admin login (after seeding): `admin@semacheck.co.ke` / `AdminDemo#2026`
 3. **ID verification is now manual by design**, not a limitation to fix —
    see above. The only thing left for you to decide operationally: who on
    your team reviews the admin queue, and how quickly (the signup message
-   currently promises "usually under 24 hours" — make sure that's true
-   once you're live).
+   currently promises "usually under 24 hours" — keep that true).
 
 4. **Sandbox note:** I can't install npm packages or run a live Postgres/
    Node server in this chat environment (no internet access here), so the
