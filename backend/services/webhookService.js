@@ -116,6 +116,22 @@ async function deliver(row) {
   const url = row.webhook_url;
   if (!url) return;
 
+  // Re-check the URL right before sending (DNS can change after it was saved).
+  try {
+    const { checkWebhookUrl } = require('./ssrfGuard');
+    const urlCheck = await checkWebhookUrl(url);
+    if (!urlCheck.ok) {
+      console.warn(`[webhook] blocked delivery ${row.id}: ${urlCheck.reason}`);
+      await pool.query(
+        `UPDATE webhook_deliveries SET status='failed', last_response_code=0, attempts=$1 WHERE id=$2`,
+        [parseInt(process.env.WEBHOOK_MAX_ATTEMPTS || '6', 10), row.id]
+      );
+      return;
+    }
+  } catch (e) {
+    console.warn('[webhook] URL check failed:', e.message);
+  }
+
   const timestamp = Math.floor(Date.now() / 1000);
   const body = row.payload_json;
   const secret = (row.accountSecret && typeof row.accountSecret === 'function')

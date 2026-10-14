@@ -337,7 +337,7 @@
             (data.reasons || []).forEach((r) => {
               const item = document.createElement('div');
               item.className = 'item';
-              item.innerHTML = '<span class="label-pill ' + (LABEL_CLASS[r.verdict] || 'label-unverified') + '">' + (r.source || '') + '</span> ' + escapeHtml(r.label);
+              item.innerHTML = '<span class="label-pill ' + (LABEL_CLASS[r.verdict] || 'label-unverified') + '">' + escapeHtml(r.source || '') + '</span> ' + escapeHtml(r.label);
               reasonsEl.appendChild(item);
             });
             statusEl.textContent = 'Done — check the result above.';

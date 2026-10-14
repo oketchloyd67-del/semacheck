@@ -16,7 +16,7 @@ async function loadRecentScamsTicker() {
       const amount = s.amountLostKes ? `<span class="ticker-amount">KES ${Number(s.amountLostKes).toLocaleString()} lost</span>` : '';
       const badge = s.source === 'report' ? '<span class="ticker-source" title="Admin-approved community report">REPORTED</span>' : '';
       return `<div class="ticker-item" style="animation-delay:${i * 0.05}s">
-        <span class="ticker-verdict ${s.verdict}">${s.verdict === 'scam' ? '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>SCAM' : '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>SUSPICIOUS'}</span>
+        <span class="ticker-verdict ${escapeHtml(s.verdict)}">${s.verdict === 'scam' ? '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>SCAM' : '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>SUSPICIOUS'}</span>
         <span class="ticker-type">${typeLabels[s.type] || escapeHtml(s.type)}</span>
         <span class="ticker-value">${escapeHtml(s.value)}</span>${badge}${amount}
         <span class="ticker-time">${ago}</span>
@@ -25,6 +25,24 @@ async function loadRecentScamsTicker() {
   } catch {
     container.innerHTML = '';
   }
+}
+
+// Live figures for the home page (F-02): replace the placeholder text with the
+// real approved-report count from the public stats endpoint. Falls back to the
+// existing copy if the API is slow, asleep or unreachable.
+async function loadHomeStats() {
+  const el = document.getElementById('homeApprovedReports');
+  if (!el) return;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch(`${API_BASE}/public/stats`, { cache: 'no-store', signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) return;
+    const data = await res.json();
+    const n = Number(data.approvedReports || 0);
+    if (n > 0) el.textContent = `${n.toLocaleString()} verified`;
+  } catch { /* keep the fallback text */ }
 }
 
 function timeAgo(date) {
@@ -162,7 +180,7 @@ function updateAuthUI() {
   if (!area) return;
   if (user) {
     area.innerHTML = `
-      <span style="color:#cfd9ea;font-size:0.9rem;margin-right:6px;">Hi, ${user.fullName?.split(' ')[0] || 'there'}</span>
+      <span style="color:#cfd9ea;font-size:0.9rem;margin-right:6px;">Hi, ${escapeHtml(user.fullName?.split(' ')[0] || 'there')}</span>
       ${user.accountType === 'job_owner' ? '<a class="btn btn-outline" href="dashboard.html">Dashboard</a>' : ''}
       <button class="btn btn-primary" id="logoutBtn">Log out</button>`;
     document.getElementById('logoutBtn').addEventListener('click', doLogout);
@@ -751,11 +769,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="receipt-row"><span class="r-label">Search scope</span><span class="r-value">${searchRegion === 'international' ? '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="vertical-align:-2px;margin-right:3px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>Worldwide' : '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="vertical-align:-2px;margin-right:3px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>Kenya only'}</span></div>
         <div class="receipt-row"><span class="r-label">Amount paid</span><span class="r-value">KES ${searchTier}</span></div>
         <hr class="receipt-divider">
-        <div class="receipt-verdict-line v-${r.verdict}">
-          <div class="r-verdict-word">${verdictLabels[r.verdict] || r.verdict.toUpperCase()}</div>
+        <div class="receipt-verdict-line v-${escapeHtml(r.verdict)}">
+          <div class="r-verdict-word">${escapeHtml(verdictLabels[r.verdict] || r.verdict.toUpperCase())}</div>
           ${r.confidence_score ? `<div style="font-size:0.78rem;color:#666;margin-top:2px;">${r.confidence_score}% confidence</div>` : ''}
         </div>
-        ${r.summary ? `<hr class="receipt-divider"><div class="receipt-summary">${r.summary}</div>` : ''}
+        ${r.summary ? `<hr class="receipt-divider"><div class="receipt-summary">${escapeHtml(r.summary)}</div>` : ''}
         ${sourceCount !== null ? `<div class="receipt-sources">Sources checked: ${sourceCount} web result(s), ${dbCount || 0} internal report(s)</div>` : ''}
         ${payload.fromCache ? '<div class="receipt-sources"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-2px;margin-right:3px;"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>Instant result — already verified by SemaCheck.</div>' : ''}
         <div class="receipt-barcode"></div>
@@ -778,6 +796,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   loadRecentScamsTicker();
+  loadHomeStats();
 
   setInterval(() => {
     fetch(`${API_BASE}/health`, { cache: 'no-store' }).catch(() => {});

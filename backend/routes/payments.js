@@ -65,7 +65,9 @@ router.post('/search', optionalAuth, paymentLimiter, async (req, res) => {
   } catch (err) {
     console.error('STK push failed:', err.response ? JSON.stringify(err.response.data) : err.message);
     await pool.query(`UPDATE payments SET status='failed', updated_at=now() WHERE id=$1`, [paymentId]);
-    res.status(502).json({ error: err.message, paymentId });
+    // Log the detail, but never forward raw provider/config errors to clients —
+    // they can reveal internal endpoints or which credentials are missing.
+    res.status(502).json({ error: 'Could not start the M-Pesa payment. Please try again.', paymentId });
   }
 });
 
@@ -103,7 +105,9 @@ router.post('/alert-view', optionalAuth, paymentLimiter, async (req, res) => {
   } catch (err) {
     console.error('STK push failed:', err.response ? JSON.stringify(err.response.data) : err.message);
     await pool.query(`UPDATE payments SET status='failed', updated_at=now() WHERE id=$1`, [paymentId]);
-    res.status(502).json({ error: err.message, paymentId });
+    // Log the detail, but never forward raw provider/config errors to clients —
+    // they can reveal internal endpoints or which credentials are missing.
+    res.status(502).json({ error: 'Could not start the M-Pesa payment. Please try again.', paymentId });
   }
 });
 
@@ -135,7 +139,9 @@ router.post('/subscription', requireAuth, requireJobOwner, paymentLimiter, async
   } catch (err) {
     console.error('STK push failed:', err.response ? JSON.stringify(err.response.data) : err.message);
     await pool.query(`UPDATE payments SET status='failed', updated_at=now() WHERE id=$1`, [paymentId]);
-    res.status(502).json({ error: err.message, paymentId });
+    // Log the detail, but never forward raw provider/config errors to clients —
+    // they can reveal internal endpoints or which credentials are missing.
+    res.status(502).json({ error: 'Could not start the M-Pesa payment. Please try again.', paymentId });
   }
 });
 
@@ -174,7 +180,9 @@ router.post('/forensics-case', requireAuth, paymentLimiter, async (req, res) => 
   } catch (err) {
     console.error('STK push failed:', err.response ? JSON.stringify(err.response.data) : err.message);
     await pool.query(`UPDATE payments SET status='failed', updated_at=now() WHERE id=$1`, [paymentId]);
-    res.status(502).json({ error: err.message, paymentId });
+    // Log the detail, but never forward raw provider/config errors to clients —
+    // they can reveal internal endpoints or which credentials are missing.
+    res.status(502).json({ error: 'Could not start the M-Pesa payment. Please try again.', paymentId });
   }
 });
 

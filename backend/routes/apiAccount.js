@@ -122,6 +122,12 @@ router.post('/keys', requireAuth, ensureVerified, loadApiAccount, requireAccount
     const key = await createKey(Number(req.apiAccount.id), type || 'secret', label || 'Main key', allowedDomains || []);
     res.status(201).json({ key: { raw: key.raw, prefix: key.key_prefix, type: key.key_type, status: key.status } });
   } catch (err) {
+    // Never surface raw configuration errors (e.g. a missing env var) to
+    // clients — log the detail server-side and return a generic message.
+    if (err && /not configured/i.test(err.message || '')) {
+      console.error('[api-keys] create failed:', err.message);
+      return res.status(503).json({ error: 'Key service temporarily unavailable. Please try again later.' });
+    }
     res.status(400).json({ error: err.message });
   }
 });
@@ -141,6 +147,22 @@ router.put('/webhook', requireAuth, ensureVerified, loadApiAccount, requireAccou
   const { url, secret } = req.body;
   if (!url) return res.status(400).json({ error: 'Enter a webhook URL.' });
   if (secret && secret.length > 300) return res.status(400).json({ error: 'Secret too long.' });
+  // SSRF guard: a webhook URL must never point at a private, loopback or
+  // cloud-metadata address. Checked again right before each delivery.
+  const { checkWebhookUrl } = require('../services/ssrfGuard');
+  const urlCheck = await checkWebhookUrl(String(url));
+  if (!urlCheck.ok) {
+    const messages = {
+      invalid_url: 'Enter a valid URL.',
+      https_required: 'Webhook URL must start with https://.',
+      credentials_in_url: 'Remove the username/password from the URL.',
+      port_not_allowed: 'Only the standard https port (443) is allowed.',
+      host_not_allowed: 'That host is not allowed.',
+      private_address: 'That address is not allowed (private or internal network).',
+      dns_failed: 'Could not resolve that hostname.',
+    };
+    return res.status(400).json({ error: messages[urlCheck.reason] || 'That webhook URL is not allowed.' });
+  }
   const encryptedSecret = secret ? encrypt(secret) : null;
   const { rows } = await pool.query(
     `UPDATE api_accounts SET webhook_url=$2, webhook_secret_enc=$3 WHERE id=$1 RETURNING id, webhook_url`,

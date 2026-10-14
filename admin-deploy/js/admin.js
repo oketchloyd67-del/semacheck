@@ -810,6 +810,15 @@ async function viewReportEvidence(reportId) {
       headers: { Authorization: `Bearer ${getAdminToken()}` },
     });
     if (!res.ok) throw new Error('Could not load evidence.');
+    const contentType = (res.headers.get('content-type') || '').toLowerCase();
+    if (contentType.includes('application/json')) {
+      // Reporter supplied an evidence link instead of a file. Show it as an
+      // explicit link the admin chooses to open — never auto-follow it.
+      const data = await res.json();
+      if (!data.url || !/^https?:\/\//i.test(data.url)) throw new Error('No usable evidence link.');
+      body.innerHTML = `<p class="hint" style="margin-bottom:8px;">This report was submitted with an evidence link:</p><a href="${escapeHtml(data.url)}" target="_blank" rel="noopener noreferrer nofollow" class="btn btn-outline" style="color:var(--navy);border-color:var(--navy);word-break:break-all;">Open evidence link</a>`;
+      return;
+    }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     body.innerHTML = blob.type === 'application/pdf'

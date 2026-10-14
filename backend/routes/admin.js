@@ -265,7 +265,7 @@ router.get('/id-verifications/:userId/document', requireAdmin, requireUuid('user
   if (!filename) return res.status(404).json({ error: 'No document on file for this user.' });
 
   const filePath = path.join(UPLOAD_DIR, filename);
-  if (!filePath.startsWith(UPLOAD_DIR) || !fs.existsSync(filePath)) {
+  if (!filePath.startsWith(UPLOAD_DIR + path.sep) || !fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'Document not found.' });
   }
   res.sendFile(filePath);
@@ -535,9 +535,14 @@ router.get('/reports/:id/evidence', requireAdmin, requireInt('id'), async (req, 
   const { rows } = await pool.query(`SELECT evidence_path FROM scam_reports WHERE id=$1`, [req.params.id]);
   const filename = rows[0]?.evidence_path;
   if (!filename) return res.status(404).json({ error: 'No evidence attached to this report.' });
-  if (/^https?:\/\//i.test(filename)) return res.redirect(filename);
+  // Evidence can be a reporter-supplied link (API submissions). Never
+  // 302 an authenticated admin request to an arbitrary external URL —
+  // return the link as JSON and let the UI present it as an explicit link.
+  if (/^https?:\/\//i.test(filename)) {
+    return res.json({ url: filename });
+  }
   const filePath = path.join(UPLOAD_DIR, filename);
-  if (!filePath.startsWith(UPLOAD_DIR) || !fs.existsSync(filePath)) {
+  if (!filePath.startsWith(UPLOAD_DIR + path.sep) || !fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'Evidence file not found.' });
   }
   res.sendFile(filePath);

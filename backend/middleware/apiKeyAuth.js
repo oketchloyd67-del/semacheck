@@ -4,10 +4,21 @@ const pool = require('../db/pool');
 const HASH_SECRET = process.env.API_KEY_HASH_SECRET || '';
 const HASH_ALGO = 'sha256';
 
+let missingSecretWarned = false;
+
 function keyedHash(raw) {
-  if (!HASH_SECRET) throw new Error('API_KEY_HASH_SECRET is not configured in .env.');
-  const h = crypto.createHmac(HASH_ALGO, HASH_SECRET).update(raw).digest('hex');
-  return h;
+  // Fail closed: with no secret we cannot verify any key, so every key is
+  // invalid. Never throw — an exception here surfaced to callers as a 500,
+  // which both leaks that the server is misconfigured and breaks the
+  // "all bad keys get the same 401" contract (test D1).
+  if (!HASH_SECRET) {
+    if (!missingSecretWarned) {
+      missingSecretWarned = true;
+      console.error('[auth] API_KEY_HASH_SECRET is not configured — all API keys will be rejected.');
+    }
+    return null;
+  }
+  return crypto.createHmac(HASH_ALGO, HASH_SECRET).update(raw).digest('hex');
 }
 
 function normalizeKey(raw) {
@@ -42,6 +53,9 @@ async function apiKeyAuth(req, res, next) {
   }
 
   const hash = keyedHash(raw);
+  if (!hash) {
+    return res.status(401).json({ error: 'invalid_api_key' });
+  }
   let key;
   try {
     key = await lookupKey(hash);

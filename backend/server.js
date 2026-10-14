@@ -90,6 +90,8 @@ app.use((req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  // This server returns JSON only, so a locked-down CSP is safe (review 10.1).
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
   res.removeHeader('X-Powered-By');
   next();
 });

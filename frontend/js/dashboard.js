@@ -352,11 +352,11 @@ async function loadJobs() {
     list.innerHTML = r.jobs.map((j) => `
       <div class="job-item">
         <div>
-          <b>${j.title}</b>
-          <div style="font-size:0.82rem;color:var(--text-muted);">${j.company_name} &middot; ${j.location || 'Nairobi'}</div>
+          <b>${escapeHtml(j.title)}</b>
+          <div style="font-size:0.82rem;color:var(--text-muted);">${escapeHtml(j.company_name)} &middot; ${escapeHtml(j.location || 'Nairobi')}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-          <span class="status-pill status-${j.status}">${j.status}</span>
+          <span class="status-pill status-${escapeHtml(j.status)}">${escapeHtml(j.status)}</span>
           ${j.status === 'approved' && !j.effective_visible ? '<span class="status-pill status-suspended" style="font-size:0.68rem;">suspended — renew to reactivate</span>' : ''}
           ${j.status === 'approved' && j.effective_visible ? '<span class="status-pill status-approved" style="font-size:0.68rem;">live in search</span>' : ''}
         </div>

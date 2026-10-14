@@ -119,3 +119,5 @@ dump.rdb
 *.pid
 *.seed
 *.pid.lock
+# ── Database exports containing PII (NEVER COMMIT) ──
+*.csv
