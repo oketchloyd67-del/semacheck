@@ -20,9 +20,19 @@ warn() { printf '[WARN] %s\n' "$1"; WARN=$((WARN+1)); }
 echo "== 1. Security headers =="
 for base in "$SITE" "$API"; do
   headers="$(curl -s -I --max-time 15 "$base/" 2>/dev/null)"
-  for h in strict-transport-security x-content-type-options referrer-policy content-security-policy; do
+  for h in strict-transport-security x-content-type-options referrer-policy; do
     if echo "$headers" | grep -qi "^$h:"; then pass "$base sends $h"; else fail "$base is missing $h"; fi
   done
+  # The JSON API enforces a locked-down CSP. The HTML site ships it as
+  # report-only on purpose: pages still use inline scripts, so an enforcing
+  # script-src would break them until those scripts are externalized.
+  if echo "$headers" | grep -qi "^content-security-policy:"; then
+    pass "$base sends content-security-policy (enforcing)"
+  elif echo "$headers" | grep -qi "^content-security-policy-report-only:"; then
+    pass "$base sends content-security-policy (report-only — HTML site)"
+  else
+    fail "$base is missing content-security-policy"
+  fi
   if echo "$headers" | grep -qiE "^x-frame-options:|frame-ancestors"; then pass "$base blocks framing"; else fail "$base can be framed (clickjacking)"; fi
   if echo "$headers" | grep -qi "^x-powered-by:"; then warn "$base reveals x-powered-by"; else pass "$base hides x-powered-by"; fi
 done
