@@ -160,6 +160,7 @@ let currentAccount = null;
 
 async function loadOverview() {
   const data = await api('/account/api/overview');
+  overviewLoaded = true;
   currentAccount = data.account;
 
   const setupPanel = document.getElementById('setupPanel');
@@ -484,12 +485,19 @@ async function refresh() {
   }
 }
 
+let overviewLoaded = false;
+
 function boot() {
-  // The HttpOnly cookie restores the session server-side; there is no token
-  // in JS to check. If the cookie is absent/expired the overview 401s and
-  // refresh() falls back to the login panel.
-  showDashboard();
-  refresh();
+  // Always start on the Log in / Create account form. There is no token in
+  // JS to check (the session rides in an HttpOnly cookie), so we confirm the
+  // session with the overview request — and on a cold backend that can take
+  // a while. Showing the login form first means a developer always sees
+  // where to sign up or log in, immediately; a confirmed session (or a
+  // freshly created account) switches to the dashboard automatically.
+  showAuth('login');
+  refresh().then(() => {
+    if (overviewLoaded) showDashboard();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
