@@ -5,7 +5,7 @@
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SemaCheck — Developer docs</title>
-  <meta name="description" content="Complete API reference for the SemaCheck Trust Check API.">
+  <meta name="description" content="Complete API reference for the SemaCheck Trust Check API: authentication, sandbox keys, plans, checks, pay-gating, webhooks and the embeddable widget.">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,6 +17,7 @@
         <a href="docs.html" style="color:#fff; font-weight:600;">Docs</a>
         <a href="api-dashboard.html">Dashboard</a>
         <a href="stats.html">Stats</a>
+        <a href="status.html">Status</a>
       </nav>
     <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
     </div>
@@ -24,13 +25,35 @@
 
   <main class="container" style="padding:32px 0 80px;">
     <h1>Developer docs</h1>
-    <p class="hint">Authentication, requests, responses, quotas, webhooks, and the widget guide.  
+    <p class="hint">Authentication, sandbox and live keys, plans and quotas, checks, pay-gating, webhooks, errors and the widget guide.</p>
 
-    <h2>Authentication</h2>
-    <p>API customers send a <code>sk_live_</code> secret key as a bearer token. The dashboard issues keys, one per account. Never log or store the raw key.</p>
+    <h2 id="auth">Authentication and keys</h2>
+    <p>Every request sends a secret key as a bearer token. Accounts hold <b>multiple keys</b> — up to 5 active secret keys and 3 active publishable keys — so you can run one per environment or per integration. Keys come in two modes:</p>
+    <ul style="padding-left:20px; line-height:1.8;">
+      <li><code>sk_test_…</code> / <code>pk_test_…</code> — <b>sandbox keys</b>. Deterministic test responses, no live data, no quota used. The Free plan includes these only.</li>
+      <li><code>sk_live_…</code> / <code>pk_live_…</code> — <b>live keys</b>. Real checks against live data, metered against your plan's monthly quota. Any paid plan.</li>
+    </ul>
     <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">Authorization: Bearer sk_live_YOUR_API_KEY_HERE</div>
+    <p><b>Key security duties:</b> keep secret keys server-side only (never in browser code, apps, or public repos); hash or encrypt them at rest; rotate by creating a new key and revoking the old one; never share live keys outside your organisation; tell us promptly if a key leaks so we can revoke it. Full duties are in the <a href="terms-api.html" style="color:var(--teal);font-weight:600;">API terms</a>.</p>
 
-    <h2>Check</h2>
+    <h2 id="sandbox">Sandbox mode</h2>
+    <p>The Free plan is a <b>sandbox</b>: it issues test keys only and makes no live checks. A sandbox <code>/v1/check</code> responds instantly, in the same shape as production, with <code>"mode": "sandbox"</code>. The subject text picks the verdict, so you can build and demo every branch of your UI:</p>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">subject contains "scam" or "fraud"      → verdict: scam (confidence 98)
+subject contains "suspect" or "caution"  → verdict: suspicious (confidence 60)
+subject contains "unverified" or "unknown" → verdict: unverified (confidence 20)
+anything else                            → verdict: legit (confidence 55)</div>
+    <p>Sandbox calls never consume quota and never touch the report database. When you are ready, upgrade to a paid plan and switch the same integration to an <code>sk_live_</code> key — the request and response formats are identical.</p>
+
+    <h2 id="plans">Plans and volume pricing</h2>
+    <div style="display:grid; gap:10px;">
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--border); color:var(--text-muted);">free</span> <span style="font-weight:600;">Free — KES 0</span> — sandbox (test) keys only, 60 requests/min. No live checks.</div>
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--navy); color:#fff;">starter</span> <span style="font-weight:600;">Starter — KES 5,000/mo</span> — 2,000 live checks, 60 requests/min.</div>
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--teal); color:#fff;">growth</span> <span style="font-weight:600;">Growth — KES 20,000/mo</span> — 10,000 live checks, 180 requests/min, webhooks and batch.</div>
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--legit-green); color:#fff;">scale</span> <span style="font-weight:600;">Scale — KES 75,000/mo</span> — 100,000 live checks, 600 requests/min, webhooks and batch. Higher volume: contact us.</div>
+    </div>
+    <p style="margin-top:10px;">The dashboard has a volume slider that recommends a plan from your expected monthly checks. Sandbox (test) calls are always free.</p>
+
+    <h2 id="check">Check</h2>
     <p>POST <code>/v1/check</code>. Returns a verdict, confidence, and reasons.</p>
     <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">POST /v1/check
 Authorization: Bearer sk_live_...
@@ -51,33 +74,75 @@ Content-Type: application/json
     { "code": "web_result", "label": "Web results raise caution.", "source": "external" }
   ],
   "subject": "254712345678",
-  "meta": { "plan": "Free", "planCode": "free" }
+  "meta": { "plan": "Starter", "planCode": "starter" }
 }</div>
+    <p>Sandbox responses are identical except <code>"mode": "sandbox"</code> appears at the top level and in <code>meta</code>.</p>
 
-    <h2>Verdict values</h2>
+    <h2 id="gating">Pay-gating — charge your users per check</h2>
+    <p>On any paid plan you can make <i>your</i> end user pay for a check by M-Pesa before they see the verdict:</p>
+    <ol style="padding-left:20px; line-height:1.9;">
+      <li><b>POST <code>/v1/gate</code></b> with <code>{ checkType, subject, phone }</code>. We send an STK push to <code>phone</code> and return a <code>check_token</code> (a 15-minute payment window, KES 30 per gated check).</li>
+      <li>Your user pays; the payment callback releases the verdict.</li>
+      <li><b>POST <code>/v1/token/verify</code></b> with <code>{ check_token }</code> until <code>status</code> is <code>paid</code>, then read the verdict. Responses: <code>awaiting_payment</code> → <code>paid</code> (verdict included), or <code>consumed</code> if already delivered once. Expired or failed windows answer <b>HTTP 402</b> with <code>token_expired</code> or <code>payment_failed</code> — call <code>/v1/gate</code> again.</li>
+    </ol>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">POST /v1/gate →
+{
+  "check_token": "chk_…",
+  "status": "awaiting_payment",
+  "price_kes": 30,
+  "expires_at": "2026-10-15T14:22:00Z"
+}
+
+POST /v1/token/verify →
+{
+  "status": "paid",
+  "verdict": "reported",
+  "confidence": 72,
+  "reasons": [ … ]
+}</div>
+    <p>Pay-gating needs a live key — sandbox keys answer HTTP 402 <code>sandbox_key</code>.</p>
+
+    <h2 id="verdicts">Verdict values and fail-open vs fail-closed</h2>
     <div style="display:grid; gap:10px;">
       <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--scam-red); color:#fff;">reported</span> <span style="font-weight:600;">Reported</span> — proof points exist.</div>
       <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--suspicious-amber); color:#3a2400;">caution</span> <span style="font-weight:600;">Caution</span> — something is off.</div>
       <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--legit-green); color:#fff;">registered</span> <span style="font-weight:600;">Registered</span> — matches a known public record.</div>
       <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--border); color:var(--text-muted);">unverified</span> <span style="font-weight:600;">Unverified</span> — nothing yet says either way.</div>
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--scam-red); color:#fff;">scam</span> <span style="font-weight:600;">Scam</span> — strong multi-source evidence.</div>
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--suspicious-amber); color:#3a2400;">suspicious</span> <span style="font-weight:600;">Suspicious</span> — concerning signals, not conclusive.</div>
+      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--legit-green); color:#fff;">legit</span> <span style="font-weight:600;">Legit</span> — no adverse signals found in this check.</div>
     </div>
+    <p style="margin-top:10px;"><b>Fail-open or fail-closed is your product decision, not ours.</b> A verdict is a point-in-time signal, not a guarantee. If your API call fails (network, 5xx), we recommend <b>failing closed</b> for money-moving flows — ask the user to wait or try again rather than proceeding unchecked. For <code>unverified</code> verdicts, most partners fail open with a lightweight warning. Never treat a verdict as the sole reason to refuse a person service; see the API terms.</p>
 
-    <h2>Rate limits, quotas, headers</h2>
+    <h2 id="errors">Rate limits, quotas and error shape</h2>
     <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">X-RateLimit-Limit: 60
 X-RateLimit-Remaining: 41
 X-RateLimit-Reset: 23
-X-Quota-Limit: 100
-X-Quota-Remaining: 87
+X-Quota-Limit: 2000
+X-Quota-Remaining: 1987
 X-Request-Id: abc123</div>
+    <p style="margin-top:12px;">Errors are JSON with a machine-readable <code>error</code> code and, where useful, a human <code>message</code>:</p>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">HTTP 400 { "error": "missing_parameter", "message": "checkType and subject are required." }
+HTTP 401 { "error": "invalid_api_key" }
+HTTP 402 { "error": "upgrade_required", "message": "Live checks are not included in the Free (sandbox) plan…" }
+HTTP 402 { "error": "token_expired", "message": "The 15-minute payment window elapsed…" }
+HTTP 402 { "error": "batch_not_enabled", "plan": "Starter" }
+HTTP 429 { "error": "rate_limited", "retryAfter": 60 }
+HTTP 429 { "error": "quota_exceeded", "quotaLimit": 2000, "checksUsed": 2001 }
+HTTP 500 { "error": "check_failed", "message": "…" }</div>
+    <p style="margin-top:10px;"><b>HTTP 402 always means "pay or wait"</b> — upgrade your plan, settle an overdue invoice, or complete a pending gated payment. It is never an authentication failure (that is 401).</p>
 
-    <h2>Error shape</h2>
-    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">{ "error": "rate_limited", "retryAfter": 60 }
-{ "error": "quota_exceeded", "quotaLimit": 100, "checksUsed": 101 }
-{ "error": "invalid_api_key" }
-{ "error": "check_failed", "message": "…" }</div>
+    <h2 id="renewal">Renewal, reminders and grace period</h2>
+    <p>Paid plans renew monthly on your plan date:</p>
+    <ul style="padding-left:20px; line-height:1.8;">
+      <li>We email a <b>renewal reminder 3 days</b> before the renewal date.</li>
+      <li>An unpaid plan enters <code>past_due</code> on the renewal date. You then have a <b>7-day grace period</b> during which live keys keep working.</li>
+      <li>After the grace period the account is <code>suspended</code> and live keys return HTTP 401. Settle the invoice (or re-buy the plan from the dashboard) to reactivate.</li>
+      <li>Test keys on a sandbox account are never suspended by billing.</li>
+    </ul>
 
-    <h2>Webhooks</h2>
-    <p>The Growth plan sends signed POST requests when a watched subject changes verdict.</p>
+    <h2 id="webhooks">Webhooks</h2>
+    <p>The Growth and Scale plans send signed POST requests when a watched subject changes verdict.</p>
     <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">POST https://your-server.com/webhooks
 X-SemaCheck-Event: subject.verdict_changed
 X-SemaCheck-Signature: t=1760000000,v1=9f2b…e41c
@@ -93,9 +158,27 @@ X-SemaCheck-Signature: t=1760000000,v1=9f2b…e41c
     "confidence": 72
   }
 }</div>
+    <p style="margin-top:10px;">Verify <code>X-SemaCheck-Signature</code> (<code>t=timestamp,v1=hmac-sha256</code> of <code>timestamp.body</code> with your webhook secret) and reject replays older than 5 minutes.</p>
 
-    <h2>Widget guide</h2>
-    <p>Embed one script tag and one <code>&lt;div&gt;</code>. The widget calls <code>SemaCheckWidget.check()</code>. See <code>/widget/semacheck-widget.js</code> for the full source.</p>
+    <h2 id="widget">Widget guide</h2>
+    <p>Embed one script tag; the widget renders a "Check before you pay" box on your page. Publishable keys (<code>pk_test_</code>/<code>pk_live_</code>) are designed for browsers and are locked to the domains you register in the dashboard.</p>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">&lt;script src="https://semacheck.vercel.app/widget/semacheck-widget.js"
+        data-key="pk_live_YOUR_KEY"
+        data-types="phone,paybill"
+        data-theme="light"
+        data-target="#semacheck-check"
+        async&gt;&lt;/script&gt;
+&lt;div id="semacheck-check"&gt;&lt;/div&gt;</div>
+    <div style="display:grid; gap:8px; margin-top:10px;">
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px;"><code>data-key</code> — required. Your publishable key (<code>pk_test_…</code> or <code>pk_live_…</code>).</div>
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px;"><code>data-types</code> — comma list of allowed check types: <code>phone,paybill,business,website,job</code>. Default <code>phone,paybill</code>.</div>
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px;"><code>data-theme</code> — <code>light</code> (default) or <code>dark</code>.</div>
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px;"><code>data-target</code> — CSS selector where the widget mounts. Default <code>#semacheck-check</code>.</div>
+    </div>
+    <p style="margin-top:10px;">See a live example at <a href="widget/demo.html" style="color:var(--teal);font-weight:600;">/widget/demo.html</a>. The widget's checks spend your plan quota like any other call.</p>
+
+    <h2 id="verify">Organisation verification</h2>
+    <p>API accounts verify their <b>organisation</b> — a business registration number plus the registration certificate (JPG, PNG or PDF), reviewed by our admin team. Verified organisations can buy paid plans and use live keys. Start from the <a href="api-dashboard.html" style="color:var(--teal);font-weight:600;">API dashboard</a>.</p>
   </main>
   <script src="js/nav.js"></script>
 </body>

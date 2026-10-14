@@ -44,11 +44,11 @@ async function apiKeyAuth(req, res, next) {
   const auth = req.headers.authorization || '';
   const match = auth.match(/^Bearer\s+(\S+)/i);
   if (!match) {
-    return res.status(401).json({ error: 'invalid_api_key', hint: 'Send Authorization: Bearer sk_live_xxxx' });
+    return res.status(401).json({ error: 'invalid_api_key', hint: 'Send Authorization: Bearer sk_live_xxxx (or sk_test_xxxx on the Free sandbox plan)' });
   }
 
   const raw = normalizeKey(match[1]);
-  if (!raw || !/^sk_live_[A-Za-z0-9_-]{20,64}$/.test(raw)) {
+  if (!raw || !/^sk_(test|live)_[A-Za-z0-9_-]{20,64}$/.test(raw)) {
     return res.status(401).json({ error: 'invalid_api_key' });
   }
 
@@ -68,7 +68,20 @@ async function apiKeyAuth(req, res, next) {
     return res.status(401).json({ error: 'invalid_api_key' });
   }
 
+  const keyMode = key.mode === 'test' || raw.startsWith('sk_test_') ? 'test' : 'live';
+
+  // The Free plan is sandbox-only. A live key on the free plan is an
+  // upgrade requirement, not an auth failure — respond 402 so a client
+  // can tell "pay or downgrade" apart from "bad key".
+  if (keyMode === 'live' && key.plan_code === 'free') {
+    return res.status(402).json({
+      error: 'upgrade_required',
+      message: 'Live checks are not included in the Free (sandbox) plan. Upgrade to Starter, Growth or Scale — or use an sk_test_ key for sandbox responses.',
+    });
+  }
+
   req.apiKey = raw;
+  req.apiKeyMode = keyMode;
   req.apiAccount = {
     id: key.account_id,
     userId: key.user_id,

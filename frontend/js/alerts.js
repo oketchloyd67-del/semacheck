@@ -12,9 +12,8 @@ async function api(path, options = {}) {
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(body);
   }
-  const token = localStorage.getItem('sc_token');
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { ...options, body, headers, cache: 'no-store' });
+  // Session rides in an HttpOnly cookie — nothing readable by JS.
+  const res = await fetch(`${API_BASE}${path}`, { ...options, body, headers, credentials: 'include', cache: 'no-store' });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || data.error || 'Request failed. Please try again.');
   return data;

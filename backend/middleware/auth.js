@@ -2,11 +2,22 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../db/pool');
 
+// The session token rides in an HttpOnly cookie (`semacheck_session`) so it
+// is invisible to JavaScript. A Bearer header is still accepted so existing
+// integrations and tests keep working.
+const SESSION_COOKIE = 'semacheck_session';
+
+function tokenFromCookie(req) {
+  const cookie = req.headers.cookie;
+  if (!cookie) return null;
+  const match = cookie.match(/(?:^|;\s*)semacheck_session=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 async function requireAuth(req, res, next) {
   try {
     const header = req.headers.authorization || '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    const token = header.startsWith('Bearer ') ? header.slice(7) : tokenFromCookie(req);
     if (!token) return res.status(401).json({ error: 'Not authenticated.' });
 
     const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });

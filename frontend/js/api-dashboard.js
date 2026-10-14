@@ -1,14 +1,15 @@
 const API_BASE = 'https://semacheck.onrender.com/api';
 
-function getToken() { return sessionStorage.getItem('semacheck_token'); }
+// The session token lives in an HttpOnly cookie set by the server — this code
+// never sees or stores it, so an XSS bug cannot steal the session.
 function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }
-function setSession(token, user) {
-  sessionStorage.setItem('semacheck_token', token);
-  sessionStorage.setItem('semacheck_user', JSON.stringify(user));
+function setSession(_token, user) {
+  // `_token` is ignored on purpose: the cookie carries it.
+  if (user) sessionStorage.setItem('semacheck_user', JSON.stringify(user));
 }
 function clearSession() {
-  sessionStorage.removeItem('semacheck_token');
   sessionStorage.removeItem('semacheck_user');
+  fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
 }
 
 function escapeHtml(str) {
@@ -24,9 +25,7 @@ function showAlert(el, message, kind = 'err') {
 async function api(path, options = {}) {
   const isFormData = options.body instanceof FormData;
   const headers = { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'include', cache: 'no-store' });
   let data = {};
   try { data = await res.json(); } catch { /* non-JSON */ }
   if (!res.ok) {
@@ -193,8 +192,45 @@ async function loadOverview() {
 
   document.getElementById('ov-plan').textContent = `${data.account.planName || data.account.planCode || '—'} (${data.account.status})`;
   document.getElementById('ov-used').textContent = String(used);
-  document.getElementById('ov-left').textContent = quota ? String(Math.max(0, quota - used)) : '—';
+  document.getElementById('ov-left').textContent = quota ? String(Math.max(0, quota - used)) : 'unlimited (sandbox)';
   document.getElementById('bill-plan').textContent = `${data.account.planName || '—'} — KES ${Number(data.account.planPriceKes || 0).toLocaleString()}/mo`;
+
+  // Renewal countdown — replaces the old "—" placeholder.
+  const renewsEl = document.getElementById('ov-renews');
+  if (renewsEl) {
+    if (data.account.planRenewsOn) {
+      const renews = new Date(data.account.planRenewsOn);
+      const daysLeft = Math.ceil((renews - Date.now()) / (24 * 60 * 60 * 1000));
+      const dateText = renews.toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' });
+      if (daysLeft < 0) {
+        renewsEl.innerHTML = `Overdue since ${escapeHtml(dateText)} — <b>grace period</b> (7 days) then live keys are suspended`;
+        renewsEl.style.color = 'var(--scam-red)';
+      } else if (daysLeft <= 7) {
+        renewsEl.textContent = `${dateText} — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`;
+        renewsEl.style.color = 'var(--suspicious-amber)';
+      } else {
+        renewsEl.textContent = `${dateText} — ${daysLeft} days left`;
+      }
+    } else {
+      renewsEl.textContent = 'No renewal (Free sandbox plan)';
+    }
+  }
+
+  // Organisation verification status.
+  const verifEl = document.getElementById('ov-verification');
+  if (verifEl) {
+    const vs = data.account.verificationStatus || 'unverified';
+    const labels = { unverified: 'Not submitted', documents_submitted: 'Documents under review', verified: 'Verified', rejected: 'Rejected — resubmit documents' };
+    verifEl.textContent = labels[vs] || vs;
+    verifEl.style.color = vs === 'verified' ? 'var(--legit-green)' : (vs === 'rejected' ? 'var(--scam-red)' : '');
+  }
+
+  // Free plan can only hold test keys — reflect that in the key form.
+  const keyModeEl = document.getElementById('key-mode');
+  if (keyModeEl) {
+    const liveOpt = keyModeEl.querySelector('option[value="live"]');
+    if (liveOpt) liveOpt.disabled = data.account.planCode === 'free';
+  }
 }
 
 async function loadKeys() {
@@ -212,6 +248,7 @@ async function loadKeys() {
       <span>
         <b>${escapeHtml(k.label || 'key')}</b>
         <span class="hint">${escapeHtml(k.key_type)} · ${escapeHtml(k.key_prefix)}…</span>
+        ${k.mode === 'test' ? '<span class="label-pill label-unverified" style="font-size:0.65rem;">TEST</span>' : '<span class="label-pill label-registered" style="font-size:0.65rem;">LIVE</span>'}
         ${k.status === 'active'
           ? '<span class="label-pill label-registered" style="font-size:0.65rem;">ACTIVE</span>'
           : '<span class="label-pill label-unverified" style="font-size:0.65rem;">REVOKED</span>'}
@@ -244,22 +281,30 @@ function initActions() {
   document.getElementById('acCreateBtn').addEventListener('click', async () => {
     const btn = document.getElementById('acCreateBtn');
     showAlert('setupAlert', '');
-    btn.disabled = true; btn.textContent = 'Creating…';
+    const regNo = document.getElementById('acRegNo').value.trim();
+    if (!regNo) { showAlert('setupAlert', 'Enter your business registration number.'); return; }
+
+    // Organisation verification: multipart so the registration document
+    // (JPG/PNG/PDF) travels with the application.
+    const fd = new FormData();
+    fd.append('companyName', document.getElementById('acCompany').value.trim());
+    fd.append('registrationNo', regNo);
+    fd.append('website', document.getElementById('acWebsite').value.trim());
+    fd.append('useCase', document.getElementById('acUseCase').value.trim());
+    const docFile = document.getElementById('acBusinessDoc').files[0];
+    if (docFile) fd.append('businessDocument', docFile);
+
+    btn.disabled = true; btn.textContent = 'Submitting…';
     try {
-      await api('/account/api/signup', {
-        method: 'POST',
-        body: JSON.stringify({
-          companyName: document.getElementById('acCompany').value.trim(),
-          website: document.getElementById('acWebsite').value.trim(),
-          useCase: document.getElementById('acUseCase').value.trim(),
-        }),
-      });
+      await api('/account/api/signup', { method: 'POST', body: fd });
       await refresh();
-      showAlert('setupAlert', 'API account created. It is waiting for admin approval.', 'ok');
+      showAlert('setupAlert', docFile
+        ? 'Organisation submitted for verification — our team reviews your registration document. You can create sandbox keys now.'
+        : 'Organisation details saved. Upload your registration document so our team can verify it.', 'ok');
     } catch (err) {
       showAlert('setupAlert', err.message);
     } finally {
-      btn.disabled = false; btn.textContent = 'Create API account';
+      btn.disabled = false; btn.textContent = 'Submit for verification';
     }
   });
 
@@ -271,6 +316,7 @@ function initActions() {
         body: JSON.stringify({
           label: document.getElementById('key-label').value.trim() || 'Main key',
           type: document.getElementById('key-type').value,
+          mode: document.getElementById('key-mode').value,
         }),
       });
       if (r.key && r.key.raw) {
@@ -385,13 +431,43 @@ function waitForPayment(paymentId, timeoutMs = 45000) {
   });
 }
 
+async function loadPlans() {
+  try {
+    const data = await api('/account/api/plans');
+    const select = document.getElementById('plan-select');
+    const plans = data.plans || [];
+    if (plans.length && select) {
+      select.innerHTML = plans.map((p) =>
+        `<option value="${escapeHtml(p.code)}">${escapeHtml(p.name)} — ${p.priceKes ? `KES ${Number(p.priceKes).toLocaleString()}/mo` : 'sandbox keys only'}</option>`
+      ).join('');
+    }
+  } catch { /* plan list is non-critical */ }
+}
+
+// Volume-based plan recommendation: monthly checks -> best-value plan.
+function initPlanPicker() {
+  const slider = document.getElementById('plan-volume');
+  const out = document.getElementById('plan-recommendation');
+  if (!slider || !out) return;
+  const recommend = (n) => {
+    if (n <= 0) return 'Free — sandbox keys only, no live checks.';
+    if (n <= 2000) return 'Starter (KES 5,000/mo) — 2,000 live checks included.';
+    if (n <= 10000) return 'Growth (KES 20,000/mo) — 10,000 live checks, webhooks and batch.';
+    return 'Scale (KES 75,000/mo) — 100,000 live checks, 600 req/min. Contact us for higher volume.';
+  };
+  const update = () => { out.textContent = `${Number(slider.value).toLocaleString()} checks/month → ${recommend(Number(slider.value))}`; };
+  slider.addEventListener('input', update);
+  update();
+}
+
 async function refresh() {
   try {
     await loadOverview();
     await loadKeys();
     await loadInvoices();
+    await loadPlans();
   } catch (err) {
-    if (err.message && /authenticated|token|expired/i.test(err.message)) {
+    if (err.message && /authenticated|token|expired|log in/i.test(err.message)) {
       clearSession();
       showAuth('login');
     }
@@ -399,7 +475,9 @@ async function refresh() {
 }
 
 function boot() {
-  if (!getToken()) { showAuth('login'); return; }
+  // The HttpOnly cookie restores the session server-side; there is no token
+  // in JS to check. If the cookie is absent/expired the overview 401s and
+  // refresh() falls back to the login panel.
   showDashboard();
   refresh();
 }
@@ -407,5 +485,6 @@ function boot() {
 document.addEventListener('DOMContentLoaded', () => {
   initAuth();
   initActions();
+  initPlanPicker();
   boot();
 });

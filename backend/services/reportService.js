@@ -110,4 +110,16 @@ function maskSubject(type, value) {
   return value;
 }
 
-module.exports = { submitReport, approve, reject, remove, listPublic, maskSubject };
+// Stronger mask used even AFTER the KES 30 unlock for phone numbers: the
+// payer learns enough to recognise the number (first 6 + last 2 digits) but
+// never the full personal number of the person named in the report. This
+// follows the Data Protection Act minimisation advice — the paid unlock buys
+// the report narrative, not a way to contact a private individual.
+function partialMaskSubject(type, value) {
+  if (type === 'phone' && /^\d{9,10}$/.test(value)) {
+    return `${value.slice(0, 6)} *** ${value.slice(-2)}`;
+  }
+  return maskSubject(type, value);
+}
+
+module.exports = { submitReport, approve, reject, remove, listPublic, maskSubject, partialMaskSubject };

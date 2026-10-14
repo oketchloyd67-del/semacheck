@@ -37,6 +37,13 @@ async function applyPaymentSuccessSideEffects(payment) {
       await billingService.changePlan(Number(rows[0].account_id), rows[0].code);
     }
   }
+  if (payment.purpose === 'api_paygate' && payment.reference_int) {
+    // Pay-gated API check confirmed — release the verdict to the check_token.
+    await pool.query(
+      `UPDATE paygate_checks SET status='paid', paid_at=now(), payment_id=$2 WHERE id=$1 AND status='awaiting_payment'`,
+      [Number(payment.reference_int), payment.id]
+    );
+  }
 }
 
 

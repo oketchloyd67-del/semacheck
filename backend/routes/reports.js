@@ -3,7 +3,7 @@ const pool = require('../db/pool');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { reportAbuseGuard } = require('../middleware/reportAbuseGuard');
 const { uploadEvidence } = require('../middleware/upload');
-const { submitReport } = require('../services/reportService');
+const { submitReport, partialMaskSubject } = require('../services/reportService');
 const { sendContactMessageToManagement } = require('../services/emailService');
 const { sendToAdmins } = require('../services/pushNotificationService');
 
@@ -127,7 +127,10 @@ router.get('/public/:id', async (req, res) => {
       report: {
         id: r.id,
         type: r.report_type,
-        subject: r.subject_value,
+        // Personal phone numbers stay partially masked even after payment
+        // (data-minimisation): the unlock buys the full report narrative,
+        // not a way to dial a private individual named in it.
+        subject: partialMaskSubject(r.report_type, r.subject_value),
         name: r.subject_name,
         description: r.description,
         reportedAt: r.created_at,

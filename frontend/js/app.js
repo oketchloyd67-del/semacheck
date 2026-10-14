@@ -60,14 +60,13 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function getToken() { return sessionStorage.getItem('semacheck_token'); }
+// The session token lives in an HttpOnly cookie set by the server. This code
+// never sees or stores it, so a script-injection bug cannot steal the session.
 function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }
-function setSession(token, user) {
-  sessionStorage.setItem('semacheck_token', token);
-  sessionStorage.setItem('semacheck_user', JSON.stringify(user));
+function setSession(_token, user) {
+  if (user) sessionStorage.setItem('semacheck_user', JSON.stringify(user));
 }
 function clearSession() {
-  sessionStorage.removeItem('semacheck_token');
   sessionStorage.removeItem('semacheck_user');
 }
 
@@ -100,10 +99,8 @@ async function registerPushNotifications() {
     // Send subscription to backend
     await fetch(`${API_BASE}/notifications/subscribe`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getToken()}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ subscription: subscription.toJSON() }),
     });
   } catch (err) {
@@ -125,13 +122,11 @@ function urlBase64ToUint8Array(base64String) {
 async function api(path, options = {}) {
   const isFormData = options.body instanceof FormData;
   const headers = { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
   const MAX_RETRIES = 5;
   const RETRY_DELAYS = [5000, 10000, 15000, 20000, 25000];
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
+      const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'include', cache: 'no-store' });
       if ((res.status === 503 || res.status === 502) && attempt < MAX_RETRIES) {
         var wakeNotice = document.getElementById('apiWakeNotice');
         if (!wakeNotice) {
@@ -198,7 +193,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) {
-    if (!getToken()) {
+    if (!getUser()) {
       window.location.replace('index.html');
     }
   }
@@ -782,11 +777,50 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="receipt-actions">
         <button class="btn btn-ghost" id="printSimBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>Print receipt</button>
         <button class="btn btn-ghost" onclick="window.open('/report.html?type=phone&value=' + encodeURIComponent(JSON.parse(decodeURIComponent(document.querySelector('script[type="application/json"].receipt-data')?.textContent || '{}')).subject || ''), '_blank')"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M11 20a1 1 0 0 1 .707-.293l8-8a1 1 0 0 1 1.414 1.414l-8 8A1 1 0 0 1 11 20zm6-12V4H7v4c0 4.418 2.944 8 6.635 8.011-.376.016-.75.025-1.124.025A5.986 5.986 0 0 1 17 12c0-1.59-.668-2.86-1.727-3.723V7.97zm1-1.832A6.015 6.015 0 0 0 12 5a6.015 6.015 0 0 0-5.086 1.45c-.374-.012-.747-.024-1.123-.024A5.987 5.987 0 0 0 3 12c0 1.59.668 2.86 1.727 3.73V16.03l5.801-1.894v-2.06z"/></svg>Report this</button>
+        <button class="btn btn-ghost" id="verdictFeedbackBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-3.5h-2c0-3 3-2.75 3-4.5a2 2 0 0 0-4 0h-2a4 4 0 1 1 8 0c0 2.5-3 2.75-3 4.5z"/></svg>Wrong verdict?</button>
+      </div>
+      <div id="verdictFeedbackBox" style="display:none; margin-top:10px; border:1px solid var(--border); border-radius:10px; padding:14px;">
+        <div class="hint" style="margin-bottom:8px;">Tell our review team what looks wrong with this verdict. We check every submission against the evidence.</div>
+        <textarea id="vfMessage" rows="3" style="width:100%; padding:9px; border:1.5px solid var(--border); border-radius:8px; font-family:inherit;" placeholder="e.g. This paybill belongs to my registered business and has no reports against it."></textarea>
+        <input id="vfEmail" type="email" style="width:100%; margin-top:8px; padding:9px; border:1.5px solid var(--border); border-radius:8px;" placeholder="Email for follow-up (optional)">
+        <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+          <button class="btn btn-primary" id="vfSubmitBtn">Send to review team</button>
+          <span id="vfResult" class="hint"></span>
+        </div>
       </div>
       ${showForensics ? `<div class="reclaim-money-box"><p>Lost money to this subject? Get help tracing it and building a case.</p><a class="btn btn-amber" href="${forensicsHref}">Reclaim my money →</a></div>` : ''}
     `;
 
     document.getElementById('printSimBtn')?.addEventListener('click', () => openPrintSim(showForensics ? forensicsHref : null));
+
+    // "Wrong verdict?" feedback — posts to /api/feedback/verdict with a
+    // hashed subject; the raw number never leaves this page's TLS session.
+    const vfBtn = document.getElementById('verdictFeedbackBtn');
+    const vfBox = document.getElementById('verdictFeedbackBox');
+    vfBtn?.addEventListener('click', () => { vfBox.style.display = vfBox.style.display === 'none' ? 'block' : 'none'; });
+    document.getElementById('vfSubmitBtn')?.addEventListener('click', async () => {
+      const msg = document.getElementById('vfMessage').value.trim();
+      const result = document.getElementById('vfResult');
+      if (msg.length < 10) { result.textContent = 'Please describe the problem in at least 10 characters.'; result.style.color = 'var(--scam-red)'; return; }
+      try {
+        const r2 = await api('/feedback/verdict', {
+          method: 'POST',
+          body: JSON.stringify({
+            checkType: searchType,
+            subject: queryValue,
+            verdict: r.verdict,
+            message: msg,
+            email: document.getElementById('vfEmail').value.trim() || undefined,
+          }),
+        });
+        result.textContent = r2.message || 'Sent — thank you.';
+        result.style.color = 'var(--legit-green)';
+        document.getElementById('vfMessage').value = '';
+      } catch (err2) {
+        result.textContent = err2.message || 'Could not send. Try again.';
+        result.style.color = 'var(--scam-red)';
+      }
+    });
 
     outer.classList.remove('open');
    

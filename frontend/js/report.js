@@ -82,13 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     submitBtn.textContent = 'Submitting…';
 
     try {
-      const headers = {};
-      try {
-        const token = sessionStorage.getItem('semacheck_token');
-        if (token) headers.Authorization = `Bearer ${token}`;
-      } catch { /* storage unavailable */ }
-
-      const res = await fetch(`${API_BASE}/reports`, { method: 'POST', headers, body: fd, cache: 'no-store' });
+      const res = await fetch(`${API_BASE}/reports`, { method: 'POST', headers: {}, body: fd, credentials: 'include', cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || data.error || 'Could not submit the report.');
 

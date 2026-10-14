@@ -42,19 +42,39 @@
     <h2>3. Verdicts are informational</h2>
     <p>Verdicts are rules-based signposts, not legal findings. They are not a guarantee that a subject is or is not a scam. A &ldquo;reported&rdquo; verdict means there is evidence worth checking further, not that a subject is fraudulent. An &ldquo;unverified&rdquo; verdict means we have no evidence either way. You are responsible for your own decisions.</p>
 
-    <h2>4. Rate limits and suspension</h2>
-    <p>Each plan has rate limits and a monthly quota. Overuse is throttled. Unpaid invoices cause the account to become <strong>past_due</strong>, then <strong>suspended</strong>. Free-plan access is never suspended for non-payment, but a suspended account pays before it can use the API again.</p>
+    <h2>4. Plans, billing, expiry and grace period</h2>
+    <p>Each plan has a monthly price, a monthly quota of live checks, and a rate limit. The Free plan is a <strong>sandbox plan</strong>: it issues test keys only and includes no live checks. Paid plans are billed monthly in advance by M-Pesa. An unpaid invoice makes the account <strong>past_due</strong> on the renewal date; you then have a <strong>7-day grace period</strong> during which live keys keep working. After the grace period the account is <strong>suspended</strong> and live keys return HTTP 401 until the invoice is settled. Renewal reminders are emailed 3 days before each renewal date.</p>
 
-    <h2>5. No re-sale of results</h2>
+    <h2>5. Service levels</h2>
+    <p>We target 99% monthly availability of the check API for paid plans, excluding scheduled maintenance, third-party outages (including M-Pesa and external search providers), and events outside our reasonable control. Live availability is published on our <a href="status.html" style="color:var(--teal);font-weight:600;">status page</a>. At current pricing we do not offer service credits; persistent availability problems are handled case by case in good faith, and you may terminate your plan for the unfulfilled remainder.</p>
+
+    <h2>6. Key security duties</h2>
+    <p>API keys authenticate your account. You must:</p>
+    <ul style="padding-left:20px;">
+      <li>Keep secret keys (<code>sk_…</code>) server-side only — never in browser code, mobile apps, public repositories, or client-visible logs.</li>
+      <li>Store keys hashed or encrypted at rest, and never transmit them in plaintext outside TLS.</li>
+      <li>Rotate keys proactively (create a replacement, then revoke the old key) and revoke any key you believe is compromised.</li>
+      <li>Not share live keys outside your organisation or resell access to the API.</li>
+      <li>Tell us promptly of any unauthorised use or key leak so we can revoke access.</li>
+    </ul>
+    <p>You are responsible for calls made with your keys. Publishable keys (<code>pk_…</code>) are designed for browsers and are locked to the domains you register.</p>
+
+    <h2>7. Refunds</h2>
+    <p>Once a check result has been delivered, that check is consumed and non-refundable. Where a paid plan cannot be used at all because of a fault on our side (for example a prolonged outage), contact us within 14 days and we will refund the unused part of that month's fee or extend your plan, at your choice. M-Pesa payments that fail or are cancelled before a result is delivered are never charged. Refunds are processed to the M-Pesa number that paid.</p>
+
+    <h2>8. No re-sale of results</h2>
     <p>You may not republish raw verdict data, search snippets, or the public alerts feed as your own product without written permission. Cached and derived statistics are permitted for internal reporting.</p>
 
-    <h2>6. Liability</h2>
-    <p>The Service is provided &ldquo;as is&rdquo;. We make no warranty that verdicts are accurate, complete, or fit for a particular purpose. To the extent permitted by law, we are not liable for any decisions you make based on a verdict.</p>
+    <h2>9. Fair use — verdicts are not a basis to refuse a person</h2>
+    <p>A verdict is a point-in-time signal about reported evidence, not a finding of guilt. You must not use a verdict as the <em>sole</em> basis to refuse an individual service, employment, housing, or credit, or to publish allegations identifying a private individual. Where a verdict affects a real person, apply human review, allow the person to respond, and use our <a href="report.html" style="color:var(--teal);font-weight:600;">dispute process</a> so corrected verdicts reach your integration. Regulated decisions (credit, employment screening) may require additional checks under Kenyan law — our verdict is one input, not the decision.</p>
 
-    <h2>7. Termination</h2>
-    <p>We may suspend or terminate your API account at any time for breach of these terms.</p>
+    <h2>10. Liability</h2>
+    <p>The Service is provided &ldquo;as is&rdquo;. We make no warranty that verdicts are accurate, complete, or fit for a particular purpose. To the extent permitted by law, we are not liable for any decisions you make based on a verdict. Nothing in these terms limits liability that cannot be limited under Kenyan law.</p>
 
-    <h2>8. Governing law</h2>
+    <h2>11. Termination</h2>
+    <p>We may suspend or terminate your API account at any time for breach of these terms. You may close your account at any time from the dashboard or by contacting us; closing it revokes your keys and stops billing from the next renewal.</p>
+
+    <h2>12. Governing law</h2>
     <p>These terms are governed by the laws of Kenya. Any dispute is subject to the courts of Kenya.</p>
   </main>
   <script src="js/nav.js"></script>

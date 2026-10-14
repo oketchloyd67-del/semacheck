@@ -5,6 +5,7 @@ const { paymentLimiter } = require('../middleware/rateLimiter');
 const tuma = require('../services/tuma');
 const { normalizeKenyanPhone } = require('../utils/validators');
 const { createKey, revokeKey, listKeys } = require('../services/apiKeyService');
+const { uploadBusinessDocument } = require('../middleware/upload');
 const { encrypt, decrypt } = require('../services/cryptoService');
 const { changePlan } = require('../services/billingService');
 const { getMonthUsage } = require('../services/usageService');
@@ -27,6 +28,7 @@ async function loadApiAccount(req, res, next) {
     const { rows } = await pool.query(
       `SELECT a.id, a.user_id, a.company_name, a.website, a.use_case, a.status, a.plan_id,
               a.webhook_url, a.plan_renews_on,
+              a.org_registration_no, a.verification_status, a.verification_note, a.verified_at,
               p.code AS plan_code, p.name AS plan_name, p.monthly_price_kes, p.monthly_quota,
               p.rate_limit_per_min, p.webhooks_enabled, p.batch_enabled
        FROM api_accounts a JOIN api_plans p ON p.id = a.plan_id
@@ -49,6 +51,10 @@ async function loadApiAccount(req, res, next) {
       batchEnabled: rows[0].batch_enabled,
       webhookUrl: rows[0].webhook_url,
       planRenewsOn: rows[0].plan_renews_on,
+      orgRegistrationNo: rows[0].org_registration_no,
+      verificationStatus: rows[0].verification_status,
+      verificationNote: rows[0].verification_note,
+      verifiedAt: rows[0].verified_at,
     } : null;
     next();
   } catch (err) {
@@ -65,15 +71,20 @@ function requireAccount(req, res, next) {
 }
 
 // POST /api/account/api/signup — self-serve API account.
-// Requires a registered, OTP-verified account. New API accounts wait for
-// admin approval before their keys start authenticating.
-router.post('/signup', requireAuth, ensureVerified, async (req, res) => {
-  const { companyName, website, useCase } = req.body;
+// Requires a registered, OTP-verified account. Organisation verification is
+// by business documents (registration certificate + registration number),
+// reviewed by the admin team — NOT a personal national ID. Optionally send
+// multipart/form-data with a `businessDocument` file (JPG/PNG/PDF, 8MB max).
+router.post('/signup', requireAuth, ensureVerified, uploadBusinessDocument, async (req, res) => {
+  const { companyName, website, useCase, registrationNo } = req.body;
   if (!companyName || companyName.trim().length < 2) {
     return res.status(400).json({ error: 'Enter your company name.' });
   }
   if (website && !/^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?\.[a-z]{2,}$/iu.test(String(website).trim().replace(/^https?:\/\//, ''))) {
     return res.status(400).json({ error: 'Enter a valid website (e.g. company.com).' });
+  }
+  if (!registrationNo || String(registrationNo).trim().length < 3) {
+    return res.status(400).json({ error: 'Enter your business registration number.' });
   }
 
   const existing = await pool.query('SELECT id, status FROM api_accounts WHERE user_id=$1', [req.user.id]);
@@ -81,11 +92,21 @@ router.post('/signup', requireAuth, ensureVerified, async (req, res) => {
     return res.status(409).json({ error: 'You already have an API account. Check your dashboard.' });
   }
 
-  const planId = 1; // free plan
+  const { rows: planRows } = await pool.query(`SELECT id FROM api_plans WHERE code='free' AND is_active=TRUE`);
+  const planId = planRows[0] ? planRows[0].id : 1;
+
+  // Business document optional at submit time, but organisation verification
+  // only completes once the admin team has seen the registration paperwork.
+  const businessDocPath = req.file ? req.file.filename : null;
+  const verificationStatus = businessDocPath ? 'documents_submitted' : 'unverified';
+
   const { rows: account } = await pool.query(
-    `INSERT INTO api_accounts (user_id, company_name, website, use_case, plan_id, status)
-     VALUES ($1,$2,$3,$4,$5,'pending') RETURNING id, company_name, website, use_case, plan_id, status, created_at`,
-    [req.user.id, companyName.trim(), website || null, useCase || null, planId]
+    `INSERT INTO api_accounts (user_id, company_name, website, use_case, plan_id, status,
+                               org_registration_no, business_doc_path, verification_status)
+     VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8)
+     RETURNING id, company_name, website, use_case, plan_id, status, org_registration_no, verification_status, created_at`,
+    [req.user.id, companyName.trim(), website || null, useCase || null, planId,
+     String(registrationNo).trim(), businessDocPath, verificationStatus]
   );
 
   res.status(201).json({
@@ -95,9 +116,32 @@ router.post('/signup', requireAuth, ensureVerified, async (req, res) => {
       status: account[0].status,
       plan: 'Free',
       planCode: 'free',
+      verificationStatus: account[0].verification_status,
       created: account[0].created_at,
     },
-    message: 'API account created. It is now waiting for admin approval — you can create your keys in the meantime.',
+    message: businessDocPath
+      ? 'API account created and your business document submitted. The admin team reviews organisation documents — you can create sandbox keys in the meantime.'
+      : 'API account created. Upload your business registration document so the admin team can verify your organisation, then create sandbox keys.',
+  });
+});
+
+// GET /api/account/api/plans — active plans for the plan picker.
+router.get('/plans', requireAuth, ensureVerified, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT code, name, monthly_price_kes, monthly_quota, rate_limit_per_min, webhooks_enabled, batch_enabled
+     FROM api_plans WHERE is_active=TRUE ORDER BY monthly_price_kes ASC`
+  );
+  res.json({
+    plans: rows.map((p) => ({
+      code: p.code,
+      name: p.name,
+      priceKes: p.monthly_price_kes,
+      quota: p.monthly_quota,
+      rateLimitPerMin: p.rate_limit_per_min,
+      webhooks: p.webhooks_enabled,
+      batch: p.batch_enabled,
+      sandboxOnly: p.code === 'free',
+    })),
   });
 });
 
@@ -118,9 +162,16 @@ router.get('/keys', requireAuth, ensureVerified, loadApiAccount, requireAccount,
 // POST /api/account/api/keys
 router.post('/keys', requireAuth, ensureVerified, loadApiAccount, requireAccount, async (req, res) => {
   try {
-    const { label, type, allowedDomains } = req.body;
-    const key = await createKey(Number(req.apiAccount.id), type || 'secret', label || 'Main key', allowedDomains || []);
-    res.status(201).json({ key: { raw: key.raw, prefix: key.key_prefix, type: key.key_type, status: key.status } });
+    const { label, type, allowedDomains, mode } = req.body;
+    const key = await createKey(
+      Number(req.apiAccount.id),
+      type || 'secret',
+      label || 'Main key',
+      allowedDomains || [],
+      mode || 'test',
+      req.apiAccount.planCode
+    );
+    res.status(201).json({ key: { raw: key.raw, prefix: key.key_prefix, type: key.key_type, status: key.status, mode: key.mode } });
   } catch (err) {
     // Never surface raw configuration errors (e.g. a missing env var) to
     // clients — log the detail server-side and return a generic message.

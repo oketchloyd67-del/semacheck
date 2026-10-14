@@ -3,7 +3,9 @@ const { sendSubscriptionReminderEmail } = require('./emailService');
 const { sendOtpEmail } = require('./emailService');
 
 const INVOICE_DUE_DAYS = parseInt(process.env.API_INVOICE_DUE_DAYS || '7', 10);
-const GRACE_DAYS = parseInt(process.env.API_GRACE_DAYS || '5', 10);
+// Documented grace period (API terms + docs): after the renewal date an
+// unpaid account keeps working for GRACE_DAYS before live keys are suspended.
+const GRACE_DAYS = parseInt(process.env.API_GRACE_DAYS || '7', 10);
 const REMINDER_DAYS = [0, 5, 3, 1];
 
 async function generateMonthlyInvoices(period) {
@@ -44,12 +46,16 @@ async function markInvoicePaid(invoiceId, paymentId) {
 }
 
 async function enforceOverdue() {
-  const now = new Date();
-  const pastDue = new Date(now.getTime() - GRACE_DAYS * 86400000);
+  // Past-due accounts get the documented GRACE_DAYS (default 7) after their
+  // renewal date before live keys are suspended. (This query previously
+  // referenced $1 without passing a parameter, so it threw on every run and
+  // overdue accounts were never suspended.)
+  const cutoff = new Date(Date.now() - GRACE_DAYS * 86400000).toISOString().slice(0, 10);
   const { rows: pastDueRows } = await pool.query(
     `SELECT a.id AS account_id, a.plan_id, p.monthly_price_kes, a.status, a.plan_renews_on FROM api_accounts a
      JOIN api_plans p ON p.id = a.plan_id
-     WHERE a.status='past_due' AND a.plan_renews_on <= $1`
+     WHERE a.status='past_due' AND a.plan_renews_on <= $1`,
+    [cutoff]
   );
   for (const r of pastDueRows) {
     await pool.query(

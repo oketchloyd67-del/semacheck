@@ -180,9 +180,38 @@ async function sendPasswordResetEmail({ toEmail, fullName, resetUrl }) {
   return response.data;
 }
 
+async function sendApiPlanReminderEmail({ toEmail, fullName, companyName, planName, renewsOn }) {
+  if (!BREVO_API_KEY) {
+    const err = new Error('Brevo API key is not configured.');
+    err.code = 'BREVO_NOT_CONFIGURED';
+    throw err;
+  }
+  const renewsText = new Date(renewsOn).toLocaleDateString();
+  const payload = {
+    sender: { email: SENDER_EMAIL, name: 'SemaCheck' },
+    to: [{ email: toEmail }],
+    subject: 'Your SemaCheck API ' + planName + ' plan renews on ' + renewsText,
+    textContent: 'Hi ' + (fullName || '') + ',\n\nYour ' + planName + ' API plan for ' + (companyName || 'your organisation') + ' renews on ' + renewsText + '.\n\nMake sure your invoice is settled by then — after the renewal date you get a 7-day grace period before live keys are suspended. You can review plans and invoices in the API dashboard.\n\n— SemaCheck',
+    htmlContent: '<h2>API plan renewal reminder</h2><p>Hi ' + (fullName || '') + ',</p><p>Your <strong>' + planName + '</strong> API plan for ' + (companyName || 'your organisation') + ' renews on <strong>' + renewsText + '</strong>.</p><p>Make sure your invoice is settled by then — after the renewal date you get a 7-day grace period before live keys are suspended.</p><p><a href="https://semacheck.vercel.app/api-dashboard.html">Open your API dashboard</a></p><p>— SemaCheck</p>',
+  };
+  const response = await axios({
+    method: 'POST',
+    url: 'https://api.brevo.com/v3/smtp/email',
+    headers: {
+      'api-key': BREVO_API_KEY,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    data: payload,
+  });
+  console.log('API plan reminder sent. MessageId:', response.data.messageId);
+  return response.data;
+}
+
 module.exports = {
   sendOtpEmail,
   sendContactMessageToManagement,
   sendSubscriptionReminderEmail,
   sendPasswordResetEmail,
+  sendApiPlanReminderEmail,
 };

@@ -19,7 +19,25 @@ const fs = require('fs');
 const router = express.Router();
 const SESSION_DAYS = parseInt(process.env.SESSION_DAYS || '7', 10);
 
-async function issueSession(req, user) {
+// Session token travels in an HttpOnly cookie so it is never readable by
+// JavaScript — a script injection (XSS) cannot steal it out of storage.
+// Browsers still accept Secure cookies on localhost, so the production
+// attributes are safe in development too.
+const SESSION_COOKIE = 'semacheck_session';
+function setSessionCookie(res, token) {
+  res.cookie(SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    path: '/',
+    maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000,
+  });
+}
+function clearSessionCookie(res) {
+  res.clearCookie(SESSION_COOKIE, { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
+}
+
+async function issueSession(req, res, user) {
   const loginIp = req.ip;
   await pool.query(
     `UPDATE users SET last_login_ip = $1, last_login_at = now() WHERE id = $2`,
@@ -32,6 +50,7 @@ async function issueSession(req, user) {
     [user.id, loginIp, req.headers['user-agent'] || null, expiresAt]
   );
   const token = jwt.sign({ sessionId: sessionRows[0].id, userId: user.id }, process.env.JWT_SECRET, { expiresIn: `${SESSION_DAYS}d` });
+  setSessionCookie(res, token);
   let subscription = null;
   if (user.account_type === 'job_owner') {
     const { rows: subRows } = await pool.query(
@@ -214,6 +233,7 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
       [user.id, req.ip, req.headers['user-agent'] || null, expiresAt]
     );
     const token = jwt.sign({ sessionId: sessionRows[0].id, userId: user.id }, process.env.JWT_SECRET, { expiresIn: `${SESSION_DAYS}d` });
+    setSessionCookie(res, token);
 
     res.json({
       message: 'Email verified. You are logged in.',
@@ -334,7 +354,7 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.json({ requires2fa: true, twoFactorToken });
     }
 
-    const { token, subscription } = await issueSession(req, user);
+    const { token, subscription } = await issueSession(req, res, user);
 
     res.json({
       token,
@@ -384,6 +404,7 @@ router.post('/reverify-location', authLimiter, async (req, res) => {
       [user.id, loginIp, req.headers['user-agent'] || null, expiresAt]
     );
     const token = jwt.sign({ sessionId: sessionRows[0].id, userId: user.id }, process.env.JWT_SECRET, { expiresIn: `${SESSION_DAYS}d` });
+    setSessionCookie(res, token);
 
     let subscription = null;
     if (user.account_type === 'job_owner') {
@@ -411,6 +432,7 @@ router.post('/logout', requireAuth, async (req, res) => {
     `UPDATE sessions SET is_active = FALSE, revoked_at = now(), expires_at = now() WHERE id = $1`,
     [req.sessionId]
   );
+  clearSessionCookie(res);
   res.json({ message: 'Logged out. This device now requires your password again to access the account.' });
 });
 
@@ -419,6 +441,7 @@ router.post('/logout-all', requireAuth, async (req, res) => {
     `UPDATE sessions SET is_active = FALSE, revoked_at = now(), expires_at = now() WHERE user_id = $1 AND is_active = TRUE`,
     [req.user.id]
   );
+  clearSessionCookie(res);
   res.json({ message: 'Logged out of all devices.' });
 });
 
@@ -512,7 +535,7 @@ router.post('/2fa/verify', authLimiter, async (req, res) => {
     if (!totpService.verify(user.totp_secret, code)) {
       return res.status(401).json({ error: 'That code is not correct. Codes refresh every 30 seconds.' });
     }
-    const { token, subscription } = await issueSession(req, user);
+    const { token, subscription } = await issueSession(req, res, user);
     res.json({
       token,
       user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email },

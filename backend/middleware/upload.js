@@ -107,17 +107,15 @@ function uploadIdDocument(req, res, next) {
 }
 
 // ---- Report evidence (screenshots, messages, payment confirmations) ----
-const REPORT_MIME = [
-  ...ALL_ALLOWED_MIME,
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-];
+// JPG, PNG and PDF only. Word documents are deliberately NOT accepted:
+// .doc/.docx files can carry macros, and reviewers only need images/PDFs.
+const REPORT_MIME = [...ALL_ALLOWED_MIME];
 
 const evidenceUpload = multer({
   storage,
   fileFilter: (req, file, cb) => {
     if (!REPORT_MIME.includes(file.mimetype)) {
-      return cb(new Error('Evidence must be a JPG, PNG, PDF, DOC or DOCX file.'));
+      return cb(new Error('Evidence must be a JPG, PNG or PDF file.'));
     }
     cb(null, true);
   },
@@ -134,18 +132,50 @@ function uploadEvidence(req, res, next) {
 
     if (!req.file) return next();
 
-    // Magic-byte check for images/PDFs; Word docs are accepted by MIME only.
-    if (ALL_ALLOWED_MIME.includes(req.file.mimetype)) {
-      const validationError = validateMagicBytes(req.file.path, req.file.mimetype);
-      if (validationError) {
-        fs.unlink(req.file.path, () => {});
-        req.file = null;
-        return res.status(400).json({ error: validationError });
-      }
+    // Every accepted type (JPEG/PNG/PDF) passes the magic-byte check.
+    const validationError = validateMagicBytes(req.file.path, req.file.mimetype);
+    if (validationError) {
+      fs.unlink(req.file.path, () => {});
+      req.file = null;
+      return res.status(400).json({ error: validationError });
     }
 
     next();
   });
 }
 
-module.exports = { uploadIdDocument, uploadEvidence, UPLOAD_DIR, validateMagicBytes, detectFileType };
+// ---- API organisation business documents (registration certificates) ----
+// JPG, PNG and PDF only, same 8MB cap and magic-byte verification as evidence.
+const businessDocUpload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (!ALL_ALLOWED_MIME.includes(file.mimetype)) {
+      return cb(new Error('Business document must be a JPG, PNG or PDF file.'));
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: MAX_BYTES, files: 1 },
+}).single('businessDocument');
+
+function uploadBusinessDocument(req, res, next) {
+  businessDocUpload(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'Business document must be under 8MB.' });
+      return res.status(400).json({ error: `Upload error: ${err.message}` });
+    }
+    if (err) return res.status(400).json({ error: err.message });
+
+    if (!req.file) return next();
+
+    const validationError = validateMagicBytes(req.file.path, req.file.mimetype);
+    if (validationError) {
+      fs.unlink(req.file.path, () => {});
+      req.file = null;
+      return res.status(400).json({ error: validationError });
+    }
+
+    next();
+  });
+}
+
+module.exports = { uploadIdDocument, uploadEvidence, uploadBusinessDocument, UPLOAD_DIR, validateMagicBytes, detectFileType };

@@ -647,6 +647,7 @@ router.get('/api-accounts', requireAdmin, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT a.id, a.company_name, a.website, a.use_case, a.plan_id, p.code AS plan_code, p.monthly_price_kes AS plan_price_kes,
             p.monthly_quota AS monthly_quota, a.status, a.webhook_url, a.plan_renews_on, a.created_at,
+            a.org_registration_no, a.verification_status, a.verified_at,
             (SELECT COUNT(*)::int FROM api_usage_log u WHERE u.account_id = a.id AND u.created_at >= now() - interval '30 days') AS usage_this_month,
             (SELECT COUNT(*)::int FROM api_usage_log u WHERE u.account_id = a.id AND u.created_at >= now() - interval '7 days') AS usage_last_7d,
             (SELECT COUNT(*)::int FROM api_keys k WHERE k.account_id = a.id AND k.status='active') AS active_keys,
@@ -675,6 +676,9 @@ router.get('/api-accounts', requireAdmin, async (req, res) => {
       ownerEmail: a.owner_email,
       ownerPhone: a.owner_phone,
       planRenewsOn: a.plan_renews_on,
+      orgRegistrationNo: a.org_registration_no,
+      verificationStatus: a.verification_status,
+      verifiedAt: a.verified_at,
       createdAt: a.created_at,
     })),
   });
@@ -698,6 +702,68 @@ router.post('/api-accounts/:id/reject', requireAdmin, requireInt('id'), async (r
   );
   if (!rows[0]) return res.status(404).json({ error: 'Account not found.' });
   res.json({ account: rows[0], message: 'API account rejected.' });
+});
+
+// ── Organisation verification (business registration documents) ────────────
+// API partners verify their ORGANISATION, not a personal national ID.
+router.get('/api-accounts/org-verifications', requireAdmin, async (req, res) => {
+  const status = ['documents_submitted', 'unverified', 'verified', 'rejected'].includes(req.query.status)
+    ? req.query.status : 'documents_submitted';
+  const { rows } = await pool.query(
+    `SELECT a.id, a.company_name, a.org_registration_no, a.business_doc_path,
+            a.verification_status, a.verification_note, a.verified_at, a.created_at,
+            us.full_name AS owner_name, us.email AS owner_email
+     FROM api_accounts a LEFT JOIN users us ON us.id = a.user_id
+     WHERE a.verification_status = $1 ORDER BY a.created_at ASC`,
+    [status]
+  );
+  res.json({
+    accounts: rows.map((a) => ({
+      id: a.id,
+      companyName: a.company_name,
+      orgRegistrationNo: a.org_registration_no,
+      hasBusinessDoc: Boolean(a.business_doc_path),
+      verificationStatus: a.verification_status,
+      verificationNote: a.verification_note,
+      verifiedAt: a.verified_at,
+      ownerName: a.owner_name,
+      ownerEmail: a.owner_email,
+      createdAt: a.created_at,
+    })),
+  });
+});
+
+router.get('/api-accounts/:id/business-doc', requireAdmin, requireInt('id'), async (req, res) => {
+  const { rows } = await pool.query('SELECT business_doc_path FROM api_accounts WHERE id=$1', [req.params.id]);
+  const filename = rows[0]?.business_doc_path;
+  if (!filename) return res.status(404).json({ error: 'No business document on file for this account.' });
+
+  const filePath = path.join(UPLOAD_DIR, filename);
+  if (!filePath.startsWith(UPLOAD_DIR + path.sep) || !fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Document not found.' });
+  }
+  res.sendFile(filePath);
+});
+
+router.post('/api-accounts/:id/verify-org', requireAdmin, requireInt('id'), async (req, res) => {
+  const { action, note } = req.body;
+  if (!['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ error: "action must be 'approve' or 'reject'." });
+  }
+  const nextStatus = action === 'approve' ? 'verified' : 'rejected';
+  const { rows } = await pool.query(
+    `UPDATE api_accounts SET verification_status=$2, verification_note=$3,
+            verified_at = CASE WHEN $2 = 'verified' THEN now() ELSE verified_at END
+     WHERE id=$1 RETURNING id, company_name, verification_status`,
+    [req.params.id, nextStatus, note || null]
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'Account not found.' });
+  res.json({
+    account: rows[0],
+    message: action === 'approve'
+      ? 'Organisation verified.'
+      : 'Organisation rejected — the partner can resubmit documents.',
+  });
 });
 
 // POST /api/admin/api-accounts/:id/suspend

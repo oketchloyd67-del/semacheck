@@ -5,8 +5,13 @@ const HASH_SECRET = process.env.API_KEY_HASH_SECRET || '';
 const MAX_ACTIVE_SECRETS = parseInt(process.env.API_KEY_MAX_SECRETS || '5', 10);
 const MAX_ACTIVE_PUBLISHABLES = parseInt(process.env.API_KEY_MAX_PUBLISHABLES || '3', 10);
 
-const PREFIX_SECRET = 'sk_live_';
-const PREFIX_PUBLISHABLE = 'pk_live_';
+// Live keys (sk_live_/pk_live_) call real data and consume paid quota.
+// Test keys (sk_test_/pk_test_) return deterministic sandbox responses and
+// are the only keys the Free plan can use.
+const PREFIXES = {
+  secret: { live: 'sk_live_', test: 'sk_test_' },
+  publishable: { live: 'pk_live_', test: 'pk_test_' },
+};
 const KEY_LENGTH = 43;
 const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
 
@@ -16,16 +21,24 @@ function randomSuffix() {
   return s;
 }
 
-function generateKey(label, type, allowedDomains) {
+function generateKey(type, mode) {
   if (!HASH_SECRET) throw new Error('API_KEY_HASH_SECRET is not configured in .env.');
   const suffix = randomSuffix();
-  const raw = type === 'secret' ? PREFIX_SECRET + suffix : PREFIX_PUBLISHABLE + suffix;
+  const raw = PREFIXES[type][mode] + suffix;
   const hash = crypto.createHmac('sha256', HASH_SECRET).update(raw).digest('hex');
   const keyPrefix = raw.slice(0, 12);
   return { raw, hash, keyPrefix };
 }
 
-async function createKey(accountId, type, label, allowedDomains) {
+async function createKey(accountId, type, label, allowedDomains, mode, planCode) {
+  type = type === 'publishable' ? 'publishable' : 'secret';
+  mode = mode === 'test' ? 'test' : 'live';
+
+  // The Free plan is sandbox-only: its accounts can only hold test keys.
+  if (mode === 'live' && planCode === 'free') {
+    throw new Error('The Free plan includes sandbox (test) keys only. Upgrade to a paid plan to create live keys.');
+  }
+
   const countSql = `SELECT COUNT(*)::int AS n FROM api_keys WHERE account_id=$1 AND key_type=$2 AND status='active'`;
   const count = await pool.query(countSql, [accountId, type]);
   const current = Number(count.rows[0].n);
@@ -37,11 +50,11 @@ async function createKey(accountId, type, label, allowedDomains) {
     throw new Error(`Too many active publishable keys (max ${MAX_ACTIVE_PUBLISHABLES}).`);
   }
 
-  const { raw, hash, keyPrefix } = generateKey(label, type, allowedDomains || []);
+  const { raw, hash, keyPrefix } = generateKey(type, mode);
   const { rows } = await pool.query(
-    `INSERT INTO api_keys (account_id, label, key_type, key_prefix, key_hash, allowed_domains, status)
-     VALUES ($1,$2,$3,$4,$5,$6,'active') RETURNING id, key_type, key_prefix, status`,
-    [accountId, label, type, keyPrefix, hash, allowedDomains || []]
+    `INSERT INTO api_keys (account_id, label, key_type, key_prefix, key_hash, allowed_domains, status, mode)
+     VALUES ($1,$2,$3,$4,$5,$6,'active',$7) RETURNING id, key_type, key_prefix, status, mode`,
+    [accountId, label, type, keyPrefix, hash, allowedDomains || [], mode]
   );
   return { raw, ...rows[0] };
 }
@@ -57,7 +70,7 @@ async function revokeKey(accountId, keyId) {
 
 async function listKeys(accountId) {
   const { rows } = await pool.query(
-    `SELECT id, key_type, key_prefix, status, last_used_at, revoked_at, label FROM api_keys
+    `SELECT id, key_type, key_prefix, status, last_used_at, revoked_at, label, mode FROM api_keys
      WHERE account_id=$1 ORDER BY created_at DESC`,
     [accountId]
   );

@@ -5,9 +5,8 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function getToken() { return sessionStorage.getItem('semacheck_token'); }
+// Session token lives in an HttpOnly cookie — never stored in JS.
 function getUser() { try { return JSON.parse(sessionStorage.getItem('semacheck_user') || 'null'); } catch { return null; } }function clearSession() {
-  sessionStorage.removeItem('semacheck_token');
   sessionStorage.removeItem('semacheck_user');
 }
 
@@ -16,13 +15,11 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
   const MAX_RETRIES = 5;
   const RETRY_DELAYS = [5000, 10000, 15000, 20000, 25000];
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: 'no-store' });
+      const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'include', cache: 'no-store' });
       if ((res.status === 503 || res.status === 502) && attempt < MAX_RETRIES) {
         var wn = document.getElementById('apiWakeNotice');
         if (!wn) {
@@ -40,6 +37,11 @@ async function api(path, options = {}) {
       let data = {};
       try { data = await res.json(); } catch {  }
       if (!res.ok) {
+        if (res.status === 401) {
+          // Session cookie expired or missing — back to the login page.
+          clearSession();
+          window.location.replace('index.html');
+        }
         const err = new Error(data.error || 'Something went wrong.');
         Object.assign(err, data);
         throw err;
@@ -96,7 +98,7 @@ function askForPhone() {
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) {
     const user = getUser();
-    if (!user || !getToken() || user.accountType !== 'job_owner') {
+    if (!user || user.accountType !== 'job_owner') {
       window.location.replace('index.html');
     }
   }
@@ -110,7 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.target === ov) closeModal(ov.id);
   }));
   const user = getUser();
-  if (!user || !getToken() || user.accountType !== 'job_owner') {
+  if (!user || user.accountType !== 'job_owner') {
     window.location.replace('index.html');
     return;
   }

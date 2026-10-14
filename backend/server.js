@@ -26,6 +26,7 @@ const adminRoutes = require('./routes/admin');
 const contactRoutes = require('./routes/contact');
 const forensicsRoutes = require('./routes/forensics');
 const notificationsRoutes = require('./routes/notifications');
+const feedbackRoutes = require('./routes/feedback');
 
 const app = express();
 
@@ -180,6 +181,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/forensics', forensicsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Not found.' }));
 
@@ -229,6 +231,11 @@ if (process.env.DISABLE_IN_PROCESS_SCHEDULER !== 'true') {
   const { run: refreshInternationalDbs } = require('./jobs/refreshInternationalDatabases');
   setTimeout(() => refreshInternationalDbs().catch((e) => console.error('International databases refresh failed:', e.message)), 60_000);
   setInterval(() => refreshInternationalDbs().catch((e) => console.error('International databases refresh failed:', e.message)), 7 * 24 * 60 * 60 * 1000);
+
+  // API plan renewal reminders — emails paid-plan owners within 3 days of renewal.
+  const { run: runApiPlanReminders } = require('./jobs/apiPlanReminders');
+  setTimeout(() => runApiPlanReminders().catch((e) => console.error('API plan reminders failed:', e.message)), 90_000);
+  setInterval(() => runApiPlanReminders().catch((e) => console.error('API plan reminders failed:', e.message)), 24 * 60 * 60 * 1000);
 }
 
 module.exports = app;

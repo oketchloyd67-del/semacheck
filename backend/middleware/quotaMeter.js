@@ -4,6 +4,9 @@ function quotaMeter(req, res, next) {
   const accountId = Number(req.apiAccount && req.apiAccount.id);
   if (!accountId) return next();
 
+  // Sandbox (test-key) calls never consume paid quota.
+  if (req.apiKeyMode === 'test') return next();
+
   const period = String(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const limit = Number(req.apiAccount.monthlyQuota);
 

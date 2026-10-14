@@ -21,6 +21,7 @@
         <a href="docs.html">Docs</a>
         <a href="api-dashboard.html" style="color:#fff; font-weight:600;">Dashboard</a>
         <a href="stats.html">Stats</a>
+        <a href="status.html">Status</a>
       </nav>
     <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
     </div>
@@ -28,7 +29,7 @@
 
   <main class="container" style="padding:32px 0 80px;">
     <h1>API dashboard</h1>
-    <p class="hint">API partners create an account and verify it with an OTP before keys are issued. Manage keys, webhook, plans, invoices, and run a test check.</p>
+    <p class="hint">API partners verify their <b>organisation</b> with business registration documents — reviewed by our team, not a personal ID. The Free plan issues sandbox (<code>sk_test_</code>) keys; live checks start on a paid plan. Manage keys, webhooks, plans, invoices and renewal here.</p>
 
     <div id="globalAlert" aria-live="polite"></div>
 
@@ -104,13 +105,15 @@
       <div id="approvalBanner" class="alert" style="display:none; border-radius:10px;"></div>
 
       <section class="card" id="setupPanel" style="padding:24px; display:none;">
-        <h2>Create your API account</h2>
-        <p class="hint">One step. New API accounts are approved by our admin team before their keys go live.</p>
+        <h2>Organisation verification</h2>
+        <p class="hint">Tell us about your organisation and attach its business registration document (JPG, PNG or PDF, under 8MB). Our admin team reviews every submission — verified organisations can upgrade to live keys.</p>
         <div class="field"><label>Company / organisation name</label><input type="text" id="acCompany" placeholder="e.g. PesaSafe Ltd"></div>
+        <div class="field"><label>Business registration number</label><input type="text" id="acRegNo" placeholder="e.g. CPR/2024/12345"></div>
+        <div class="field"><label>Registration document (JPG, PNG or PDF)</label><input type="file" id="acBusinessDoc" accept=".jpg,.jpeg,.png,.pdf" style="width:100%; padding:9px; border:1.5px dashed var(--border); border-radius:8px;"></div>
         <div class="field"><label>Website (optional)</label><input type="text" id="acWebsite" placeholder="company.com"></div>
         <div class="field"><label>What will you use the API for? (optional)</label><input type="text" id="acUseCase" placeholder="e.g. Checking paybills before customers pay"></div>
         <div id="setupAlert"></div>
-        <button class="btn btn-primary" id="acCreateBtn">Create API account</button>
+        <button class="btn btn-primary" id="acCreateBtn">Submit for verification</button>
       </section>
 
       <section class="card" style="padding:24px;">
@@ -132,6 +135,14 @@
             <div class="hint">Active keys</div>
             <div id="ov-keys" style="font-weight:700;">—</div>
           </div>
+          <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div class="hint">Plan renews</div>
+            <div id="ov-renews" style="font-weight:700;">—</div>
+          </div>
+          <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:16px;">
+            <div class="hint">Organisation verification</div>
+            <div id="ov-verification" style="font-weight:700;">—</div>
+          </div>
         </div>
       </section>
 
@@ -149,8 +160,13 @@
             <option value="secret">Secret key</option>
             <option value="publishable">Publishable key</option>
           </select>
+          <select id="key-mode" style="padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;">
+            <option value="test">Test (sandbox) key — sk_test_</option>
+            <option value="live">Live key — sk_live_</option>
+          </select>
           <button class="btn btn-primary" id="btn-new-key">Create key</button>
         </div>
+        <p class="hint">Test keys return sandbox responses and never consume quota. Live keys need a paid plan.</p>
         <ul id="key-list" style="list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px;"></ul>
       </section>
 
@@ -190,13 +206,19 @@
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
             <select id="plan-select" style="padding:10px;border:1.5px solid var(--border);border-radius:8px;">
-              <option value="free">Free</option>
+              <option value="free">Free — sandbox keys only</option>
               <option value="starter">Starter — KES 5,000/mo</option>
               <option value="growth">Growth — KES 20,000/mo</option>
+              <option value="scale">Scale — KES 75,000/mo</option>
             </select>
             <button class="btn btn-primary" id="btn-change-plan">Change plan</button>
           </div>
-          <p class="hint">Paid plans are activated after the M-Pesa STK push is confirmed on your phone.</p>
+          <div style="margin-top:12px; border:1px solid var(--border); border-radius:10px; padding:14px;">
+            <label for="plan-volume" style="font-weight:600; font-size:0.9rem;">How many live checks do you expect each month?</label>
+            <input id="plan-volume" type="range" min="0" max="150000" step="1000" value="1000" style="width:100%; margin-top:8px;">
+            <div class="hint" id="plan-recommendation">—</div>
+          </div>
+          <p class="hint">Paid plans are activated after the M-Pesa STK push is confirmed on your phone. Renewal reminders are emailed 3 days before your plan renews; after the renewal date you have a 7-day grace period before live keys are suspended.</p>
         </div>
       </section>
 

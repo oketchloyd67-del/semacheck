@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SemaCheck — The Verified programme</title>
+  <meta name="description" content="SemaCheck Verified: how businesses get a verified badge, how verdicts are built, and how to contest a verdict.">
+  <meta name="robots" content="index, follow">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="navbar">
+    <div class="container" style="justify-content:space-between;">
+      <a href="index.html" class="brand" aria-label="SemaCheck — go to the homepage"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
+      <nav class="subnav">
+        <a href="index.html#search">Search</a>
+        <a href="alerts.html">Alerts</a>
+        <a href="forensics.html">Forensics</a>
+        <a href="verified.html" style="color:#fff; font-weight:600;">Verified</a>
+      </nav>
+    <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    </div>
+  </header>
+
+  <main class="container" style="padding:32px 0 80px; max-width:780px;">
+    <h1>The SemaCheck Verified programme</h1>
+    <p class="hint">What a verified badge means, how to get one, and how verdicts are built and contested.</p>
+
+    <section class="card" style="padding:24px; margin-top:18px;">
+      <h2>What &ldquo;Verified&rdquo; means</h2>
+      <p>A <b>Verified</b> badge means SemaCheck has seen and re-checked an organisation's <b>business registration</b> documents by hand, and that the paybill, till or phone numbers carrying the badge are registered to that verified organisation. It answers one question: <i>&ldquo;does this business really exist and own these numbers?&rdquo;</i></p>
+      <p><b>What it does not mean:</b> verification is not an endorsement of the business's conduct, not a guarantee that payments to it are safe, and not insurance. Verdicts remain point-in-time signals — always apply your own judgement before sending money.</p>
+    </section>
+
+    <section class="card" style="padding:24px;">
+      <h2>How a verified verdict is built</h2>
+      <ol style="padding-left:20px; line-height:1.9;">
+        <li><b>Registration check.</b> Our admin team reviews the organisation's certificate of registration (and, for job postings, the KRA PIN) manually — no automated pass.</li>
+        <li><b>Registry cross-check.</b> Paybills and business names are matched against public records, including the CBK Digital Credit Providers registry where applicable.</li>
+        <li><b>Report scan.</b> The subject is scanned against every approved scam report in our database and live public web results.</li>
+        <li><b>Verdict.</b> The verdict (<span class="label-pill label-registered">registered</span>, <span class="label-pill label-unverified">unverified</span>, <span class="label-pill" style="background:var(--suspicious-amber); color:#3a2400;">suspicious</span> or <span class="label-pill" style="background:var(--scam-red); color:#fff;">scam</span>) is published with its reasons and confidence, and re-checked whenever a new report lands.</li>
+      </ol>
+      <p class="hint">Every verdict shows the date it was built. A verdict can change — check again any time.</p>
+    </section>
+
+    <section class="card" style="padding:24px;">
+      <h2>For businesses</h2>
+      <p>Kenyan businesses can apply to have their numbers verified:</p>
+      <ul style="padding-left:20px; line-height:1.8;">
+        <li>Submit your certificate of registration and the numbers (paybill, till, phone) you own through the <a href="index.html#contact" style="color:var(--teal);font-weight:600;">contact form</a>.</li>
+        <li>Our team reviews documents by hand, usually within 2 working days.</li>
+        <li>Verified organisations get the badge on their public report entries and can <a href="dispute.html" style="color:var(--teal);font-weight:600;">dispute</a> any inaccurate report with priority review.</li>
+        <li>API partners verify their organisation during API signup (see the <a href="api-dashboard.html" style="color:var(--teal);font-weight:600;">API dashboard</a>).</li>
+      </ul>
+    </section>
+
+    <section class="card" style="padding:24px;">
+      <h2>Think a verdict is wrong?</h2>
+      <p>Verdicts are built from reports and web evidence anyone can see — and reports can be wrong or out of date. If a verdict about your number, paybill or business is inaccurate:</p>
+      <ul style="padding-left:20px; line-height:1.8;">
+        <li>Open the <a href="report.html" style="color:var(--teal);font-weight:600;">report page</a> and submit a dispute with proof of ownership — upheld disputes correct the verdict everywhere, including the API.</li>
+        <li>Use the <b>Wrong verdict?</b> button shown under any search result to flag it to our review team.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="js/nav.js"></script>
+</body>
+</html>

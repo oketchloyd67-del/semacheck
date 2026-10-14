@@ -230,3 +230,70 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+
+-- ---------------------------------------------------------------------------
+-- 5.3 Trust API follow-up (October 2026 review)
+-- ---------------------------------------------------------------------------
+
+-- Organisation verification for API accounts (business registration number
+-- plus a business document reviewed by the admin team, instead of a personal
+-- national ID).
+ALTER TABLE api_accounts ADD COLUMN IF NOT EXISTS org_registration_no VARCHAR(80);
+ALTER TABLE api_accounts ADD COLUMN IF NOT EXISTS business_doc_path VARCHAR(255);
+ALTER TABLE api_accounts ADD COLUMN IF NOT EXISTS verification_status VARCHAR(20) NOT NULL DEFAULT 'unverified';
+ALTER TABLE api_accounts ADD COLUMN IF NOT EXISTS verification_note VARCHAR(255);
+ALTER TABLE api_accounts ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+
+-- API plan renewal reminders (dedupe column)
+ALTER TABLE api_accounts ADD COLUMN IF NOT EXISTS last_plan_reminder_at TIMESTAMPTZ;
+
+-- Live vs test (sandbox) API keys
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS mode VARCHAR(12) NOT NULL DEFAULT 'live';
+
+-- Volume tier for high-throughput customers
+INSERT INTO api_plans (code, name, monthly_price_kes, monthly_quota, rate_limit_per_min, webhooks_enabled, batch_enabled)
+VALUES ('scale', 'Scale', 75000, 100000, 600, TRUE, TRUE)
+ON CONFLICT (code) DO NOTHING;
+
+-- Free plan is sandbox-only from now on: no live checks are included.
+UPDATE api_plans SET monthly_quota = 0 WHERE code = 'free';
+
+-- Pay-gated checks: POST /v1/gate issues a check_token, the end user pays
+-- by M-Pesa STK push, POST /v1/token/verify returns the verdict once paid.
+CREATE TABLE IF NOT EXISTS paygate_checks (
+    id              SERIAL PRIMARY KEY,
+    account_id      INTEGER NOT NULL REFERENCES api_accounts(id) ON DELETE CASCADE,
+    token_hash      CHAR(64) UNIQUE NOT NULL,
+    check_type      VARCHAR(20) NOT NULL,
+    subject         VARCHAR(255) NOT NULL,
+    price_kes       INTEGER NOT NULL,
+    status          VARCHAR(16) NOT NULL DEFAULT 'awaiting_payment'
+        CHECK (status IN ('awaiting_payment', 'paid', 'consumed', 'expired', 'failed')),
+    payment_id      INTEGER,
+    verdict         VARCHAR(20),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    paid_at         TIMESTAMPTZ,
+    consumed_at     TIMESTAMPTZ,
+    expires_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '15 minutes')
+);
+CREATE INDEX IF NOT EXISTS idx_paygate_account ON paygate_checks(account_id, created_at);
+ALTER TABLE paygate_checks ADD COLUMN IF NOT EXISTS payment_id INTEGER;
+
+-- payments.purpose gains api_paygate (pay-gated API checks)
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_purpose_check;
+ALTER TABLE payments ADD CONSTRAINT payments_purpose_check
+    CHECK (purpose IN ('search', 'subscription', 'forensics_case', 'api_invoice', 'alert_view', 'api_paygate'));
+
+-- "Wrong verdict" feedback from result pages
+CREATE TABLE IF NOT EXISTS verdict_feedback (
+    id               SERIAL PRIMARY KEY,
+    check_type       VARCHAR(20),
+    subject_hash     CHAR(64),
+    previous_verdict VARCHAR(20),
+    message          TEXT NOT NULL,
+    contact_email    VARCHAR(255),
+    status           VARCHAR(12) NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open', 'reviewed')),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_verdict_feedback_status ON verdict_feedback(status, created_at);

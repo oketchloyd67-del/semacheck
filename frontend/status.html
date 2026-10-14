@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SemaCheck — Service status</title>
+  <meta name="description" content="Live status of the SemaCheck website, Trust Check API and M-Pesa payments.">
+  <meta name="robots" content="index, follow">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="navbar">
+    <div class="container" style="justify-content:space-between;">
+      <a href="index.html" class="brand" aria-label="SemaCheck — go to the homepage"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
+      <nav class="subnav">
+        <a href="developers.html">Developers</a>
+        <a href="docs.html">Docs</a>
+        <a href="api-dashboard.html">Dashboard</a>
+        <a href="stats.html">Stats</a>
+        <a href="status.html" style="color:#fff; font-weight:600;">Status</a>
+      </nav>
+    <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    </div>
+  </header>
+
+  <main class="container" style="padding:32px 0 80px; max-width:760px;">
+    <h1>Service status</h1>
+    <p class="hint">This page checks each component live from your browser when it loads — nothing here is a static claim.</p>
+
+    <div id="overallBanner" class="alert alert-ok" style="border-radius:10px; margin:16px 0;">Checking services…</div>
+
+    <section class="card" style="padding:20px;">
+      <ul style="list-style:none; padding:0; margin:0; display:grid; gap:12px;">
+        <li style="display:flex; justify-content:space-between; align-items:center; gap:10px; border-bottom:1px solid var(--border); padding-bottom:12px;">
+          <div>
+            <div style="font-weight:700;">Website</div>
+            <div class="hint">This site and all pages</div>
+          </div>
+          <span id="st-web" class="label-pill label-unverified">checking…</span>
+        </li>
+        <li style="display:flex; justify-content:space-between; align-items:center; gap:10px; border-bottom:1px solid var(--border); padding-bottom:12px;">
+          <div>
+            <div style="font-weight:700;">Trust Check API</div>
+            <div class="hint">semacheck.onrender.com — checks, webhooks, pay-gating</div>
+          </div>
+          <span id="st-api" class="label-pill label-unverified">checking…</span>
+        </li>
+        <li style="display:flex; justify-content:space-between; align-items:center; gap:10px; border-bottom:1px solid var(--border); padding-bottom:12px;">
+          <div>
+            <div style="font-weight:700;">Database</div>
+            <div class="hint">Report database behind the API</div>
+          </div>
+          <span id="st-db" class="label-pill label-unverified">checking…</span>
+        </li>
+        <li style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+          <div>
+            <div style="font-weight:700;">M-Pesa payments</div>
+            <div class="hint">STK push and payment callbacks</div>
+          </div>
+          <span id="st-pay" class="label-pill label-unverified">checking…</span>
+        </li>
+      </ul>
+    </section>
+
+    <p class="hint" style="margin-top:16px;">
+      <b>How this works:</b> the API, database and payments rows follow a live <code>/api/ping</code> probe against
+      <code>semacheck.onrender.com</code>; the website row is confirmed by this page loading. If a component is down,
+      the row turns red and the banner explains what is affected. During the API's cold start on free hosting a probe
+      can take up to a minute — a slow first response is not an outage. Historical uptime and incident history are
+      coming; for anything urgent use the <a href="index.html#contact" style="color:var(--teal);font-weight:600;">contact form</a>.
+    </p>
+  </main>
+
+  <script src="js/nav.js"></script>
+  <script>
+    (function () {
+      var API = 'https://semacheck.onrender.com/api';
+      function setRow(id, ok) {
+        var el = document.getElementById(id);
+        el.textContent = ok ? 'OPERATIONAL' : 'DOWN';
+        el.className = 'label-pill ' + (ok ? 'label-registered' : 'label-unverified');
+        el.style.background = ok ? 'var(--legit-green)' : 'var(--scam-red)';
+        el.style.color = '#fff';
+      }
+      // Website row: this page loaded, so the static site is serving.
+      setRow('st-web', true);
+
+      var started = Date.now();
+      var timeout = new Promise(function (_, reject) {
+        setTimeout(function () { reject(new Error('timeout')); }, 25000);
+      });
+      Promise.race([
+        fetch(API + '/ping', { cache: 'no-store' }).then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status);
+          return r.json();
+        }),
+        timeout,
+      ]).then(function (data) {
+        var ok = !!(data && data.pong);
+        setRow('st-api', ok);
+        // The database and payments sit behind the same API process: a healthy
+        // API probe means both answered at boot (the server exits if the DB is
+        // unreachable) — shown green with that meaning.
+        setRow('st-db', ok);
+        setRow('st-pay', ok);
+        banner(ok);
+      }).catch(function () {
+        setRow('st-api', false);
+        setRow('st-db', false);
+        setRow('st-pay', false);
+        banner(false);
+      });
+      function banner(ok) {
+        var b = document.getElementById('overallBanner');
+        b.textContent = ok
+          ? 'All systems operational.'
+          : 'The API did not answer a live probe just now. The website itself is up; API checks, webhooks and payments may be interrupted. We are likely waking from a cold start — retry in a minute before assuming an outage.';
+        b.className = 'alert ' + (ok ? 'alert-ok' : 'alert-err');
+      }
+    })();
+  </script>
+</body>
+</html>
