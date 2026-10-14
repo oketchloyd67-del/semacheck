@@ -179,7 +179,35 @@ function updateAuthUI() {
       ${user.accountType === 'job_owner' ? '<a class="btn btn-outline" href="dashboard.html">Dashboard</a>' : ''}
       <button class="btn btn-primary" id="logoutBtn">Log out</button>`;
     document.getElementById('logoutBtn').addEventListener('click', doLogout);
+    showPendingApprovalNotice();
+    // Refresh the stored profile so sessions created before this field
+    // existed also learn their approval status.
+    api('/auth/me').then((r) => {
+      if (r && r.user) {
+        setSession(null, { ...user, ...r.user });
+        showPendingApprovalNotice();
+      }
+    }).catch(() => {});
   }
+}
+
+// Newly created accounts log in before the admin team approves them — say
+// so explicitly instead of leaving them guessing.
+function showPendingApprovalNotice() {
+  const user = getUser();
+  const existing = document.getElementById('pendingApprovalNotice');
+  if (!user || user.idVerificationStatus !== 'pending') {
+    if (existing) existing.remove();
+    return;
+  }
+  if (existing) return;
+  const banner = document.createElement('div');
+  banner.id = 'pendingApprovalNotice';
+  banner.className = 'alert alert-ok';
+  banner.style.cssText = 'margin:10px 0; border-radius:10px;';
+  banner.innerHTML = '<b>Your account is being reviewed by our admin team.</b> You are logged in and can explore now — job posting and full access unlock once your account is approved (usually within 24 hours).';
+  const main = document.querySelector('main') || document.body;
+  main.prepend(banner);
 }
 
 async function doLogout() {

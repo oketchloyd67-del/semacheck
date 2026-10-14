@@ -13,7 +13,23 @@ async function api(path, options = {}) {
     body = JSON.stringify(body);
   }
   // Session rides in an HttpOnly cookie — nothing readable by JS.
-  const res = await fetch(`${API_BASE}${path}`, { ...options, body, headers, credentials: 'include', cache: 'no-store' });
+  // Weak-network hardening: retry transient network failures and backend
+  // cold-start responses (502/503) with backoff before giving up.
+  const RETRY_DELAYS = [2000, 5000, 10000];
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(`${API_BASE}${path}`, { ...options, body, headers, credentials: 'include', cache: 'no-store' });
+      if ((res.status === 502 || res.status === 503) && attempt < RETRY_DELAYS.length) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+        continue;
+      }
+      break;
+    } catch (netErr) {
+      if (attempt >= RETRY_DELAYS.length) throw new Error('Weak or lost connection. Please try again.');
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+    }
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || data.error || 'Request failed. Please try again.');
   return data;
@@ -99,7 +115,9 @@ function waitForPayment({ paymentId, onConfirmed }) {
   circular.className = 'pp-circular';
 
   const POLL_EVERY_MS = 2500;
-  const TIMEOUT_MS = 45000;
+  // M-Pesa confirmations plus a cold backend can easily exceed 45s on a
+  // weak connection — give the callback room before declaring failure.
+  const TIMEOUT_MS = 120000;
   const startedAt = Date.now();
 
   return new Promise((resolve) => {

@@ -238,7 +238,7 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
     res.json({
       message: 'Email verified. You are logged in.',
       token,
-      user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email },
+      user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email, idVerificationStatus: user.id_verification_status },
     });
 
     // Fire-and-forget: send welcome push notification
@@ -358,7 +358,7 @@ router.post('/login', authLimiter, async (req, res) => {
 
     res.json({
       token,
-      user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email },
+      user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email, idVerificationStatus: user.id_verification_status },
       subscription,
     });
   } catch (err) {
@@ -418,7 +418,7 @@ router.post('/reverify-location', authLimiter, async (req, res) => {
     res.json({
       message: 'Location verified. You are logged in.',
       token,
-      user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email },
+      user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email, idVerificationStatus: user.id_verification_status },
       subscription,
     });
   } catch (err) {
@@ -538,7 +538,7 @@ router.post('/2fa/verify', authLimiter, async (req, res) => {
     const { token, subscription } = await issueSession(req, res, user);
     res.json({
       token,
-      user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email },
+      user: { id: user.id, accountType: user.account_type, fullName: user.full_name, email: user.email, idVerificationStatus: user.id_verification_status },
       subscription,
     });
   } catch (err) {

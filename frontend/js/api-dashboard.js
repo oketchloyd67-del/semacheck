@@ -25,7 +25,27 @@ function showAlert(el, message, kind = 'err') {
 async function api(path, options = {}) {
   const isFormData = options.body instanceof FormData;
   const headers = { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) };
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'include', cache: 'no-store' });
+  // Weak-network hardening: retry transient failures and cold-start 502/503
+  // with backoff. GETs are always safe to retry; POST/PUT/DELETE are only
+  // retried on a network error (request never reached the server).
+  const RETRY_DELAYS = [2000, 5000, 10000];
+  const safeMethod = !options.method || ['GET', 'HEAD'].includes(options.method.toUpperCase());
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(`${API_BASE}${path}`, { ...options, headers, credentials: 'include', cache: 'no-store' });
+      if ((res.status === 502 || res.status === 503) && attempt < RETRY_DELAYS.length) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+        continue;
+      }
+      break;
+    } catch (netErr) {
+      if (!safeMethod || attempt >= RETRY_DELAYS.length) {
+        throw new Error('Weak or lost connection. Please check your internet and try again.');
+      }
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+    }
+  }
   let data = {};
   try { data = await res.json(); } catch { /* non-JSON */ }
   if (!res.ok) {
@@ -113,11 +133,11 @@ function initAuth() {
     fd.append('consentAccepted', 'true');
 
     btn.disabled = true; btn.textContent = 'Creating account…';
-    try {
-      await api('/auth/signup', { method: 'POST', body: fd });
+    try {      await api('/auth/signup', { method: 'POST', body: fd });
       otpMode = 'verify-email';
       otpEmail = document.getElementById('adEmail').value.trim();
-      showAuth('otp', { message: `Account created. Enter the 6-digit code we emailed to <b>${escapeHtml(otpEmail)}</b>. It expires in 10 minutes.` });
+
+      showAuth('otp', { message: `Account created. Enter the 6-digit code we emailed to <b>${escapeHtml(otpEmail)}</b>. It expires in 10 minutes. Once verified, our admin team reviews the account — you can create sandbox keys right away and live keys unlock after approval.` });
     } catch (err) {
       showAlert('authAlert', err.message);
     } finally {
@@ -137,6 +157,11 @@ function initAuth() {
         : await api('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ email: otpEmail, code }) });
       setSession(r.token, r.user);
       document.getElementById('adOtpCode').value = '';
+      if (otpMode === 'verify-email') {
+        // Log in, then tell the new developer they are in the review queue
+        // while the dashboard data loads.
+        showAlert('authAlert', 'Email verified — logging you in. New developer accounts are reviewed by our admin team; sandbox keys work immediately.', 'ok');
+      }
       boot();
     } catch (err) {
       showAlert('authAlert', err.message);
@@ -428,7 +453,7 @@ function initActions() {
   });
 }
 
-function waitForPayment(paymentId, timeoutMs = 45000) {
+function waitForPayment(paymentId, timeoutMs = 120000) {
   const started = Date.now();
   return new Promise((resolve) => {
     const timer = setInterval(async () => {

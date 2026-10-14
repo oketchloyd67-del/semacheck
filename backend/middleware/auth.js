@@ -24,7 +24,7 @@ async function requireAuth(req, res, next) {
     if (!payload.sessionId) return res.status(401).json({ error: 'Invalid or expired token.' });
 
     const { rows } = await pool.query(
-      `SELECT s.id, s.is_active, s.expires_at, u.id AS user_id, u.account_type, u.email, u.full_name
+      `SELECT s.id, s.is_active, s.expires_at, u.id AS user_id, u.account_type, u.email, u.full_name, u.id_verification_status
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id = $1`,
       [payload.sessionId]
@@ -34,7 +34,15 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ error: 'Session expired or logged out. Please log in again.' });
     }
 
-    req.user = { id: session.user_id, accountType: session.account_type, email: session.email, fullName: session.full_name };
+    req.user = {
+      id: session.user_id,
+      accountType: session.account_type,
+      email: session.email,
+      fullName: session.full_name,
+      // Lets the frontend tell newly signed-up users their account is
+      // still in the admin approval queue.
+      idVerificationStatus: session.id_verification_status,
+    };
     req.sessionId = session.id;
     next();
   } catch (err) {

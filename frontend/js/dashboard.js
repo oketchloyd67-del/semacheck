@@ -118,6 +118,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   document.getElementById('dashUserName').textContent = `Hi, ${user.fullName?.split(' ')[0] || ''}`;
 
+  // New job-owner accounts log in before admin approval — tell them they
+  // are in the review queue instead of leaving them guessing.
+  api('/auth/me').then((me) => {
+    const status = me && me.user && me.user.idVerificationStatus;
+    if (status !== 'pending') return;
+    if (document.getElementById('pendingApprovalNotice')) return;
+    const banner = document.createElement('div');
+    banner.id = 'pendingApprovalNotice';
+    banner.className = 'alert alert-ok';
+    banner.style.cssText = 'margin:10px 0 16px; border-radius:10px;';
+    banner.innerHTML = '<b>Your account is awaiting admin approval.</b> You can browse the dashboard now — posting jobs and the full subscription unlock once our team verifies your account (usually within 24 hours).';
+    const main = document.querySelector('main') || document.body;
+    main.prepend(banner);
+  }).catch(() => {});
+
   document.getElementById('dashLogout').addEventListener('click', async () => {
     try { await api('/auth/logout', { method: 'POST' }); } catch {}
     sessionStorage.clear();

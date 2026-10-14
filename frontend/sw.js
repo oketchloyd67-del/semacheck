@@ -1,4 +1,4 @@
-const CACHE_NAME = 'semacheck-v3';
+const CACHE_NAME = 'semacheck-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -65,6 +65,35 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // HTML pages: network-first with a short timeout, cache as fallback.
+  // Fresh when the network keeps up; instant and available when it doesn't.
+  if (event.request.mode === 'navigate') {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    const networkFirst = fetch(event.request, { signal: controller.signal }).then((response) => {
+      clearTimeout(timeout);
+      if (response && response.status === 200) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+      }
+      return response;
+    }).catch(() => {
+      clearTimeout(timeout);
+      return caches.match(event.request).then((cached) =>
+        cached || caches.match('/index.html').then((home) =>
+          home || new Response('<h1>Offline</h1><p>You are offline. Reconnect to use SemaCheck.</p>', {
+            headers: { 'Content-Type': 'text/html' },
+            status: 503,
+          })
+        )
+      );
+    });
+    event.respondWith(networkFirst);
+    return;
+  }
+
+  // Static assets (CSS, JS, images, fonts): cache-first — instant on weak
+  // networks — refreshed by the background fetch below.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const networkFetch = fetchWithRetry(event.request, {}, 1, 800).then((response) => {

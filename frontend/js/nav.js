@@ -37,6 +37,16 @@
     });
   }
 
+  // Register the service worker on every page (nav.js loads everywhere).
+  // It caches CSS/JS/images so the site keeps working — and opens instantly —
+  // on very weak connections or when briefly offline. Pages that already
+  // register it inline are unaffected; register() is idempotent.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () {});
+    });
+  }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
