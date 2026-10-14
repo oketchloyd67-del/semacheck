@@ -164,18 +164,28 @@ async function loadOverview() {
 
   const setupPanel = document.getElementById('setupPanel');
   const approvalBanner = document.getElementById('approvalBanner');
+  const devPending = document.getElementById('devPendingNotice');
+  const devSections = document.querySelectorAll('.dev-section');
 
   if (!data.account) {
+    // Not a developer yet: only the organisation-verification signup is
+    // shown. Every developer tool lives behind the account.
     setupPanel.style.display = 'block';
     approvalBanner.style.display = 'none';
+    if (devPending) devPending.style.display = 'block';
+    devSections.forEach((s) => { s.style.display = 'none'; });
     return;
   }
   setupPanel.style.display = 'none';
+  if (devPending) devPending.style.display = 'none';
+  devSections.forEach((s) => { s.style.display = ''; });
 
   if (data.account.status === 'pending') {
     approvalBanner.style.display = 'block';
     approvalBanner.className = 'alert alert-ok';
-    approvalBanner.innerHTML = '<b>Your API account is awaiting admin approval.</b> You can create keys and explore the dashboard — keys go live once our team approves the account.';
+    approvalBanner.innerHTML = data.account.verificationStatus === 'documents_submitted'
+      ? '<b>Your organisation documents are under review.</b> Sandbox keys work now — live keys unlock when our team verifies your organisation.'
+      : '<b>Your developer account is awaiting approval.</b> You can create sandbox keys and explore the dashboard — live keys go live once our team approves the account.';
   } else if (data.account.status === 'suspended' || data.account.status === 'closed') {
     approvalBanner.style.display = 'block';
     approvalBanner.className = 'alert alert-err';

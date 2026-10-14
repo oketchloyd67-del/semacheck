@@ -647,7 +647,7 @@ router.get('/api-accounts', requireAdmin, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT a.id, a.company_name, a.website, a.use_case, a.plan_id, p.code AS plan_code, p.monthly_price_kes AS plan_price_kes,
             p.monthly_quota AS monthly_quota, a.status, a.webhook_url, a.plan_renews_on, a.created_at,
-            a.org_registration_no, a.verification_status, a.verified_at,
+            a.org_registration_no, a.verification_status, a.verified_at, a.business_doc_path,
             (SELECT COUNT(*)::int FROM api_usage_log u WHERE u.account_id = a.id AND u.created_at >= now() - interval '30 days') AS usage_this_month,
             (SELECT COUNT(*)::int FROM api_usage_log u WHERE u.account_id = a.id AND u.created_at >= now() - interval '7 days') AS usage_last_7d,
             (SELECT COUNT(*)::int FROM api_keys k WHERE k.account_id = a.id AND k.status='active') AS active_keys,
@@ -679,6 +679,7 @@ router.get('/api-accounts', requireAdmin, async (req, res) => {
       orgRegistrationNo: a.org_registration_no,
       verificationStatus: a.verification_status,
       verifiedAt: a.verified_at,
+      hasBusinessDoc: Boolean(a.business_doc_path),
       createdAt: a.created_at,
     })),
   });
@@ -753,15 +754,19 @@ router.post('/api-accounts/:id/verify-org', requireAdmin, requireInt('id'), asyn
   const nextStatus = action === 'approve' ? 'verified' : 'rejected';
   const { rows } = await pool.query(
     `UPDATE api_accounts SET verification_status=$2, verification_note=$3,
-            verified_at = CASE WHEN $2 = 'verified' THEN now() ELSE verified_at END
-     WHERE id=$1 RETURNING id, company_name, verification_status`,
+            verified_at = CASE WHEN $2 = 'verified' THEN now() ELSE verified_at END,
+            -- One-step developer review: approving the organisation's documents
+            -- also activates a still-pending developer account, so admins never
+            -- have to approve the same partner twice.
+            status = CASE WHEN $2 = 'verified' AND status = 'pending' THEN 'active' ELSE status END
+     WHERE id=$1 RETURNING id, company_name, verification_status, status`,
     [req.params.id, nextStatus, note || null]
   );
   if (!rows[0]) return res.status(404).json({ error: 'Account not found.' });
   res.json({
     account: rows[0],
     message: action === 'approve'
-      ? 'Organisation verified.'
+      ? (rows[0].status === 'active' ? 'Organisation verified and developer account activated.' : 'Organisation verified.')
       : 'Organisation rejected — the partner can resubmit documents.',
   });
 });

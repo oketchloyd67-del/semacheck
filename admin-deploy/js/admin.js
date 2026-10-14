@@ -676,25 +676,39 @@ async function loadApiAccounts() {
     const rows = data.accounts || [];
     const el = document.getElementById('apiAccounts');
     const pending = rows.filter((a) => a.status === 'pending').length;
+    const pendingOrg = rows.filter((a) => a.verificationStatus === 'documents_submitted').length;
     const badge = document.getElementById('badgeApiAccounts');
-    if (badge) { badge.textContent = String(pending); badge.style.display = pending ? 'inline-block' : 'none'; }
+    if (badge) {
+      const n = pending + pendingOrg;
+      badge.textContent = String(n);
+      badge.style.display = n ? 'inline-block' : 'none';
+    }
     if (!rows.length) {
-      el.innerHTML = '<p class="hint">No API accounts yet.</p>';
+      el.innerHTML = '<p class="hint">No developer (API) accounts yet.</p>';
       return;
     }
     const statusLabel = { pending: 'Awaiting approval', active: 'Active', past_due: 'Past due', suspended: 'Suspended', closed: 'Closed' };
     const pillClass = { pending: 'pill-pending', active: 'pill-approved', past_due: 'pill-pending', suspended: 'pill-rejected', closed: 'pill-regular' };
+    const verifLabel = { unverified: 'Org: not submitted', documents_submitted: 'Org: documents under review', verified: 'Org: verified', rejected: 'Org: rejected' };
+    const verifClass = { unverified: 'pill-regular', documents_submitted: 'pill-pending', verified: 'pill-approved', rejected: 'pill-rejected' };
     el.innerHTML = rows.map((a) => {
+      const vs = a.verificationStatus || 'unverified';
       return `<div class="card" style="padding:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
           <strong>${escapeHtml(a.companyName)}</strong>
-          <span class="pill ${pillClass[a.status] || 'pill-regular'}">${statusLabel[a.status] || escapeHtml(a.status)}</span>
+          <span style="display:flex; gap:6px; flex-wrap:wrap;">
+            <span class="pill ${pillClass[a.status] || 'pill-regular'}">${statusLabel[a.status] || escapeHtml(a.status)}</span>
+            <span class="pill ${verifClass[vs] || 'pill-regular'}">${verifLabel[vs] || escapeHtml(vs)}</span>
+          </span>
         </div>
         <div class="hint">Plan: ${escapeHtml(a.planCode)} · KES ${Number(a.planPriceKes || 0).toLocaleString()}/mo · Checks this month: ${a.usageThisMonth || 0}/${a.monthlyQuota ?? '—'} · Active keys: ${a.activeKeys || 0} · Last activity: ${a.lastActivity ? new Date(a.lastActivity).toLocaleString() : '—'}</div>
-        <div class="hint">API key owner: <b>${escapeHtml(a.ownerName || '—')}</b> · ${escapeHtml(a.ownerEmail || '')}${a.ownerPhone ? ' · ' + escapeHtml(a.ownerPhone) : ''}</div>
+        <div class="hint">Developer account: <b>${escapeHtml(a.ownerName || '—')}</b> · ${escapeHtml(a.ownerEmail || '')}${a.ownerPhone ? ' · ' + escapeHtml(a.ownerPhone) : ''}</div>
+        ${a.orgRegistrationNo ? `<div class="hint">Reg. number: <b>${escapeHtml(a.orgRegistrationNo)}</b>${a.verifiedAt ? ' · verified ' + new Date(a.verifiedAt).toLocaleDateString() : ''}</div>` : ''}
         ${a.website ? `<div class="hint">${escapeHtml(a.website)}</div>` : ''}
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          ${a.status === 'pending' ? `<button class="icon-btn" data-api-action="approve" data-id="${a.id}" title="Approve API account" aria-label="Approve API account">${TICK_ICON}</button><button class="btn btn-ghost" data-api-action="reject" data-id="${a.id}">Reject</button>` : ''}
+          ${a.hasBusinessDoc ? `<button class="btn btn-ghost" data-view-bizdoc="${a.id}">View registration doc</button>` : ''}
+          ${vs === 'documents_submitted' || vs === 'rejected' ? `<button class="icon-btn" data-org-action="approve" data-id="${a.id}" title="Verify organisation" aria-label="Verify organisation">${TICK_ICON}</button><button class="btn btn-ghost" data-org-action="reject" data-id="${a.id}">Reject org</button>` : ''}
+          ${a.status === 'pending' && vs !== 'documents_submitted' ? `<button class="icon-btn" data-api-action="approve" data-id="${a.id}" title="Approve API account" aria-label="Approve API account">${TICK_ICON}</button><button class="btn btn-ghost" data-api-action="reject" data-id="${a.id}">Reject</button>` : ''}
           ${a.status === 'active' || a.status === 'past_due' ? `<button class="btn btn-ghost" data-api-action="suspend" data-id="${a.id}">Suspend</button>` : ''}
           ${a.status === 'suspended' || a.status === 'past_due' ? `<button class="btn btn-ghost" data-api-action="reactivate" data-id="${a.id}">Reactivate</button>` : ''}
           ${a.status !== 'closed' ? `<button class="btn btn-ghost" data-api-action="close" data-id="${a.id}">Close</button>` : ''}
@@ -710,7 +724,46 @@ async function loadApiAccounts() {
         el.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
       }
     }));
+    // Organisation verification: one-step review — approving the business
+    // registration document also activates a pending developer account.
+    el.querySelectorAll('[data-org-action]').forEach((b) => b.addEventListener('click', async () => {
+      try {
+        const r = await adminApi(`/admin/api-accounts/${b.dataset.id}/verify-org`, {
+          method: 'POST',
+          body: JSON.stringify({ action: b.dataset.orgAction }),
+        });
+        showToast(r.message || 'Done.');
+        await loadApiAccounts();
+      } catch (err) {
+        el.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+      }
+    }));
+    el.querySelectorAll('[data-view-bizdoc]').forEach((b) => b.addEventListener('click', () => viewBusinessDoc(b.dataset.viewBizdoc)));
   } catch (err) { document.getElementById('apiAccounts').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`; }
+}
+
+// Business registration document for an API (developer) account — same
+// preview modal as the ID-verification documents.
+async function viewBusinessDoc(accountId) {
+  const overlay = document.getElementById('docPreviewOverlay');
+  const body = document.getElementById('docPreviewBody');
+  const title = overlay.querySelector('h2');
+  if (title) title.textContent = 'Business registration document';
+  body.innerHTML = '<p style="color:var(--text-muted);">Loading…</p>';
+  overlay.classList.add('open');
+  try {
+    const res = await fetch(`${API_BASE}/admin/api-accounts/${accountId}/business-doc`, {
+      headers: { Authorization: `Bearer ${getAdminToken()}` },
+    });
+    if (!res.ok) throw new Error('Could not load document.');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    body.innerHTML = blob.type === 'application/pdf'
+      ? `<a href="${url}" target="_blank" class="btn btn-outline" style="color:var(--navy);border-color:var(--navy);">Open PDF in new tab</a>`
+      : `<img src="${url}" style="max-width:100%;border-radius:8px;border:1px solid var(--border);">`;
+  } catch (err) {
+    body.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+  }
 }
 
 async function loadWebhookFailures() {

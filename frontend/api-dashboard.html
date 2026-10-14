@@ -29,7 +29,7 @@
 
   <main class="container" style="padding:32px 0 80px;">
     <h1>API dashboard</h1>
-    <p class="hint">API partners verify their <b>organisation</b> with business registration documents — reviewed by our team, not a personal ID. The Free plan issues sandbox (<code>sk_test_</code>) keys; live checks start on a paid plan. Manage keys, webhooks, plans, invoices and renewal here.</p>
+    <p class="hint"><b>This dashboard is for developer accounts only.</b> Sign up, submit your organisation's business registration documents (reviewed by our team — not a personal ID), and everything a developer needs appears here in one place: sandbox keys, the playground, plans, webhooks, invoices and renewal. The Free plan issues <code>sk_test_</code> keys; live checks start on a paid plan.</p>
 
     <div id="globalAlert" aria-live="polite"></div>
 
@@ -104,6 +104,12 @@
 
       <div id="approvalBanner" class="alert" style="display:none; border-radius:10px;"></div>
 
+      <!-- Shown while the signed-in user has no developer (API) account yet -->
+      <section class="card" id="devPendingNotice" style="padding:20px; display:none; border-style:dashed;">
+        <h2 style="margin-top:0;">You don't have a developer account yet</h2>
+        <p class="hint">Complete the organisation verification below to become a SemaCheck developer. Once your registration documents are approved, this dashboard unlocks your sandbox keys, playground, plans, webhooks, invoices and renewal controls. Want to explore first? The <a href="docs.html" style="color:var(--teal);font-weight:600;">developer docs</a> and the <a href="widget/demo.html" style="color:var(--teal);font-weight:600;">widget demo</a> are open to everyone.</p>
+      </section>
+
       <section class="card" id="setupPanel" style="padding:24px; display:none;">
         <h2>Organisation verification</h2>
         <p class="hint">Tell us about your organisation and attach its business registration document (JPG, PNG or PDF, under 8MB). Our admin team reviews every submission — verified organisations can upgrade to live keys.</p>
@@ -116,7 +122,7 @@
         <button class="btn btn-primary" id="acCreateBtn">Submit for verification</button>
       </section>
 
-      <section class="card" style="padding:24px;">
+      <section class="card dev-section" style="padding:24px; display:none;">
         <h2>Overview — your account</h2>
         <div id="overview" style="display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
           <div class="stat" style="border:1px solid var(--border); border-radius:10px; padding:16px;">
@@ -146,7 +152,7 @@
         </div>
       </section>
 
-      <section class="card" style="padding:24px;">
+      <section class="card dev-section" style="padding:24px; display:none;">
         <h2>API keys</h2>
         <div id="keyAlert"></div>
         <div id="newKeyBox" style="display:none; border:1px solid var(--teal); background:rgba(15,163,163,0.06); border-radius:10px; padding:14px; margin-bottom:12px;">
@@ -170,7 +176,7 @@
         <ul id="key-list" style="list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px;"></ul>
       </section>
 
-      <section class="card" style="padding:24px;">
+      <section class="card dev-section" style="padding:24px; display:none;">
         <h2>Playground</h2>
         <div style="display:grid; gap:10px;">
           <input id="pg-type" type="text" list="pg-types" placeholder="checkType" style="padding:10px;border:1.5px solid var(--border);border-radius:8px;">
@@ -192,7 +198,7 @@
         </div>
       </section>
 
-      <section class="card" style="padding:24px;">
+      <section class="card dev-section" style="padding:24px; display:none;">
         <h2>Billing</h2>
         <div id="billingAlert"></div>
         <div id="billing" style="display:grid; gap:12px;">
@@ -222,7 +228,7 @@
         </div>
       </section>
 
-      <section class="card" style="padding:24px;">
+      <section class="card dev-section" style="padding:24px; display:none;">
         <h2>Webhooks</h2>
         <div id="webhookAlert"></div>
         <div style="display:grid; gap:10px;">
