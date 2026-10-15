@@ -152,8 +152,11 @@ app.use('/v1', apiV1Routes);
 // Public report + alerts
 app.use('/api/reports', reportsRoutes);
 
-// Customer API account dashboard (session auth, verified email required)
-app.use('/api/account', apiAccountRoutes);
+// Customer API account dashboard (session auth, verified email required).
+// The routes inside are prefixed /api/… (e.g. /api/overview, /api/keys), so
+// the mounted paths are /api/account/api/* — matching every frontend call
+// and the route comments in routes/apiAccount.js.
+app.use('/api/account/api', apiAccountRoutes);
 
 // Transparency page — 10-minute cache
 app.use('/api/public/stats', publicStatsRoutes);
