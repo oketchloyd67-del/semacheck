@@ -103,9 +103,13 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
       cleanupUpload();
       return res.status(400).json({ error: 'You must agree to the Privacy Policy to create an account.' });
     }
-    if (accountType !== 'job_owner') {
+    // Two signup paths: 'job_owner' from the main site (index.html) and
+    // 'regular' from the developer signup on api-dashboard.html. The latter
+    // becomes a developer account and verifies its organisation later via
+    // /account/api/signup.
+    if (!['regular', 'job_owner'].includes(accountType)) {
       cleanupUpload();
-      return res.status(400).json({ error: 'Sign-ups are for job owner accounts. Search without an account, or create an API account from the Developers page.' });
+      return res.status(400).json({ error: 'accountType must be "regular" (developer) or "job_owner".' });
     }
     if (!fullName || fullName.trim().length < 3) { cleanupUpload(); return res.status(400).json({ error: 'Enter your full name.' }); }
     if (fullName.trim().length > 100) { cleanupUpload(); return res.status(400).json({ error: 'Name too long (max 100 characters).' }); }

@@ -77,6 +77,16 @@
         <div class="field">
           <label>Password</label>
           <input type="password" id="adPassword" placeholder="Create a password (8+ chars, upper, lower, number, symbol)" autocomplete="new-password">
+          <div class="strength-meter">
+            <div class="strength-bar" id="strengthBar"><div></div><div></div><div></div><div></div></div>
+            <div class="strength-label" id="strengthLabel"></div>
+            <div class="strength-feedback" id="strengthFeedback"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Confirm password</label>
+          <input type="password" id="adPasswordConfirm" placeholder="Re-enter your password" autocomplete="new-password">
+          <div class="field-msg" id="adPasswordConfirmMsg"></div>
         </div>
         <div class="field" style="display:flex;align-items:flex-start;gap:10px;">
           <input type="checkbox" id="adConsent" style="width:auto;margin-top:3px;flex-shrink:0;">
@@ -242,6 +252,7 @@
     </div>
   </main>
 
+  <script src="js/validation.js"></script>
   <script src="js/api-dashboard.js"></script>
   <script src="js/nav.js"></script>
 </body>

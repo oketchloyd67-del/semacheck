@@ -84,6 +84,23 @@ function initAuth() {
   document.getElementById('tabLogin').addEventListener('click', () => { showAlert('authAlert', ''); showAuth('login'); });
   document.getElementById('tabSignup').addEventListener('click', () => { showAlert('authAlert', ''); showAuth('signup'); });
 
+  // Live password-strength meter, same UX as the consumer/job-owner signup.
+  document.getElementById('adPassword')?.addEventListener('input', (e) => renderStrengthMeter(e.target.value));
+  document.getElementById('adPasswordConfirm')?.addEventListener('input', () => {
+    const msg = document.getElementById('adPasswordConfirmMsg');
+    const pw = document.getElementById('adPassword').value;
+    const pw2 = document.getElementById('adPasswordConfirm').value;
+    if (pw2 && pw !== pw2) {
+      msg.textContent = 'Passwords do not match.';
+      msg.className = 'field-msg err';
+    } else if (pw2) {
+      msg.textContent = 'Passwords match.';
+      msg.className = 'field-msg ok';
+    } else {
+      msg.textContent = '';
+    }
+  });
+
   document.getElementById('adLoginBtn').addEventListener('click', async () => {
     const btn = document.getElementById('adLoginBtn');
     showAlert('authAlert', '');
@@ -122,6 +139,22 @@ function initAuth() {
     showAlert('authAlert', '');
     const consent = document.getElementById('adConsent');
     if (!consent.checked) { showAlert('authAlert', 'You need to agree to the Privacy Policy to create an account.'); return; }
+
+    // Confirm-password + strength checks (server enforces strength again).
+    const pw = document.getElementById('adPassword').value;
+    const pwConfirm = document.getElementById('adPasswordConfirm').value;
+    const confirmMsg = document.getElementById('adPasswordConfirmMsg');
+    if (pw !== pwConfirm) {
+      confirmMsg.textContent = 'Passwords do not match.';
+      confirmMsg.className = 'field-msg err';
+      showAlert('authAlert', 'The two passwords do not match.');
+      return;
+    }
+    confirmMsg.textContent = '';
+    if (typeof scorePasswordStrengthClient === 'function' && scorePasswordStrengthClient(pw).score < 2) {
+      showAlert('authAlert', 'Choose a stronger password: at least 8 characters with upper and lower case, a number and a symbol.');
+      return;
+    }
 
     const fd = new FormData();
     fd.append('accountType', 'regular');
