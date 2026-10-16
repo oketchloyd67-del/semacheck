@@ -161,7 +161,6 @@ function initAuth() {
     fd.append('fullName', document.getElementById('adFullName').value.trim());
     fd.append('email', document.getElementById('adEmail').value.trim());
     fd.append('phone', document.getElementById('adPhone').value.trim());
-    fd.append('nationalId', document.getElementById('adNationalId').value.trim());
     fd.append('password', document.getElementById('adPassword').value);
     fd.append('consentAccepted', 'true');
 

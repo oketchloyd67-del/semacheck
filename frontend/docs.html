@@ -172,13 +172,16 @@ X-SemaCheck-Signature: t=1760000000,v1=9f2b…e41c
         data-target="#semacheck-check"
         async&gt;&lt;/script&gt;
 &lt;div id="semacheck-check"&gt;&lt;/div&gt;</div>
-    <div style="display:grid; gap:8px; margin-top:10px;">
+    <p style="margin-top:10px;">The widget supports these attributes on the <code>&lt;script&gt;</code> tag:</p>
+    <div style="display:grid; gap:8px; margin-top:6px;">
       <div style="padding:10px; border:1px solid var(--border); border-radius:8px;"><code>data-key</code> — required. Your publishable key (<code>pk_test_…</code> or <code>pk_live_…</code>).</div>
-      <div style="padding:10px; border:1px solid var(--border); border-radius:8px;"><code>data-types</code> — comma list of allowed check types: <code>phone,paybill,business,website,job</code>. Default <code>phone,paybill</code>.</div>
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px;"><code>data-types</code> — comma list of allowed check types the widget may run: <code>phone,paybill,business,website,job</code>. Default <code>phone,paybill</code>.</div>
       <div style="padding:10px; border:1px solid var(--border); border-radius:8px;"><code>data-theme</code> — <code>light</code> (default) or <code>dark</code>.</div>
       <div style="padding:10px; border:1px solid var(--border); border-radius:8px;"><code>data-target</code> — CSS selector where the widget mounts. Default <code>#semacheck-check</code>.</div>
+      <div style="padding:10px; border:1px solid var(--border); border-radius:8px;"><code>data-api-base</code> — optional. Override the API origin the widget calls (useful when the page is not served from the same origin as the API). Defaults to the page's own origin, or <code>http://localhost:4800</code> on localhost.</div>
     </div>
     <p style="margin-top:10px;">See a live example at <a href="widget/demo.html" style="color:var(--teal);font-weight:600;">/widget/demo.html</a>. The widget's checks spend your plan quota like any other call.</p>
+    <p style="margin-top:8px;">The widget does not collect money on the page. Pay-gating is done server-side: use <a href="#gating" style="color:var(--teal);font-weight:600;">POST /v1/gate</a> (the customer's own payment) or <a href="#gating" style="color:var(--teal);font-weight:600;">POST /v1/paid-check</a> (charge an end user KES 30), then poll <a href="#gating" style="color:var(--teal);font-weight:600;">POST /v1/token/verify</a> with the <code>checkToken</code> the gate returns.</p>
 
     <h2 id="verify">Organisation verification</h2>
     <p>API accounts verify their <b>organisation</b> — a business registration number plus the registration certificate (JPG, PNG or PDF), reviewed by our admin team. Verified organisations can buy paid plans and use live keys. Start from the <a href="api-dashboard.html" style="color:var(--teal);font-weight:600;">API dashboard</a>.</p>

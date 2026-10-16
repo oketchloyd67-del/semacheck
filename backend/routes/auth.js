@@ -117,8 +117,14 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
     if (email.trim().length > 254) { cleanupUpload(); return res.status(400).json({ error: 'Email too long.' }); }
     const normalizedPhone = normalizeKenyanPhone(phone);
     if (!normalizedPhone) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid Kenyan phone number.' }); }
-    if (!isValidNationalId(nationalId)) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid national ID number (7-8 digits).' }); }
-    if (nationalId.trim().length > 20) { cleanupUpload(); return res.status(400).json({ error: 'ID number too long.' }); }
+    // National ID is only required for job-owner signup (identity-verified
+    // accounts). Developer signup ('regular') does not collect a national ID
+    // — the developer verifies their organisation later via /account/api/signup
+    // with a business registration number and document.
+    if (accountType === 'job_owner') {
+      if (!isValidNationalId(nationalId)) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid national ID number (7-8 digits).' }); }
+      if (nationalId.trim().length > 20) { cleanupUpload(); return res.status(400).json({ error: 'ID number too long.' }); }
+    }
     if (accountType === 'job_owner' && !idDocumentFile) { cleanupUpload(); return res.status(400).json({ error: 'Upload a clear photo of your national ID — required for job owner accounts.' }); }
 
     const strength = scorePasswordStrength(password || '');
@@ -133,9 +139,15 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
       if (!isValidKraPin(kraPin || '')) { cleanupUpload(); return res.status(400).json({ error: 'Enter a valid KRA PIN (e.g. A012345678Z).' }); }
     }
 
+    const dupeParams = [email.trim().toLowerCase(), normalizedPhone];
+    // Job-owner signup: also check national_id for dupes. Developer signup
+    // does not collect a national ID, so it cannot dup on that field.
+    if (accountType === 'job_owner') {
+      dupeParams.push(nationalId.trim());
+    }
     const dupe = await pool.query(
-      'SELECT 1 FROM users WHERE email = $1 OR phone = $2 OR national_id = $3',
-      [email.trim().toLowerCase(), normalizedPhone, nationalId.trim()]
+      `SELECT 1 FROM users WHERE email = $1 OR phone = $2${accountType === 'job_owner' ? ' OR national_id = $3' : ''}`,
+      dupeParams
     );
     if (dupe.rows[0]) {
       cleanupUpload();
@@ -153,7 +165,8 @@ router.post('/signup', authLimiter, uploadIdDocument, async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now(),$12,$13)
        RETURNING id, account_type, full_name, email, phone, id_verification_status, created_at`,
       [
-        accountType, fullName.trim(), email.trim().toLowerCase(), normalizedPhone, nationalId.trim(),
+        accountType, fullName.trim(), email.trim().toLowerCase(), normalizedPhone,
+        (accountType === 'job_owner' && nationalId ? nationalId.trim() : null),
         passwordHash, idDocumentFile ? idDocumentFile.filename : null, initialVerificationStatus, businessName || null, businessRegNumber || null, kraPin || null,
         otpHash, otpExpiryDate(),
       ]
