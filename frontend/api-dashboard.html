@@ -71,8 +71,12 @@
           <input type="text" id="adPhone" placeholder="07XXXXXXXX" autocomplete="tel">
         </div>
         <div class="field">
-          <label>National ID number</label>
-          <input type="text" id="adNationalId" placeholder="e.g. 30112233">
+          <label>Business registration number</label>
+          <input type="text" id="adRegistrationNo" placeholder="e.g. CPR/2024/12345">
+        </div>
+        <div class="field">
+          <label>Company / organisation name</label>
+          <input type="text" id="adCompanyName" placeholder="As it appears on your registration document" autocomplete="organization">
         </div>
         <div class="field">
           <label>Password</label>
@@ -91,7 +95,7 @@
         <div class="field" style="display:flex;align-items:flex-start;gap:10px;">
           <input type="checkbox" id="adConsent" style="width:auto;margin-top:3px;flex-shrink:0;">
           <label for="adConsent" style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">
-            I agree to the <a href="privacy.html" target="_blank" rel="noopener noreferrer" style="color:var(--teal);font-weight:600;">Privacy Policy</a> and consent to SemaCheck processing my personal data, including my national ID number.
+            I agree to the <a href="privacy.html" target="_blank" rel="noopener noreferrer" style="color:var(--teal);font-weight:600;">Privacy Policy</a> and consent to SemaCheck processing my organisation's business registration details to verify my API account.
           </label>
         </div>
         <button class="btn btn-primary btn-block" id="adSignupBtn">Create account</button>

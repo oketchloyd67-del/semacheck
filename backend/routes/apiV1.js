@@ -86,6 +86,11 @@ router.post('/check', apiKeyAuth, apiRateLimit, quotaMeter, async (req, res) => 
   if (req.apiKeyMode === 'test') {
     const sandbox = sandboxCheck(checkType, subject);
     res.setHeader('X-Request-Id', requestId);
+    res.setHeader('X-RateLimit-Limit', req.apiAccount.rateLimitPerMin);
+    res.setHeader('X-RateLimit-Remaining', req.apiAccount.rateLimitPerMin);
+    res.setHeader('X-RateLimit-Reset', 1);
+    res.setHeader('X-Quota-Limit', req.apiAccount.monthlyQuota);
+    res.setHeader('X-Quota-Remaining', req.apiAccount.monthlyQuota);
     return res.json({
       requestId,
       mode: 'sandbox',

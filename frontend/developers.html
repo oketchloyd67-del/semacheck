@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Scam Check API — SemaCheck | Scam Verification API for Businesses</title>
-  <meta name="description" content="Add scam checking to your product with the SemaCheck API. Verify phone numbers, M-Pesa paybills, business names, websites and job offers against community scam reports, the CBK registry, FTC, BBB and Interpol — free sandbox plan available.">
+  <meta name="description" content="Add scam checking to your product with the SemaCheck API. Verify phone numbers, M-Pesa paybills, business names, websites and job offers against community scam reports, the CBK registry and current web results — free sandbox plan available.">
   <meta name="keywords" content="scam check API, scam verification API, fraud detection API Kenya, anti-fraud API, M-Pesa paybill verification API, scam reporting API, SemaCheck API">
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
   <link rel="canonical" href="https://semacheck.vercel.app/developers.html">
@@ -49,8 +49,7 @@
         "endpoint": {
           "@type": "APIEndpoint",
           "url": "https://semacheck.onrender.com/v1/check"
-        },
-        "offers": [
+        },            "offers": [
           { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "KES", "description": "Unlimited sandbox checks with test keys — no live checks" },
           { "@type": "Offer", "name": "Starter", "price": "5000", "priceCurrency": "KES", "description": "2,000 live scam checks per month" },
           { "@type": "Offer", "name": "Growth", "price": "20000", "priceCurrency": "KES", "description": "10,000 live scam checks per month with webhooks" },
@@ -125,20 +124,20 @@
     </section>
 
     <section class="card" style="padding:28px;">
-      <h2>Why teams pick our scam-checking API</h2>
-      <p style="color:var(--text-muted); font-size:0.93rem; line-height:1.6;">
+      <h2>Why teams pick our scam-checking API</h2>        <p style="color:var(--text-muted); font-size:0.93rem; line-height:1.6;">
         SemaCheck provides a scam-checking API built for African and global
         fintechs, marketplaces, banks and job boards. Every call merges our community scam report
-        database with the CBK licensed-lender registry, live web results, FTC and BBB scam trackers and
-        Interpol fraud alerts, then returns a verdict, a confidence score and the evidence behind it —
-        so your users can see the risk level of a phone number, M-Pesa paybill, business name, website or job offer
-        before they send money or documents.
+        database with the CBK licensed-lender registry and current web results, then returns a verdict,
+        a confidence score and the evidence behind it — so your users can see the risk level of a phone
+        number, M-Pesa paybill, business name, website or job offer before they send money or documents.
       </p>
       <ul style="color:var(--text-muted); font-size:0.9rem; line-height:1.8; margin-top:10px; padding-left:20px;">
         <li><b>Scam verification API</b> for phone numbers, paybills, websites, businesses and job offers.</li>
         <li><b>Admin-approved reports</b> only — every scam report is checked with supporting evidence before it reaches the API.</li>
         <li><b>Webhooks</b> that tell you when a watched subject changes verdict.</li>
         <li><b>Free sandbox plan</b> — unlimited test-mode checks with <code>sk_test_</code> keys, no card required. Live checks start on a paid plan.</li>
+        <li><b>Gated per-check checkout</b> — charge a M-Pesa payer for a single check with a 15-minute token that only settles when payment confirms.</li>
+        <li><b>Live renewal countdown</b> — your dashboard shows days remaining and the plan renews automatically, with a 7-day grace window before live keys are suspended.</li>
       </ul>
       <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
         <a class="btn btn-outline" href="docs.html" style="color:var(--navy);border-color:var(--border);">Read the API docs</a>
@@ -151,7 +150,7 @@
       <div style="display:grid; gap:12px;">
         <div class="tier" style="border:1.5px solid var(--border); border-radius:12px; padding:16px; text-align:left;">
           <div style="font-weight:800;">Free</div>
-          <div class="hint">KES 0 · unlimited sandbox checks with <code>sk_test_</code> keys · no live checks · organisation verification required</div>
+          <div class="hint">KES 0 · unlimited sandbox checks with <code>sk_test_</code> keys · no live checks · organisation verification required for live keys</div>
         </div>
         <div class="tier" style="border:1.5px solid var(--border); border-radius:12px; padding:16px; text-align:left;">
           <div style="font-weight:800;">Starter</div>
@@ -166,8 +165,7 @@
           <div class="hint">KES 75,000 · 100,000 checks / month · 600 req/min · webhooks · batch checks</div>
         </div>
       </div>
-      <div style="margin-top:16px;"><a class="btn btn-primary btn-block" href="api-dashboard.html">Create your account &amp; get API access</a></div>
-      <p class="hint" style="margin-top:10px;">API partners create an account and verify their <b>organisation</b> — registration number plus the registration certificate (JPG, PNG or PDF), reviewed by our team — before live keys are issued. Test keys work from the moment you sign up. This keeps the scam-checking API out of the hands of abusers.</p>
+      <div style="margin-top:16px;"><a class="btn btn-primary btn-block" href="api-dashboard.html">Create your account &amp; get API access</a></div>        <p class="hint" style="margin-top:10px;">API partners create an account and verify their <b>organisation</b> — registration number plus the registration certificate (JPG, PNG or PDF), reviewed by our team — before live keys are issued. Test keys work from the moment you sign up. This keeps the scam-checking API out of the hands of abusers.</p>
     </section>
   </main>
 

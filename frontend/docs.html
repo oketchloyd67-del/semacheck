@@ -128,7 +128,7 @@ HTTP 402 { "error": "upgrade_required", "message": "Live checks are not included
 HTTP 402 { "error": "plan_expired", "message": "Your API plan is suspended. Live keys are temporarily blocked until the account is current…" }
 HTTP 402 { "error": "account_pending", "message": "This API account is still under review…" }
 HTTP 402 { "error": "token_expired", "message": "The 15-minute payment window elapsed…" }
-HTTP 402 { "error": "rate_limited", "message": "Too many M-Pesa payment prompts were started for this phone in the last hour (3)…" }
+HTTP 402 { "error": "rate_limited", "message": "Too many M-Pesa payment prompts were started for this phone in the last hour (3)…", "retryAfter": 3600 }
 HTTP 402 { "error": "batch_not_enabled", "plan": "Starter" }
 HTTP 429 { "error": "rate_limited", "retryAfter": 60 }
 HTTP 429 { "error": "quota_exceeded", "quotaLimit": 2000, "checksUsed": 2001 }
