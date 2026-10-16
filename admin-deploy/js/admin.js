@@ -30,6 +30,27 @@ function escapeHtml(str) {
 function pill(status) {
   return `<span class="pill pill-${status}">${status}</span>`;
 }
+// Transactions table: success = green bubble, everything that isn't money
+// landing = red bubble, any other status keeps the neutral pill.
+function statusCell(p) {
+  if (p.status === 'success') return '<span class="chat-bubble chat-bubble-success">Paid</span>';
+  if (p.status === 'failed') return '<span class="chat-bubble chat-bubble-failed">Failed</span>';
+  if (p.status === 'cancelled') return '<span class="chat-bubble chat-bubble-failed">Cancelled</span>';
+  if (p.status === 'refunded') return '<span class="chat-bubble chat-bubble-failed">Refunded</span>';
+  return pill(p.status);
+}
+// Transactions table: never show "unknown user". Payments made without a
+// signed-in account (or by regular users) fall back to their account type.
+function userCell(p) {
+  const type = p.account_type === 'job_owner' ? 'Job owner' : 'Regular';
+  const head = p.full_name || p.email || p.phone || '';
+  const headHtml = head ? escapeHtml(head) : `<b>${type}</b>`;
+  const emailLine = p.email && head !== p.email
+    ? `<div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(p.email)}</div>`
+    : '';
+  const typeLine = head ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">${type}</div>` : '';
+  return `${headHtml}${emailLine}${typeLine}`;
+}
 function showToast(message, isError) {
   const box = document.getElementById('globalAlert');
   box.innerHTML = `<div class="alert ${isError ? 'alert-err' : 'alert-ok'}">${escapeHtml(message)}</div>`;
@@ -289,10 +310,10 @@ async function loadRevenue(days) {
     } else {
       recentBox.innerHTML = `<div class="table-scroll"><table class="data-table"><thead><tr><th>User</th><th>Purpose</th><th>Amount</th><th>Status</th><th>M-Pesa receipt</th><th>Date</th></tr></thead><tbody>${
         allPayments.map((p) => `<tr>
-          <td data-label="User">${escapeHtml(p.full_name || 'Unknown')}<div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(p.email || '')}</div></td>
+          <td data-label="User">${userCell(p)}</td>
           <td data-label="Purpose">${purposeLabels[p.purpose] || p.purpose}</td>
           <td data-label="Amount" style="font-weight:700;">KES ${Number(p.amount).toLocaleString()}</td>
-          <td data-label="Status">${pill(p.status)}</td>
+          <td data-label="Status">${statusCell(p)}</td>
           <td data-label="M-Pesa receipt" style="font-family:monospace;font-size:0.82rem;">${escapeHtml(p.mpesa_receipt || '—')}</td>
           <td data-label="Date">${new Date(p.created_at).toLocaleString()}</td>
         </tr>`).join('')

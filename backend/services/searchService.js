@@ -170,8 +170,14 @@ async function internalDbSignal(queryType, queryValue) {
 }
 
 function computeVerdict(dbSignal, external, cbkMatch, internationalMatch) {
-  const scamVotes = dbSignal.find((r) => r.verdict === 'scam')?.n || 0;
-  const legitVotes = dbSignal.find((r) => r.verdict === 'legit')?.n || 0;
+  // Canonical values are reported / caution / registered / unverified; older
+  // rows still spell them scam / suspicious / legit, so votes are counted on
+  // both spellings and every verdict we return is canonical.
+  const sumFor = (...values) => dbSignal
+    .filter((r) => values.includes(r.verdict))
+    .reduce((total, r) => total + r.n, 0);
+  const scamVotes = sumFor('reported', 'scam');
+  const legitVotes = sumFor('registered', 'legit');
 
   const scamHits = external.snippets.filter((s) => /scam|fraud|fake|beware|report/i.test(`${s.title} ${s.snippet}`));
   const scamWeightedScore = scamHits.reduce((sum, s) => sum + s.weight, 0);
@@ -186,24 +192,24 @@ function computeVerdict(dbSignal, external, cbkMatch, internationalMatch) {
 
   if (scamVotes > legitVotes || hasGovernmentScamHit || scamWeightedScore >= 4 || internationalScamScore >= 20) {
     return {
-      verdict: 'scam',
+      verdict: 'reported',
       confidence: Math.min(97, 55 + scamVotes * 5 + scamWeightedScore * 5 + internationalScamScore + (hasGovernmentScamHit ? 15 : 0)),
     };
   }
 
   if (cbkMatch?.matched && scamWeightedScore === 0 && internationalScamScore === 0) {
-    return { verdict: 'legit', confidence: Math.min(96, 82 + legitVotes * 3) };
+    return { verdict: 'registered', confidence: Math.min(96, 82 + legitVotes * 3) };
   }
 
   if (legitVotes > 0 && scamWeightedScore === 0 && internationalScamScore === 0) {
-    return { verdict: 'legit', confidence: Math.min(95, 55 + legitVotes * 8) };
+    return { verdict: 'registered', confidence: Math.min(95, 55 + legitVotes * 8) };
   }
 
   if (!external.available && dbSignal.length === 0 && !cbkMatch?.matched && internationalScamScore === 0) {
     return { verdict: 'unverified', confidence: 30 };
   }
 
-  return { verdict: 'suspicious', confidence: Math.min(80, 45 + scamWeightedScore * 4 + internationalScamScore * 2) };
+  return { verdict: 'caution', confidence: Math.min(80, 45 + scamWeightedScore * 4 + internationalScamScore * 2) };
 }
 
 function shapeForTier(result, tier) {

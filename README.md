@@ -38,7 +38,7 @@ approval workflow, and a single email-based support channel.
 - Review ID verifications, approve/reject job postings, view platform stats, view unsent contact messages
 
 **Search:**
-- Every search checks SemaCheck's own database of past reports **and** a live external web search, then merges both into one verdict (legit / suspicious / scam / unverified) with a confidence score
+- Every search checks SemaCheck's own database of past reports **and** a live external web search, then merges both into one verdict — the canonical four are `reported` / `caution` / `registered` / `unverified`, used identically by the website, the docs, the Verified programme and the API (older rows that say scam / suspicious / legit are mapped onto those four at render time) — with a confidence score
 - Results are cached and deduplicated — the same Paybill/phone/job text is never looked up twice; the second person to search it gets an instant answer
 - Tier controls how much of the result you see: KES 50 = verdict only, KES 100 = + summary, KES 150 = + full source evidence
 

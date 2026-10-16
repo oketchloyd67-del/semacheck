@@ -151,10 +151,13 @@ const searchLimiter = makeLimiter(
   'search'
 );
 
-
+// makeLimiter is exported so feature-specific limiters (see
+// routes/paidCheckLimiter.js) reuse the same Redis-backed store instead of
+// building their own.
 module.exports = { 
   generalLimiter, 
   authLimiter, 
   paymentLimiter, 
-  searchLimiter 
+  searchLimiter, 
+  makeLimiter 
 };

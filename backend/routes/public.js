@@ -29,7 +29,7 @@ router.get('/recent-scams', async (req, res) => {
       pool.query(
         `SELECT query_type, query_value, verdict, created_at
          FROM searches
-         WHERE verdict IN ('scam', 'suspicious')
+         WHERE verdict IN ('scam', 'suspicious', 'reported', 'caution')
            AND created_at > now() - INTERVAL '14 days'
          ORDER BY created_at DESC
          LIMIT 20`
@@ -55,7 +55,7 @@ router.get('/recent-scams', async (req, res) => {
     const fromReports = reports.rows.map((r) => ({
       type: r.report_type,
       value: redactReportValue(r.report_type, r.subject_value) || (r.subject_name ? r.subject_name.slice(0, 28) : 'Reported'),
-      verdict: 'scam',
+      verdict: 'reported',
       reported_at: r.created_at,
       source: 'report',
       name: r.subject_name,

@@ -209,6 +209,9 @@ section { padding: 64px 0; }
 .verdict-scam { background: rgba(214,69,92,0.12); color: var(--scam-red); }
 .verdict-suspicious { background: rgba(224,162,39,0.14); color: var(--suspicious-amber); }
 .verdict-unverified { background: rgba(90,107,133,0.12); color: var(--text-muted); }
+.verdict-reported { background: rgba(214,69,92,0.12); color: var(--scam-red); }
+.verdict-caution { background: rgba(224,162,39,0.14); color: var(--suspicious-amber); }
+.verdict-registered { background: rgba(35,164,106,0.12); color: var(--legit-green); }
 
 
 .contact-box { background: var(--navy); color: #fff; border-radius: var(--radius); padding: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: center; }
@@ -446,8 +449,10 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0 28px; font-size: 0
 .ticker-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; transition: transform 0.15s ease; }
 .ticker-item:hover { transform: translateY(-1px); }
 .ticker-verdict { font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
-.ticker-verdict.scam { background: rgba(214,69,92,0.12); color: var(--scam-red); }
-.ticker-verdict.suspicious { background: rgba(224,162,39,0.14); color: var(--suspicious-amber); }
+.ticker-verdict.reported { background: rgba(214,69,92,0.12); color: var(--scam-red); }
+.ticker-verdict.caution { background: rgba(224,162,39,0.14); color: var(--suspicious-amber); }
+.ticker-verdict.registered { background: rgba(35,164,106,0.12); color: var(--legit-green); }
+.ticker-verdict.unverified { background: rgba(90,107,133,0.12); color: var(--text-muted); }
 .ticker-type { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.03em; flex-shrink: 0; width: 64px; }
 .ticker-value { font-family: 'Courier New', monospace; font-weight: 700; font-size: 0.95rem; color: var(--text); }
 .ticker-amount { font-size: 0.76rem; font-weight: 700; color: var(--scam-red); white-space: nowrap; margin-left: 8px; }

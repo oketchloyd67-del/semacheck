@@ -15,6 +15,7 @@
       <a href="index.html" class="brand" aria-label="SemaCheck — go to the homepage"><img src="assets/logo.png" alt="SemaCheck" class="brand-logo"></a>
       <nav class="subnav">
         <a href="index.html#search">Search</a>
+        <a href="developers.html">Developers</a>
         <a href="alerts.html">Alerts</a>
         <a href="forensics.html">Forensics</a>
         <a href="verified.html" style="color:#fff; font-weight:600;">Verified</a>
@@ -39,7 +40,7 @@
         <li><b>Registration check.</b> Our admin team reviews the organisation's certificate of registration (and, for job postings, the KRA PIN) manually — no automated pass.</li>
         <li><b>Registry cross-check.</b> Paybills and business names are matched against public records, including the CBK Digital Credit Providers registry where applicable.</li>
         <li><b>Report scan.</b> The subject is scanned against every approved scam report in our database and live public web results.</li>
-        <li><b>Verdict.</b> The verdict (<span class="label-pill label-registered">registered</span>, <span class="label-pill label-unverified">unverified</span>, <span class="label-pill" style="background:var(--suspicious-amber); color:#3a2400;">suspicious</span> or <span class="label-pill" style="background:var(--scam-red); color:#fff;">scam</span>) is published with its reasons and confidence, and re-checked whenever a new report lands.</li>
+        <li><b>Verdict.</b> The verdict (<span class="label-pill label-registered">registered</span>, <span class="label-pill label-unverified">unverified</span>, <span class="label-pill" style="background:var(--suspicious-amber); color:#3a2400;">caution</span> or <span class="label-pill" style="background:var(--scam-red); color:#fff;">reported</span> — the same four values the website, the docs and the API all use) is published with its reasons and confidence, and re-checked whenever a new report lands.</li>
       </ol>
       <p class="hint">Every verdict shows the date it was built. A verdict can change — check again any time.</p>
     </section>
@@ -59,7 +60,7 @@
       <h2>Think a verdict is wrong?</h2>
       <p>Verdicts are built from reports and web evidence anyone can see — and reports can be wrong or out of date. If a verdict about your number, paybill or business is inaccurate:</p>
       <ul style="padding-left:20px; line-height:1.8;">
-        <li>Open the <a href="report.html" style="color:var(--teal);font-weight:600;">report page</a> and submit a dispute with proof of ownership — upheld disputes correct the verdict everywhere, including the API.</li>
+        <li>Open the <a href="dispute.html" style="color:var(--teal);font-weight:600;">dispute page</a> and submit a dispute with proof of ownership — upheld disputes correct the verdict everywhere, including the API.</li>
         <li>Use the <b>Wrong verdict?</b> button shown under any search result to flag it to our review team.</li>
       </ul>
     </section>

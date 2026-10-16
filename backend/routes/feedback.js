@@ -15,7 +15,7 @@ router.post('/verdict', authLimiter, async (req, res) => {
     if (!message || String(message).trim().length < 10) {
       return res.status(400).json({ error: 'Tell us what looks wrong in at least 10 characters.' });
     }
-    if (verdict && !['legit', 'unverified', 'suspicious', 'scam', 'reported', 'caution', 'registered'].includes(String(verdict))) {
+    if (verdict && !['reported', 'caution', 'registered', 'unverified'].includes(String(verdict))) {
       return res.status(400).json({ error: 'Unrecognised verdict value.' });
     }
 

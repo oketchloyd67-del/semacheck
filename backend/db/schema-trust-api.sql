@@ -258,8 +258,9 @@ ON CONFLICT (code) DO NOTHING;
 -- Free plan is sandbox-only from now on: no live checks are included.
 UPDATE api_plans SET monthly_quota = 0 WHERE code = 'free';
 
--- Pay-gated checks: POST /v1/gate issues a check_token, the end user pays
--- by M-Pesa STK push, POST /v1/token/verify returns the verdict once paid.
+-- Pay-gated checks: POST /v1/gate issues a checkToken, the account's own
+-- M-Pesa number pays by STK push (POST /v1/paid-check charges an end user
+-- instead); POST /v1/token/verify returns the verdict once paid.
 CREATE TABLE IF NOT EXISTS paygate_checks (
     id              SERIAL PRIMARY KEY,
     account_id      INTEGER NOT NULL REFERENCES api_accounts(id) ON DELETE CASCADE,

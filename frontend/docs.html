@@ -38,10 +38,10 @@
 
     <h2 id="sandbox">Sandbox mode</h2>
     <p>The Free plan is a <b>sandbox</b>: it issues test keys only and makes no live checks. A sandbox <code>/v1/check</code> responds instantly, in the same shape as production, with <code>"mode": "sandbox"</code>. The subject text picks the verdict, so you can build and demo every branch of your UI:</p>
-    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">subject contains "scam" or "fraud"      → verdict: scam (confidence 98)
-subject contains "suspect" or "caution"  → verdict: suspicious (confidence 60)
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">subject contains "scam" or "fraud"       → verdict: reported (confidence 98)
+subject contains "suspect" or "caution"   → verdict: caution (confidence 60)
 subject contains "unverified" or "unknown" → verdict: unverified (confidence 20)
-anything else                            → verdict: legit (confidence 55)</div>
+anything else                             → verdict: registered (confidence 55)</div>
     <p>Sandbox calls never consume quota and never touch the report database. When you are ready, upgrade to a paid plan and switch the same integration to an <code>sk_live_</code> key — the request and response formats are identical.</p>
 
     <h2 id="plans">Plans and volume pricing</h2>
@@ -78,19 +78,21 @@ Content-Type: application/json
 }</div>
     <p>Sandbox responses are identical except <code>"mode": "sandbox"</code> appears at the top level and in <code>meta</code>.</p>
 
-    <h2 id="gating">Pay-gating — charge your users per check</h2>
-    <p>On any paid plan you can make <i>your</i> end user pay for a check by M-Pesa before they see the verdict:</p>
+    <h2 id="gating">Pay-gating — charge per check</h2>
+    <p>Two ways to put a M-Pesa payment in front of a check. Both need a live key (sandbox keys answer HTTP 402 <code>sandbox_key</code>) and both issue the same token:</p>
     <ol style="padding-left:20px; line-height:1.9;">
-      <li><b>POST <code>/v1/gate</code></b> with <code>{ checkType, subject, phone }</code>. We send an STK push to <code>phone</code> and return a <code>check_token</code> (a 15-minute payment window, KES 30 per gated check).</li>
-      <li>Your user pays; the payment callback releases the verdict.</li>
-      <li><b>POST <code>/v1/token/verify</code></b> with <code>{ check_token }</code> until <code>status</code> is <code>paid</code>, then read the verdict. Responses: <code>awaiting_payment</code> → <code>paid</code> (verdict included), or <code>consumed</code> if already delivered once. Expired or failed windows answer <b>HTTP 402</b> with <code>token_expired</code> or <code>payment_failed</code> — call <code>/v1/gate</code> again.</li>
+      <li><b>POST <code>/v1/gate</code></b> with <code>{ checkType, subject }</code> — the gate for <i>your own</i> payment: the STK push goes to the M-Pesa number on your account, so your organisation pays for the check rather than your visitor. KES 30 per check, 15-minute window. If that number isn't set yet the call answers 402 <code>billing_phone_missing</code> — add it in the API dashboard.</li>
+      <li><b>POST <code>/v1/paid-check</code></b> with <code>{ checkType, subject, phone }</code> — charge an <i>end user</i> KES 30 by STK push inside your own checkout, then poll the same token.</li>
+      <li>Both return a <code>checkToken</code>; the payment callback releases the verdict.</li>
+      <li><b>POST <code>/v1/token/verify</code></b> with <code>{ checkToken }</code> until <code>status</code> is <code>paid</code>, then read the verdict. Responses: <code>awaiting_payment</code> → <code>paid</code> (verdict included), or <code>consumed</code> if already delivered once. Expired or failed windows answer <b>HTTP 402</b> with <code>token_expired</code> or <code>payment_failed</code> — open a new token.</li>
     </ol>
     <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">POST /v1/gate →
 {
-  "check_token": "chk_…",
+  "checkToken": "chk_…",
   "status": "awaiting_payment",
-  "price_kes": 30,
-  "expires_at": "2026-10-15T14:22:00Z"
+  "payer": "account",
+  "priceKes": 30,
+  "expiresAt": "2026-10-15T14:22:00Z"
 }
 
 POST /v1/token/verify →
@@ -108,10 +110,8 @@ POST /v1/token/verify →
       <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--suspicious-amber); color:#3a2400;">caution</span> <span style="font-weight:600;">Caution</span> — something is off.</div>
       <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--legit-green); color:#fff;">registered</span> <span style="font-weight:600;">Registered</span> — matches a known public record.</div>
       <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--border); color:var(--text-muted);">unverified</span> <span style="font-weight:600;">Unverified</span> — nothing yet says either way.</div>
-      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--scam-red); color:#fff;">scam</span> <span style="font-weight:600;">Scam</span> — strong multi-source evidence.</div>
-      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--suspicious-amber); color:#3a2400;">suspicious</span> <span style="font-weight:600;">Suspicious</span> — concerning signals, not conclusive.</div>
-      <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--legit-green); color:#fff;">legit</span> <span style="font-weight:600;">Legit</span> — no adverse signals found in this check.</div>
     </div>
+    <p style="margin-top:10px;">These four are the entire public vocabulary — the website, the docs, the Verified programme and the API all use exactly this list, and <code>displayVerdict</code> carries the matching title case (<code>Reported</code>, <code>Caution</code>, <code>Registered</code>, <code>Unverified</code>). Anything else you see in older data is a legacy spelling of one of these four.</p>
     <p style="margin-top:10px;"><b>Fail-open or fail-closed is your product decision, not ours.</b> A verdict is a point-in-time signal, not a guarantee. If your API call fails (network, 5xx), we recommend <b>failing closed</b> for money-moving flows — ask the user to wait or try again rather than proceeding unchecked. For <code>unverified</code> verdicts, most partners fail open with a lightweight warning. Never treat a verdict as the sole reason to refuse a person service; see the API terms.</p>
 
     <h2 id="errors">Rate limits, quotas and error shape</h2>
@@ -121,11 +121,14 @@ X-RateLimit-Reset: 23
 X-Quota-Limit: 2000
 X-Quota-Remaining: 1987
 X-Request-Id: abc123</div>
-    <p style="margin-top:12px;">Errors are JSON with a machine-readable <code>error</code> code and, where useful, a human <code>message</code>:</p>
+    <p style="margin-top:12px;">Errors are JSON with a machine-readable <code>error</code> code and, where useful, a human <code>message</code>. Field names are always <b>camelCase</b>; error codes are fixed lowercase values you can switch on:</p>
     <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">HTTP 400 { "error": "missing_parameter", "message": "checkType and subject are required." }
 HTTP 401 { "error": "invalid_api_key" }
 HTTP 402 { "error": "upgrade_required", "message": "Live checks are not included in the Free (sandbox) plan…" }
+HTTP 402 { "error": "plan_expired", "message": "Your API plan is suspended. Live keys are temporarily blocked until the account is current…" }
+HTTP 402 { "error": "account_pending", "message": "This API account is still under review…" }
 HTTP 402 { "error": "token_expired", "message": "The 15-minute payment window elapsed…" }
+HTTP 402 { "error": "rate_limited", "message": "Too many M-Pesa payment prompts were started for this phone in the last hour (3)…" }
 HTTP 402 { "error": "batch_not_enabled", "plan": "Starter" }
 HTTP 429 { "error": "rate_limited", "retryAfter": 60 }
 HTTP 429 { "error": "quota_exceeded", "quotaLimit": 2000, "checksUsed": 2001 }
@@ -137,8 +140,8 @@ HTTP 500 { "error": "check_failed", "message": "…" }</div>
     <ul style="padding-left:20px; line-height:1.8;">
       <li>We email a <b>renewal reminder 3 days</b> before the renewal date.</li>
       <li>An unpaid plan enters <code>past_due</code> on the renewal date. You then have a <b>7-day grace period</b> during which live keys keep working.</li>
-      <li>After the grace period the account is <code>suspended</code> and live keys return HTTP 401. Settle the invoice (or re-buy the plan from the dashboard) to reactivate.</li>
-      <li>Test keys on a sandbox account are never suspended by billing.</li>
+      <li>After the grace period the account is <code>suspended</code> and live keys answer HTTP 402 <code>plan_expired</code>. Settle the invoice (or re-buy the plan from the dashboard) to reactivate. Suspension is never an authentication failure — a valid key that is blocked for billing answers 402, so you can tell "settle or wait" apart from "wrong key" (401).</li>
+      <li>Billing states never block sandbox work: <code>sk_test_</code> keys keep working on <code>pending</code>, <code>past_due</code> and <code>suspended</code> accounts. Only a <code>closed</code> account answers 402 for every key.</li>
     </ul>
 
     <h2 id="webhooks">Webhooks</h2>
@@ -153,7 +156,7 @@ X-SemaCheck-Signature: t=1760000000,v1=9f2b…e41c
   "data": {
     "type": "phone",
     "value": "254712345678",
-    "previous_verdict": "unverified",
+    "previousVerdict": "unverified",
     "verdict": "reported",
     "confidence": 72
   }

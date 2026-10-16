@@ -104,8 +104,13 @@ async function internalDbSignal(checkType, value) {
      GROUP BY verdict`,
     [checkType, `%${value.slice(0, 40)}%`]
   );
-  const scamVotes = rows.find((r) => r.verdict === 'scam')?.n || 0;
-  const legitVotes = rows.find((r) => r.verdict === 'legit')?.n || 0;
+  // Canonical verdicts (reported / registered / …) plus the legacy spellings
+  // older rows still carry, so votes are never silently lost.
+  const sumFor = (...values) => rows
+    .filter((r) => values.includes(r.verdict))
+    .reduce((total, r) => total + r.n, 0);
+  const scamVotes = sumFor('reported', 'scam');
+  const legitVotes = sumFor('registered', 'legit');
   return { scamVotes, legitVotes };
 }
 

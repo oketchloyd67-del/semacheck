@@ -1,5 +1,20 @@
 const API_BASE = 'https://semacheck.onrender.com/api';
 
+// One verdict vocabulary everywhere: reported / caution / registered /
+// unverified. Older rows and older payloads can still say scam, suspicious or
+// legit — map those onto the canonical list before rendering so nothing on the
+// site shows a word the API no longer returns.
+const VERDICT_ALIAS = { scam: 'reported', suspicious: 'caution', legit: 'registered' };
+function canonicalVerdict(v) {
+  return VERDICT_ALIAS[v] || v;
+}
+const VERDICT_TICKER = {
+  reported: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M1 21h22L12 2 1 21zm12-3h2v-2h2v2zm0-4h2v-4h2v4z"/></svg>REPORTED',
+  caution: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>CAUTION',
+  registered: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>REGISTERED',
+  unverified: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-3.5h-2c0-3 3-2.75 3-4.5a2 2 0 0 0-4 0h-2a4 4 0 1 1 8 0c0 2.5-3 2.75-3 4.5z"/></svg>UNVERIFIED',
+};
+
 async function loadRecentScamsTicker() {
   const container = document.getElementById('tickerContainer');
   if (!container) return;
@@ -16,7 +31,7 @@ async function loadRecentScamsTicker() {
       const amount = s.amountLostKes ? `<span class="ticker-amount">KES ${Number(s.amountLostKes).toLocaleString()} lost</span>` : '';
       const badge = s.source === 'report' ? '<span class="ticker-source" title="Admin-approved community report">REPORTED</span>' : '';
       return `<div class="ticker-item" style="animation-delay:${i * 0.05}s">
-        <span class="ticker-verdict ${escapeHtml(s.verdict)}">${s.verdict === 'scam' ? '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>SCAM' : '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>SUSPICIOUS'}</span>
+        <span class="ticker-verdict ${escapeHtml(canonicalVerdict(s.verdict))}">${VERDICT_TICKER[canonicalVerdict(s.verdict)] || VERDICT_TICKER.unverified}</span>
         <span class="ticker-type">${typeLabels[s.type] || escapeHtml(s.type)}</span>
         <span class="ticker-value">${escapeHtml(s.value)}</span>${badge}${amount}
         <span class="ticker-time">${ago}</span>
@@ -770,14 +785,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const outer = document.getElementById('receiptOuter');
     const slot = document.getElementById('receiptPaperSlot');
 
-    const verdictLabels = { reported: 'REPORTED', caution: 'CAUTION', registered: 'REGISTERED', unverified: 'UNVERIFIED', legit: 'LEGIT', scam: 'SCAM', suspicious: 'SUSPICIOUS' };
+    const verdictLabels = { reported: 'REPORTED', caution: 'CAUTION', registered: 'REGISTERED', unverified: 'UNVERIFIED' };
     const now = new Date();
     const timestamp = now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const sourceCount = r.sources ? (r.sources.external_sources || []).length : null;
     const dbCount = r.sources && r.sources.db_signal ? r.sources.db_signal.reduce((a, b) => a + b.n, 0) : null;
 
-    const showForensics = ['reported', 'caution', 'scam', 'suspicious'].includes(r.verdict);
-    const forensicsParams = new URLSearchParams({ q: queryValue, type: searchType, verdict: r.verdict });
+    const rVerdict = canonicalVerdict(r.verdict);
+    const showForensics = ['reported', 'caution'].includes(rVerdict);
+    const forensicsParams = new URLSearchParams({ q: queryValue, type: searchType, verdict: rVerdict });
     const forensicsHref = `forensics.html?${forensicsParams.toString()}`;
 
     slot.innerHTML = `
@@ -792,8 +808,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="receipt-row"><span class="r-label">Search scope</span><span class="r-value">${searchRegion === 'international' ? '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="vertical-align:-2px;margin-right:3px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>Worldwide' : '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="vertical-align:-2px;margin-right:3px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>Kenya only'}</span></div>
         <div class="receipt-row"><span class="r-label">Amount paid</span><span class="r-value">KES ${searchTier}</span></div>
         <hr class="receipt-divider">
-        <div class="receipt-verdict-line v-${escapeHtml(r.verdict)}">
-          <div class="r-verdict-word">${escapeHtml(verdictLabels[r.verdict] || r.verdict.toUpperCase())}</div>
+        <div class="receipt-verdict-line v-${escapeHtml(rVerdict)}">
+          <div class="r-verdict-word">${escapeHtml(verdictLabels[rVerdict] || rVerdict.toUpperCase())}</div>
           ${r.confidence_score ? `<div style="font-size:0.78rem;color:#666;margin-top:2px;">${r.confidence_score}% confidence</div>` : ''}
         </div>
         ${r.summary ? `<hr class="receipt-divider"><div class="receipt-summary">${escapeHtml(r.summary)}</div>` : ''}

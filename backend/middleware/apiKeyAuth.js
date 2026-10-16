@@ -26,15 +26,20 @@ function normalizeKey(raw) {
   return raw.trim();
 }
 
+// Deliberately does NOT filter on account or plan status: a valid key on a
+// past_due, suspended, pending or closed account is a "pay or wait" problem
+// and must reach the 402 branch below. Filtering here made those accounts look
+// identical to an unknown key (401), which is exactly what the docs say 402
+// exists to prevent. Only revoked/unknown keys return no row -> 401.
 async function lookupKey(hash) {
   const { rows } = await pool.query(
-    `SELECT k.*, a.id AS account_id, a.user_id, a.company_name, a.website, a.plan_id, p.monthly_price_kes,
-            p.monthly_quota, p.rate_limit_per_min, p.webhooks_enabled, p.batch_enabled, p.is_active AS plan_active,
-            p.code AS plan_code, p.name AS plan_name
+    `SELECT k.*, a.id AS account_id, a.user_id, a.company_name, a.website, a.plan_id, a.status AS account_status,
+            p.monthly_price_kes, p.monthly_quota, p.rate_limit_per_min, p.webhooks_enabled, p.batch_enabled,
+            p.is_active AS plan_active, p.code AS plan_code, p.name AS plan_name
      FROM api_keys k
      JOIN api_accounts a ON a.id = k.account_id
      JOIN api_plans p ON p.id = a.plan_id
-     WHERE k.key_hash = $1 AND k.status = 'active' AND p.is_active = TRUE AND a.status = 'active' AND a.status IS NOT NULL`,
+     WHERE k.key_hash = $1 AND k.status = 'active'`,
     [hash]
   );
   return rows[0] || null;
@@ -70,6 +75,44 @@ async function apiKeyAuth(req, res, next) {
 
   const keyMode = key.mode === 'test' || raw.startsWith('sk_test_') ? 'test' : 'live';
 
+  // --- Valid key, account not in good standing -> 402, never 401 -----------
+  // docs.html: "HTTP 402 always means pay or wait ... never an authentication
+  // failure (that is 401)". A suspended account must be able to tell the client
+  // "settle the invoice" instead of "your key is wrong".
+  //
+  // Billing states (pending / past_due / suspended) block LIVE keys only:
+  // docs promise sandbox test keys keep working, and pending accounts are
+  // explicitly allowed to build with test keys while documents are reviewed.
+  // A closed account blocks every key — the account itself is gone.
+  if (key.account_status === 'closed') {
+    return res.status(402).json({
+      error: 'account_closed',
+      message: 'This API account is closed. Create a new account from the API dashboard to get new keys.',
+    });
+  }
+
+  if (keyMode === 'live') {
+    if (key.account_status === 'pending') {
+      return res.status(402).json({
+        error: 'account_pending',
+        message: 'This API account is still under review — live keys stay off until the organisation documents are approved. Sandbox (test) keys work in the meantime.',
+      });
+    }
+    if (key.account_status === 'past_due' || key.account_status === 'suspended') {
+      return res.status(402).json({
+        error: 'plan_expired',
+        plan: key.plan_name,
+        message: `Your API plan is ${key.account_status}. Live keys are temporarily blocked until the account is current. Sandbox (test) keys keep working.`,
+      });
+    }
+    if (!key.plan_active) {
+      return res.status(402).json({
+        error: 'plan_unavailable',
+        message: 'The plan on this account is no longer offered. Upgrade from the API dashboard to keep using live keys.',
+      });
+    }
+  }
+
   // The Free plan is sandbox-only. A live key on the free plan is an
   // upgrade requirement, not an auth failure — respond 402 so a client
   // can tell "pay or downgrade" apart from "bad key".
@@ -95,7 +138,7 @@ async function apiKeyAuth(req, res, next) {
     batchEnabled: key.batch_enabled,
     planCode: key.plan_code,
     planName: key.plan_name,
-    status: key.status,
+    status: key.account_status,
   };
   req.apiKeyId = key.id;
   req.apiKeyLastUsedAt = key.last_used_at;

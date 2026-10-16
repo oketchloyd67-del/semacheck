@@ -73,7 +73,7 @@ async function notifySubjectChange(type, hash) {
         type: w.check_type,
         value: null,
         reference: w.reference,
-        previous_verdict: w.last_verdict || 'unverified',
+        previousVerdict: w.last_verdict || 'unverified',
         verdict: current.verdict,
         confidence: current.confidence_score,
       },

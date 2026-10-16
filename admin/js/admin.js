@@ -24,6 +24,23 @@ function escapeHtml(str) {
 function pill(status) {
   return `<span class="pill pill-${status}">${status}</span>`;
 }
+function statusCell(p) {
+  if (p.status === 'success') return '<span class="chat-bubble chat-bubble-success">Paid</span>';
+  if (p.status === 'failed') return '<span class="chat-bubble chat-bubble-failed">Failed</span>';
+  if (p.status === 'cancelled') return '<span class="chat-bubble chat-bubble-failed">Cancelled</span>';
+  if (p.status === 'refunded') return '<span class="chat-bubble chat-bubble-failed">Refunded</span>';
+  return pill(p.status);
+}
+function userCell(p) {
+  const type = p.account_type === 'job_owner' ? 'Job owner' : 'Regular';
+  const head = p.full_name || p.email || p.phone || '';
+  const headHtml = head ? escapeHtml(head) : `<b>${type}</b>`;
+  const emailLine = p.email && head !== p.email
+    ? `<div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(p.email)}</div>`
+    : '';
+  const typeLine = head ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">${type}</div>` : '';
+  return `${headHtml}${emailLine}${typeLine}`;
+}
 function showToast(message, isError) {
   const box = document.getElementById('globalAlert');
   box.innerHTML = `<div class="alert ${isError ? 'alert-err' : 'alert-ok'}">${escapeHtml(message)}</div>`;

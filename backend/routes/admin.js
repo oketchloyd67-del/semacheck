@@ -110,7 +110,7 @@ router.get('/revenue', requireAdmin, async (req, res) => {
     const [total, byPurpose, recent, series] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(amount),0)::numeric(10,2) AS total, count(*)::int AS count FROM payments WHERE status='success'`),
       pool.query(`SELECT purpose, COALESCE(SUM(amount),0)::numeric(10,2) AS total, count(*)::int AS count FROM payments WHERE status='success' GROUP BY purpose ORDER BY total DESC`),
-      pool.query(`SELECT p.id, p.purpose, p.amount, p.phone, p.mpesa_receipt, p.status, p.created_at, u.full_name, u.email FROM payments p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 50`),
+      pool.query(`SELECT p.id, p.purpose, p.amount, p.phone, p.mpesa_receipt, p.status, p.created_at, u.full_name, u.email, u.account_type FROM payments p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 50`),
       pool.query(`SELECT DATE(created_at)::text AS day, COALESCE(SUM(amount),0)::numeric(10,2) AS total, count(*)::int AS count FROM payments WHERE status='success' AND created_at > now() - ($1 || ' days')::interval GROUP BY day ORDER BY day ASC`, [String(days)]),
     ]);
     const periodRows = await Promise.all(periodKeys.map((d) =>

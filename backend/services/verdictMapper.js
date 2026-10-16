@@ -5,8 +5,8 @@ const THRESHOLDS = {
   scamVoteMargin: 0,
   governmentScamWeight: 4,
   maxBreachScore: 97,
-  legitCbkTrust: 96,
-  legitLegitVote: 95,
+  knownVerified: 96,
+  knownVerifiedVote: 95,
   suspiciousMax: 80,
   defaultUnverified: 30,
 };
@@ -53,11 +53,11 @@ function verdictMapper(signals) {
     if (internationalScamScore > 0) reasons.push({ code: 'international', label: 'International scam tracker matches.', source: 'international', weight: 3 });
   } else if (cbkMatch && externalBreachScore === 0 && internationalScamScore === 0) {
     verdict = 'registered';
-    confidence = Math.min(THRESHOLDS.legitCbkTrust, 82 + legitVotes * 3);
+    confidence = Math.min(THRESHOLDS.knownVerified, 82 + legitVotes * 3);
     reasons.push({ code: 'cbk_match', label: 'This subject matches a licensed digital lender on the CBK registry.', source: 'cbk', weight: 10 });
   } else if (legitVotes > 0 && externalBreachScore === 0 && internationalScamScore === 0) {
     verdict = 'registered';
-    confidence = Math.min(THRESHOLDS.legitLegitVote, 55 + legitVotes * 8);
+    confidence = Math.min(THRESHOLDS.knownVerifiedVote, 55 + legitVotes * 8);
     reasons.push({ code: 'legit_vote', label: 'Previous searches show this subject as legitimate.', source: 'reports', weight: 5 });
   } else if (!signals.externalAvailable && scamVotes === 0 && !cbkMatch && internationalScamScore === 0) {
     verdict = 'unverified';
