@@ -264,3 +264,5 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint ON push_subscriptions(endpoint);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS id_document_deleted_at TIMESTAMPTZ;

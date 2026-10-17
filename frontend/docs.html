@@ -104,6 +104,21 @@ POST /v1/token/verify →
 }</div>
     <p>Pay-gating needs a live key — sandbox keys answer HTTP 402 <code>sandbox_key</code>.</p>
 
+    <h2 id="result-gate">Gate the pay button on the check result</h2>
+    <p>The token above (<code>checkToken</code>) is a <b>payment token</b> for charging per check. A <b>result token</b> is different: it lets your <i>server</i> prove that a check really happened — and what it decided — before you start the end user's payment.</p>
+    <ol style="padding-left:20px; line-height:1.9;">
+      <li>Call <b>POST <code>/v1/check</code></b> with <code>{ checkType, subject, gate: true }</code>. The response adds <code>decision</code> (<code>allow</code>, <code>warn</code> or <code>block</code>) and a signed <code>resultToken</code>.</li>
+      <li>Your server calls <b>POST <code>/v1/result/verify</code></b> with <code>{ resultToken, checkType, subject, acknowledged }</code> right before it charges the payer. Secret key only; no quota is used.</li>
+      <li>A token is valid for <b>10 minutes</b>, for <b>one number</b>, for <b>one account</b>, and it works <b>once</b>.</li>
+    </ol>
+    <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">POST /v1/check   { "checkType": "phone", "subject": "254712345678", "gate": true }
+-> { "verdict": "caution", "decision": "warn", "resultToken": "rt_eyJ…", … }
+
+POST /v1/result/verify   { "resultToken": "rt_eyJ…", "checkType": "phone", "subject": "254712345678", "acknowledged": true }
+-> { "ok": true, "proceed": true, "decision": "warn", "verdict": "caution", "reason": "acknowledged" }</div>
+    <p style="margin-top:10px;"><b>Decisions:</b> <code>reported</code> → <code>block</code> (never proceeds, even with <code>acknowledged: true</code>); <code>caution</code> → <code>warn</code> (proceeds only when you send <code>acknowledged: true</code>); <code>registered</code> → <code>allow</code>; <code>unverified</code> → <code>warn</code> by default. A rejected token answers <b>HTTP 400</b> with <code>ok: false</code> and <code>reason</code> one of <code>token_unknown</code>, <code>token_expired</code>, <code>subject_mismatch</code>, <code>token_used</code>.</p>
+    <p>Gate attributes on the widget tag keep the pay button locked until the check passes: <code>data-input="#phone"</code> (the field being paid), <code>data-pay-button="#pay"</code>, <code>data-token-field="#semacheck_token"</code>. Any edit to the number clears the token and locks the button again. A browser lock is only convenience — always verify the token on your server before charging.</p>
+
     <h2 id="verdicts">Verdict values and fail-open vs fail-closed</h2>
     <div style="display:grid; gap:10px;">
       <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--scam-red); color:#fff;">reported</span> <span style="font-weight:600;">Reported</span> — proof points exist.</div>
@@ -121,6 +136,7 @@ X-RateLimit-Reset: 23
 X-Quota-Limit: 2000
 X-Quota-Remaining: 1987
 X-Request-Id: abc123</div>
+    <p style="margin-top:10px;"><code>X-RateLimit-Reset</code> is the number of <b>seconds until the rate-limit window resets</b> (not a timestamp, not milliseconds). Every 429 response also carries a <code>Retry-After</code> header in seconds and a <code>retryAfter</code> field with the same value.</p>
     <p style="margin-top:12px;">Errors are JSON with a machine-readable <code>error</code> code and, where useful, a human <code>message</code>. Field names are always <b>camelCase</b>; error codes are fixed lowercase values you can switch on:</p>
     <div class="code" style="background:#0b1220; color:#e6edf3; padding:16px; border-radius:10px; overflow:auto;">HTTP 400 { "error": "missing_parameter", "message": "checkType and subject are required." }
 HTTP 401 { "error": "invalid_api_key" }
@@ -128,17 +144,17 @@ HTTP 402 { "error": "upgrade_required", "message": "Live checks are not included
 HTTP 402 { "error": "plan_expired", "message": "Your API plan is suspended. Live keys are temporarily blocked until the account is current…" }
 HTTP 402 { "error": "account_pending", "message": "This API account is still under review…" }
 HTTP 402 { "error": "token_expired", "message": "The 15-minute payment window elapsed…" }
-HTTP 402 { "error": "rate_limited", "message": "Too many M-Pesa payment prompts were started for this phone in the last hour (3)…", "retryAfter": 3600 }
+HTTP 429 { "error": "payment_prompt_limited", "message": "Too many M-Pesa payment prompts were started for this phone in the last hour (3)…", "retryAfter": 3600 }
 HTTP 402 { "error": "batch_not_enabled", "plan": "Starter" }
 HTTP 429 { "error": "rate_limited", "retryAfter": 60 }
 HTTP 429 { "error": "quota_exceeded", "quotaLimit": 2000, "checksUsed": 2001 }
 HTTP 500 { "error": "check_failed", "message": "…" }</div>
-    <p style="margin-top:10px;"><b>HTTP 402 always means "pay or wait"</b> — upgrade your plan, settle an overdue invoice, or complete a pending gated payment. It is never an authentication failure (that is 401).</p>
+    <p style="margin-top:10px;"><b>HTTP 402 always means "pay or wait"</b> — upgrade your plan, settle an overdue invoice, or complete a pending gated payment. It is never an authentication failure (that is 401), and never a rate limit: too many requests, too many paid-check prompts, or too much quota all answer <b>429</b>.</p>
 
     <h2 id="renewal">Renewal, reminders and grace period</h2>
     <p>Paid plans renew monthly on your plan date:</p>
     <ul style="padding-left:20px; line-height:1.8;">
-      <li>We email a <b>renewal reminder 3 days</b> before the renewal date.</li>
+      <li>We email renewal reminders <b>14, 7, 3 and 1 days</b> before the renewal date, on the due date, then <b>3 and 6 days</b> into the grace period and a final suspension notice. After downtime you get only the latest due reminder, never a burst, and the dashboard shows a live countdown of the days left.</li>
       <li>An unpaid plan enters <code>past_due</code> on the renewal date. You then have a <b>7-day grace period</b> during which live keys keep working.</li>
       <li>After the grace period the account is <code>suspended</code> and live keys answer HTTP 402 <code>plan_expired</code>. Settle the invoice (or re-buy the plan from the dashboard) to reactivate. Suspension is never an authentication failure — a valid key that is blocked for billing answers 402, so you can tell "settle or wait" apart from "wrong key" (401).</li>
       <li>Billing states never block sandbox work: <code>sk_test_</code> keys keep working on <code>pending</code>, <code>past_due</code> and <code>suspended</code> accounts. Only a <code>closed</code> account answers 402 for every key.</li>
@@ -162,6 +178,9 @@ X-SemaCheck-Signature: t=1760000000,v1=9f2b…e41c
   }
 }</div>
     <p style="margin-top:10px;">Verify <code>X-SemaCheck-Signature</code> (<code>t=timestamp,v1=hmac-sha256</code> of <code>timestamp.body</code> with your webhook secret) and reject replays older than 5 minutes.</p>
+    <p><b>What counts as delivered:</b> any <b>2xx</b> response returned within <b>5 seconds</b>. Anything else — a timeout, a 3xx, a 4xx or a 5xx — is a failed delivery.</p>
+    <p><b>Retry schedule:</b> failed deliveries are retried after 1 minute, 5 minutes, 30 minutes, 2 hours and 12 hours (five attempts in total). Delivery is at-least-once, so use <code>X-SemaCheck-Event</code> plus the subject and <code>created_at</code> to de-duplicate. After the last attempt the delivery is marked failed and is visible in the API dashboard.</p>
+    <p><b>Rotating the secret:</b> in the <a href="api-dashboard.html" style="color:var(--teal);font-weight:600;">API dashboard</a>, open Webhooks and choose <i>Regenerate secret</i>. The new secret is shown once; the old one stops verifying immediately, so deploy the new value before you rotate. Webhook endpoints must be HTTPS.</p>
 
     <h2 id="widget">Widget guide</h2>
     <p>Embed one script tag; the widget renders a "Check before you pay" box on your page. Publishable keys (<code>pk_test_</code>/<code>pk_live_</code>) are designed for browsers and are locked to the domains you register in the dashboard.</p>
@@ -182,6 +201,12 @@ X-SemaCheck-Signature: t=1760000000,v1=9f2b…e41c
     </div>
     <p style="margin-top:10px;">See a live example at <a href="widget/demo.html" style="color:var(--teal);font-weight:600;">/widget/demo.html</a>. The widget's checks spend your plan quota like any other call.</p>
     <p style="margin-top:8px;">The widget does not collect money on the page. Pay-gating is done server-side: use <a href="#gating" style="color:var(--teal);font-weight:600;">POST /v1/gate</a> (the customer's own payment) or <a href="#gating" style="color:var(--teal);font-weight:600;">POST /v1/paid-check</a> (charge an end user KES 30), then poll <a href="#gating" style="color:var(--teal);font-weight:600;">POST /v1/token/verify</a> with the <code>checkToken</code> the gate returns.</p>
+
+    <h2 id="changelog">Changelog</h2>
+    <ul style="padding-left:20px; line-height:1.8;">
+      <li><b>2026-10-17</b> — Added result tokens: <code>gate: true</code> on <code>/v1/check</code> returns <code>decision</code> and <code>resultToken</code>, and <code>POST /v1/result/verify</code> proves the check on your server. Added the widget gate attributes. Renewal reminders now follow the full 14/7/3/1 + grace schedule.</li>
+      <li><b>2026-10-17</b> — The payment-prompt abuse limit now answers <b>HTTP 429</b> <code>payment_prompt_limited</code> (with <code>Retry-After</code>) instead of 402 <code>rate_limited</code>. HTTP 402 is now used only for "pay or wait".</li>
+    </ul>
 
     <h2 id="verify">Organisation verification</h2>
     <p>API accounts verify their <b>organisation</b> — a business registration number plus the registration certificate (JPG, PNG or PDF), reviewed by our admin team. Verified organisations can buy paid plans and use live keys. Start from the <a href="api-dashboard.html" style="color:var(--teal);font-weight:600;">API dashboard</a>.</p>

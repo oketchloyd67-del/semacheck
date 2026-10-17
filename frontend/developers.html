@@ -103,7 +103,7 @@
     </section>
 
     <section class="card" style="padding:28px;">
-      <h2>Three ways to use our scam checking API</h2>
+      <h2>Three ways to use SemaCheck</h2>
       <div style="display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">
         <div class="tier" style="border:1.5px solid var(--border); border-radius:12px; padding:18px; text-align:left;">
           <div style="font-size:1.6rem;">⌘</div>
@@ -124,20 +124,21 @@
     </section>
 
     <section class="card" style="padding:28px;">
-      <h2>Why teams pick our scam-checking API</h2>        <p style="color:var(--text-muted); font-size:0.93rem; line-height:1.6;">
-        SemaCheck provides a scam-checking API built for African and global
-        fintechs, marketplaces, banks and job boards. Every call merges our community scam report
-        database with the CBK licensed-lender registry and current web results, then returns a verdict,
-        a confidence score and the evidence behind it — so your users can see the risk level of a phone
-        number, M-Pesa paybill, business name, website or job offer before they send money or documents.
+      <h2>Check a number before your customer pays it</h2>
+      <p style="color:var(--text-muted); font-size:0.93rem; line-height:1.6; margin-top:10px;">
+        Add a "Check before you pay" box to your site, or call the API from your server. You get a verdict,
+        a confidence score and the reasons, so you can warn or stop a payment before money moves. Each check
+        combines SemaCheck community reports, the CBK digital credit registry and public warnings found online
+        (including regulator and news pages) — those are the sources we actually query.
       </p>
       <ul style="color:var(--text-muted); font-size:0.9rem; line-height:1.8; margin-top:10px; padding-left:20px;">
-        <li><b>Scam verification API</b> for phone numbers, paybills, websites, businesses and job offers.</li>
-        <li><b>Admin-approved reports</b> only — every scam report is checked with supporting evidence before it reaches the API.</li>
-        <li><b>Webhooks</b> that tell you when a watched subject changes verdict.</li>
-        <li><b>Free sandbox plan</b> — unlimited test-mode checks with <code>sk_test_</code> keys, no card required. Live checks start on a paid plan.</li>
+        <li>Works for phone numbers, paybills, business names, websites and job offers.</li>
+        <li>Reports are reviewed by our team before they affect results.</li>
+        <li><b>Webhooks</b> tell you when a watched number changes status (Growth and Scale).</li>
+        <li>Free sandbox with test keys, no card needed. Live checks need a verified organisation and a paid plan.</li>
         <li><b>Gated per-check checkout</b> — charge a M-Pesa payer for a single check with a 15-minute token that only settles when payment confirms.</li>
-        <li><b>Live renewal countdown</b> — your dashboard shows days remaining and the plan renews automatically, with a 7-day grace window before live keys are suspended.</li>
+        <li><b>Renewal countdown</b> — your dashboard shows the days left before the plan renews, and there is a 7-day grace window before live keys are suspended.</li>
+        <li><b>Honest limits:</b> "unverified" means we found nothing either way. It does not mean safe. A verdict is a point-in-time signal, not a guarantee.</li>
       </ul>
       <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
         <a class="btn btn-outline" href="docs.html" style="color:var(--navy);border-color:var(--border);">Read the API docs</a>

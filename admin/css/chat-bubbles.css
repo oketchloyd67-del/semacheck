@@ -1,0 +1,24 @@
+.chat-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.chat-bubble-success {
+  background: #e6f7ee;
+  color: #0b5e3b;
+  border: 1px solid #a3e4bd;
+}
+
+.chat-bubble-failed {
+  background: #fdecec;
+  color: #9b1c1c;
+  border: 1px solid #f5a8a8;
+}

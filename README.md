@@ -119,14 +119,16 @@ cd backend
 cp .env.example .env      # fill in real values — see below
 npm install
 npm run migrate           # creates all tables
-npm run seed               # demo admin account + 2 pre-cached example searches
+npm run seed               # admin account + 2 pre-cached example searches
 npm start                  # single process, or:
 npm run start:cluster      # one worker per CPU core, for higher throughput
 ```
 
 Open `frontend/index.html` in a browser (or serve it with any static host —
 Render, Netlify, Nginx, etc.) once the backend above is running.
-Demo admin login (after seeding): `admin@semacheck.co.ke` / `AdminDemo#2026`
+After seeding, `npm run seed` prints the generated admin password **once**. Note it down there — it is
+never written to the repository. The seed script refuses to run when `NODE_ENV=production`, so demo
+accounts cannot be created on the live database.
 
 ### Setting up Tuma payments
 

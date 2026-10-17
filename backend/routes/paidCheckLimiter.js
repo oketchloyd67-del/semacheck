@@ -1,8 +1,13 @@
-// Abuse limits for the paid gate (POST /v1/gate):
+// Abuse limits for the paid gate (POST /v1/gate, POST /v1/paid-check):
 //   1. STK prompts to the same phone number, and
 //   2. gates opened by the same API key.
-// Both answer HTTP 402 with `rate_limited` — docs.html defines 402 as
-// "pay or wait", so a client can tell "try later" apart from a bad key (401).
+//
+// 402 is reserved for "pay or wait" (plan_expired, token_expired,
+// upgrade_required, ...). A prompt limit is a rate limit, not a billing state,
+// so both limits answer 429:
+//   - phone  -> `payment_prompt_limited` (too many M-Pesa prompts to one phone)
+//   - key    -> `rate_limited`           (too many paid checks from one key)
+// Both send a Retry-After header (seconds) so a client can back off properly.
 //
 // The route file only wires this in as `gateAbuseLimiter`; keep the policy
 // (constants and messages) here so it is not duplicated in the route.
@@ -11,20 +16,24 @@ const { normalizeKenyanPhone } = require('../utils/validators');
 
 const PHONE_LIMIT_PER_HOUR = 3;
 const KEY_LIMIT_PER_HOUR = 50;
+const WINDOW_MS = 60 * 60 * 1000;
+const RETRY_AFTER_SECONDS = Math.round(WINDOW_MS / 1000);
 
-function tooMany(req, res, message) {
-  return res.status(402).json({ error: 'rate_limited', message });
+function tooMany(res, error, message) {
+  res.setHeader('Retry-After', String(RETRY_AFTER_SECONDS));
+  return res.status(429).json({ error, message, retryAfter: RETRY_AFTER_SECONDS });
 }
 
 // Keyed on the E.164 phone number in the request body: one person should not
 // collect a screenful of STK prompts in an hour.
 const phoneGateLimiter = makeLimiter(
   {
-    windowMs: 60 * 60 * 1000,
+    windowMs: WINDOW_MS,
     limit: PHONE_LIMIT_PER_HOUR,
     keyGenerator: (req) => `gate:phone:${normalizeKenyanPhone(req.body?.phone || '')}`,
     handler: (req, res) => tooMany(
-      req, res,
+      res,
+      'payment_prompt_limited',
       `Too many M-Pesa payment prompts were started for this phone in the last hour (${PHONE_LIMIT_PER_HOUR}). Wait a while and try again.`
     ),
     validate: false,
@@ -36,11 +45,12 @@ const phoneGateLimiter = makeLimiter(
 // this many gates per hour.
 const keyGateLimiter = makeLimiter(
   {
-    windowMs: 60 * 60 * 1000,
+    windowMs: WINDOW_MS,
     limit: KEY_LIMIT_PER_HOUR,
     keyGenerator: (req) => `gate:key:${req.apiKeyId || 'unknown'}`,
     handler: (req, res) => tooMany(
-      req, res,
+      res,
+      'rate_limited',
       `This key has opened too many paid checks in the last hour (${KEY_LIMIT_PER_HOUR}). Wait a while and try again.`
     ),
     validate: false,
@@ -61,4 +71,4 @@ function gateAbuseLimiter(req, res, next) {
   phoneGateLimiter(req, res, runKeyLimit);
 }
 
-module.exports = { gateAbuseLimiter, PHONE_LIMIT_PER_HOUR, KEY_LIMIT_PER_HOUR };
+module.exports = { gateAbuseLimiter, PHONE_LIMIT_PER_HOUR, KEY_LIMIT_PER_HOUR, RETRY_AFTER_SECONDS };

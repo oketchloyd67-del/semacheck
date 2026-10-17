@@ -298,3 +298,22 @@ CREATE TABLE IF NOT EXISTS verdict_feedback (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_verdict_feedback_status ON verdict_feedback(status, created_at);
+
+-- CHK-05: single-use result tokens. A `gate: true` check returns a signed
+-- resultToken; the customer's SERVER verifies it before starting an end user's
+-- payment. One insert per token id enforces single use across instances.
+CREATE TABLE IF NOT EXISTS used_result_tokens (
+    jti      CHAR(24) PRIMARY KEY,
+    used_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_used_result_tokens_used ON used_result_tokens(used_at);
+
+-- CHK-06: one row per reminder step sent per billing cycle, so each step goes
+-- out once even with several servers running the hourly job.
+CREATE TABLE IF NOT EXISTS api_reminders_sent (
+    account_id  INTEGER NOT NULL REFERENCES api_accounts(id) ON DELETE CASCADE,
+    cycle_end   DATE NOT NULL,
+    step        VARCHAR(8) NOT NULL,
+    sent_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (account_id, cycle_end, step)
+);

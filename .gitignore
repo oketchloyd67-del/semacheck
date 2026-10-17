@@ -99,13 +99,12 @@ api-keys.json
 *.csr
 
 # ── Docker ──
+# .dockerignore is meant to be committed, so it is NOT ignored here.
 docker-compose.override.yml
-.dockerignore
 
 # ── Testing ──
+# Test files are meant to be committed (the suite runs from backend/tests).
 test-results/
-*.test.js
-*.spec.js
 
 # ── Uploads (if you have file uploads) ──
 uploads/
@@ -121,3 +120,16 @@ dump.rdb
 *.pid.lock
 # ── Database exports containing PII (NEVER COMMIT) ──
 *.csv
+!docs/sample-data/*.csv
+
+# ── Environment variants (keep the example template) ──
+.env.*
+!.env.example
+
+# ── Uploaded files and database dumps ──
+backend/uploads/
+*.dump
+*.dump.gpg
+
+# ── Agent workspace ──
+.freebuff/

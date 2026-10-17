@@ -235,10 +235,18 @@ if (process.env.DISABLE_IN_PROCESS_SCHEDULER !== 'true') {
   setTimeout(() => refreshInternationalDbs().catch((e) => console.error('International databases refresh failed:', e.message)), 60_000);
   setInterval(() => refreshInternationalDbs().catch((e) => console.error('International databases refresh failed:', e.message)), 7 * 24 * 60 * 60 * 1000);
 
-  // API plan renewal reminders — emails paid-plan owners within 3 days of renewal.
-  const { run: runApiPlanReminders } = require('./jobs/apiPlanReminders');
-  setTimeout(() => runApiPlanReminders().catch((e) => console.error('API plan reminders failed:', e.message)), 90_000);
-  setInterval(() => runApiPlanReminders().catch((e) => console.error('API plan reminders failed:', e.message)), 24 * 60 * 60 * 1000);
+  // API plan renewal reminders — the full schedule (14/7/3/1 days before,
+  // on the due date, then 3/6 days into the grace period and the suspension
+  // notice). Hourly is safe: each step is claimed once per cycle.
+  const { run: runApiReminders } = require('./jobs/sendApiReminders');
+  setTimeout(() => runApiReminders().catch((e) => console.error('API reminders failed:', e.message)), 90_000);
+  setInterval(() => runApiReminders().catch((e) => console.error('API reminders failed:', e.message)), 60 * 60 * 1000);
+
+  // ID document retention: delete review-complete ID photos past the period
+  // stated in the Privacy Policy (CHK-11). Daily, at most 200 rows per run.
+  const { run: runIdFileCleanup } = require('./jobs/idFileCleanup');
+  setTimeout(() => runIdFileCleanup().catch((e) => console.error('ID document cleanup failed:', e.message)), 120_000);
+  setInterval(() => runIdFileCleanup().catch((e) => console.error('ID document cleanup failed:', e.message)), 24 * 60 * 60 * 1000);
 }
 
 module.exports = app;

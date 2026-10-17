@@ -180,19 +180,24 @@ async function sendPasswordResetEmail({ toEmail, fullName, resetUrl }) {
   return response.data;
 }
 
-async function sendApiPlanReminderEmail({ toEmail, fullName, companyName, planName, renewsOn }) {
+async function sendApiPlanReminderEmail({ toEmail, fullName, companyName, planName, renewsOn, step = null }) {
   if (!BREVO_API_KEY) {
     const err = new Error('Brevo API key is not configured.');
     err.code = 'BREVO_NOT_CONFIGURED';
     throw err;
   }
   const renewsText = new Date(renewsOn).toLocaleDateString();
+  // `step` comes from services/reminderSchedule.js (T-14 … G+7). Without it the
+  // email keeps the original single-reminder wording.
+  const subject = step && step.subject
+    ? '[SemaCheck] ' + step.subject
+    : 'Your SemaCheck API ' + planName + ' plan renews on ' + renewsText;
   const payload = {
     sender: { email: SENDER_EMAIL, name: 'SemaCheck' },
     to: [{ email: toEmail }],
-    subject: 'Your SemaCheck API ' + planName + ' plan renews on ' + renewsText,
-    textContent: 'Hi ' + (fullName || '') + ',\n\nYour ' + planName + ' API plan for ' + (companyName || 'your organisation') + ' renews on ' + renewsText + '.\n\nMake sure your invoice is settled by then — after the renewal date you get a 7-day grace period before live keys are suspended. You can review plans and invoices in the API dashboard.\n\n— SemaCheck',
-    htmlContent: '<h2>API plan renewal reminder</h2><p>Hi ' + (fullName || '') + ',</p><p>Your <strong>' + planName + '</strong> API plan for ' + (companyName || 'your organisation') + ' renews on <strong>' + renewsText + '</strong>.</p><p>Make sure your invoice is settled by then — after the renewal date you get a 7-day grace period before live keys are suspended.</p><p><a href="https://semacheck.vercel.app/api-dashboard.html">Open your API dashboard</a></p><p>— SemaCheck</p>',
+    subject,
+    textContent: 'Hi ' + (fullName || '') + ',\n\n' + (step && step.subject ? step.subject + '. ' : 'Your ' + planName + ' API plan for ' + (companyName || 'your organisation') + ' renews on ' + renewsText + '. ') + '\n\nYour plan for ' + (companyName || 'your organisation') + ' renews on ' + renewsText + '. Live keys keep working during the 7-day grace period after the renewal date; test (sandbox) keys are never affected. You can review plans and invoices in the API dashboard.\n\n— SemaCheck',
+    htmlContent: '<h2>' + (step && step.subject ? step.subject : 'API plan renewal reminder') + '</h2><p>Hi ' + (fullName || '') + ',</p><p>Your <strong>' + planName + '</strong> API plan for ' + (companyName || 'your organisation') + ' renews on <strong>' + renewsText + '</strong>.</p><p>Live keys keep working during the 7-day grace period after the renewal date; test (sandbox) keys are never affected.</p><p><a href="https://semacheck.vercel.app/api-dashboard.html">Open your API dashboard</a></p><p>— SemaCheck</p>',
   };
   const response = await axios({
     method: 'POST',

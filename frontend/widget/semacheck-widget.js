@@ -23,6 +23,12 @@
     ALLOWED_TYPES: (document.currentScript ? document.currentScript.dataset.types : null || 'phone,paybill').split(',').map((s) => s.trim()).filter(Boolean),
     THEME: document.currentScript ? document.currentScript.dataset.theme || 'light' : 'light',
     TARGET: document.currentScript ? document.currentScript.dataset.target : '#semacheck-check',
+    // Gate mode (all optional). Without any of these the widget is a plain
+    // checker. With them the pay button stays locked until the check passes,
+    // and any edit to the number clears the token (CHK-05).
+    GATE_INPUT: document.currentScript ? document.currentScript.dataset.input || null : null,
+    GATE_BUTTON: document.currentScript ? document.currentScript.dataset.payButton || null : null,
+    GATE_TOKEN_FIELD: document.currentScript ? document.currentScript.dataset.tokenField || null : null,
   };
 
   const SVG = {
@@ -295,6 +301,45 @@
     const typeEls = shadow.querySelectorAll('.types span');
     if (typeEls.length) typeEls[0].classList.add('active');
 
+    // ── Gate mode ────────────────────────────────────────────────────────────
+    // A browser lock is convenience, not security: the page's server must still
+    // call POST /v1/result/verify with the token before it charges anyone.
+    const gateBtn = CONFIG.GATE_BUTTON ? document.querySelector(CONFIG.GATE_BUTTON) : null;
+    const gateInput = CONFIG.GATE_INPUT ? document.querySelector(CONFIG.GATE_INPUT) : null;
+    const gateTokenField = CONFIG.GATE_TOKEN_FIELD ? document.querySelector(CONFIG.GATE_TOKEN_FIELD) : null;
+    const gateOn = Boolean(gateBtn || gateTokenField);
+
+    const lockPay = (reason) => {
+      if (gateTokenField) gateTokenField.value = '';
+      if (!gateBtn) return;
+      gateBtn.disabled = true;
+      gateBtn.setAttribute('aria-disabled', 'true');
+      gateBtn.setAttribute('data-semacheck-locked', reason || 'unchecked');
+      gateBtn.title = reason === 'blocked'
+        ? 'SemaCheck reported this number. Payment is locked.'
+        : 'Check the number with SemaCheck first.';
+    };
+
+    const unlockPay = (token) => {
+      if (token && gateTokenField) gateTokenField.value = token;
+      if (!gateBtn) return;
+      gateBtn.disabled = false;
+      gateBtn.removeAttribute('aria-disabled');
+      gateBtn.removeAttribute('data-semacheck-locked');
+      gateBtn.removeAttribute('title');
+    };
+
+    if (gateOn) {
+      lockPay('unchecked');
+      if (gateInput) {
+        gateInput.addEventListener('input', () => {
+          input.value = gateInput.value;      // the widget checks what the form will pay
+          lockPay('changed');                 // any edit invalidates the token
+          resultEl.classList.remove('visible');
+        });
+      }
+    }
+
     const widget = {
       check() {
         if (btnCheck.disabled) return;
@@ -319,7 +364,7 @@
         fetch(`${API_BASE}/v1/widget/check`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ checkType: type, subject, region: 'kenya' }),
+          body: JSON.stringify({ checkType: type, subject, region: 'kenya', gate: gateOn }),
         })
           .then(async (r) => {
             const data = await r.json();
@@ -341,6 +386,22 @@
               reasonsEl.appendChild(item);
             });
             statusEl.textContent = 'Done — check the result above.';
+            if (gateOn) {
+              // The server's decision is authoritative (reported -> block,
+              // caution -> warn, registered -> allow, unverified -> warn).
+              const decision = data.decision
+                || (data.verdict === 'reported' ? 'block' : data.verdict === 'registered' ? 'allow' : 'warn');
+              if (decision === 'block') {
+                lockPay('blocked');
+                statusEl.textContent = 'Reported — payment stays locked.';
+              } else {
+                unlockPay(data.resultToken);
+                statusEl.textContent = decision === 'warn'
+                  ? 'Caution or unverified — your server must acknowledge this before payment.'
+                  : 'Registered — your server can now verify the result token.';
+                if (gateInput && gateInput.value !== input.value) gateInput.value = input.value;
+              }
+            }
           })
           .catch((err) => {
             spinner.classList.remove('visible');
@@ -349,6 +410,7 @@
             errEl.classList.add('visible');
             btnCheck.disabled = false;
             btnCheck.innerHTML = SVG.check + 'Check';
+            if (gateOn) lockPay('failed');
           });
       },
     };

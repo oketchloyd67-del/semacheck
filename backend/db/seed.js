@@ -5,6 +5,11 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const pool = require('./pool');
+const { assertSafeToSeed, randomPassword } = require('./seedGuard');
+
+// Never seed demo accounts into production, and never use a fixed password:
+// a known admin password in a public README is a full-admin compromise (CHK-01).
+assertSafeToSeed();
 
 function hashValue(v) {
   return crypto.createHash('sha256').update(v.trim().toLowerCase()).digest('hex');
@@ -13,8 +18,9 @@ function hashValue(v) {
 async function seed() {
   const client = await pool.connect();
   try {
-    const adminPasswordHash = await bcrypt.hash('AdminDemo#2026', 12);
-    await client.query(
+    const adminPassword = randomPassword();
+    const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
+    const { rowCount: adminInserted } = await client.query(
       `INSERT INTO admins (full_name, email, password_hash)
        VALUES ($1, $2, $3)
        ON CONFLICT (email) DO NOTHING`,
@@ -59,7 +65,14 @@ async function seed() {
       ]
     );
 
-    console.log('✔ Seed complete. Demo admin login: admin@semacheck.co.ke / AdminDemo#2026');
+    console.log('✔ Seed complete.');
+    if (adminInserted === 1) {
+      // Printed once, never written to a file or the README. Change it after first login.
+      console.log('Admin login: admin@semacheck.co.ke');
+      console.log('Admin password (shown once):', adminPassword);
+    } else {
+      console.log('Admin account already existed; its password was left unchanged.');
+    }
   } catch (err) {
     console.error('✘ Seed failed:', err.message);
     process.exitCode = 1;

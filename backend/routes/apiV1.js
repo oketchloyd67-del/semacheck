@@ -10,6 +10,7 @@ const { quotaMeter, quotaMeter: widgetQuotaMeter } = require('../middleware/quot
 const { widgetOrigin } = require('../middleware/widgetOrigin');
 const checkService = require('../services/checkService');
 const usageService = require('../services/usageService');
+const resultGate = require('../services/resultGate');
 const { reportAbuseGuard } = require('../middleware/reportAbuseGuard');
 const { submitReport } = require('../services/reportService');
 const { gateAbuseLimiter } = require('./paidCheckLimiter');
@@ -69,14 +70,25 @@ function hashGateToken(token) {
   return crypto.createHmac('sha256', secret || 'gate-fallback').update(String(token)).digest('hex');
 }
 
+// Signs the resultToken (CHK-05). This is a separate concern from the payment
+// checkToken: the customer's SERVER verifies a resultToken before it starts an
+// end user's payment. Without a secret we cannot sign, so gated checks answer
+// 503 instead of issuing something unforgeable-looking.
+function resultSecret() {
+  return process.env.RESULT_TOKEN_SECRET || process.env.API_KEY_HASH_SECRET || '';
+}
+
 // POST /v1/check — API key (secret), authenticated developer
 router.post('/check', apiKeyAuth, apiRateLimit, quotaMeter, async (req, res) => {
-  const { checkType, subject, region } = req.body;
+  const { checkType, subject, region, gate } = req.body;
   if (!checkType || !subject) {
     return res.status(400).json({ error: 'checkType and subject are required.' });
   }
   if (!['phone', 'paybill', 'business', 'website', 'job'].includes(checkType)) {
     return res.status(400).json({ error: 'checkType must be phone, paybill, business, website or job.' });
+  }
+  if (gate === true && !resultSecret()) {
+    return res.status(503).json({ error: 'result_gate_unavailable', message: 'Result tokens are not configured on this deployment. Set RESULT_TOKEN_SECRET.' });
   }
 
   const requestId = req.id;
@@ -91,7 +103,7 @@ router.post('/check', apiKeyAuth, apiRateLimit, quotaMeter, async (req, res) => 
     res.setHeader('X-RateLimit-Reset', 1);
     res.setHeader('X-Quota-Limit', req.apiAccount.monthlyQuota);
     res.setHeader('X-Quota-Remaining', req.apiAccount.monthlyQuota);
-    return res.json({
+    const sandboxBody = {
       requestId,
       mode: 'sandbox',
       cached: false,
@@ -103,8 +115,16 @@ router.post('/check', apiKeyAuth, apiRateLimit, quotaMeter, async (req, res) => 
       disputed: false,
       subject,
       region,
+      decision: resultGate.decide(sandbox.verdict),
       meta: { plan: req.apiAccount.planName, planCode: req.apiAccount.planCode, sandbox: true },
-    });
+    };
+    if (gate === true) {
+      sandboxBody.resultToken = resultGate.issue(
+        { accountId: Number(req.apiAccount.id), checkType, subject, verdict: sandbox.verdict },
+        resultSecret()
+      );
+    }
+    return res.json(sandboxBody);
   }
 
   try {
@@ -126,8 +146,7 @@ router.post('/check', apiKeyAuth, apiRateLimit, quotaMeter, async (req, res) => 
       latencyMs: latency,
     });
 
-    res.setHeader('X-Request-Id', requestId);
-    res.json({
+    const body = {
       requestId,
       cached: result.cached,
       verdict: result.result.verdict,
@@ -138,8 +157,24 @@ router.post('/check', apiKeyAuth, apiRateLimit, quotaMeter, async (req, res) => 
       disputed: Boolean(result.result.disputed),
       subject: result.result.query_value,
       region,
+      decision: resultGate.decide(result.result.verdict),
       meta: { plan: req.apiAccount.planName, planCode: req.apiAccount.planCode },
-    });
+    };
+    if (gate === true) {
+      body.resultToken = resultGate.issue(
+        {
+          accountId,
+          checkType,
+          // Bind to the subject the caller sent, not the normalised display
+          // value, so the same string they verify with always matches.
+          subject,
+          verdict: result.result.verdict,
+        },
+        resultSecret()
+      );
+    }
+    res.setHeader('X-Request-Id', requestId);
+    res.json(body);
   } catch (err) {
     const latency = Date.now() - start;
     console.error('check failed:', err);
@@ -174,7 +209,7 @@ router.post('/batch', apiKeyAuth, apiRateLimit, quotaMeter, async (req, res) => 
 
 // POST /v1/widget/check — publishable key, origin-checked
 router.post('/widget/check', apiKeyAuth, widgetRateLimit, widgetQuotaMeter, widgetOrigin, async (req, res) => {
-  const { subject, region } = req.body;
+  const { subject, region, gate } = req.body;
   if (!subject) return res.status(400).json({ error: 'subject is required.' });
   const requestId = req.id;
   const start = Date.now();
@@ -195,15 +230,31 @@ router.post('/widget/check', apiKeyAuth, widgetRateLimit, widgetQuotaMeter, widg
       statusCode: 200,
       latencyMs: latency,
     });
-    res.setHeader('X-Request-Id', requestId);
-    res.json({
+    const body = {
       requestId,
       verdict: result.result.verdict,
       confidence: result.result.confidence,
       displayVerdict: result.result.displayVerdict,
       reasons: result.result.reasons,
       summary: result.result.summary,
-    });
+      decision: resultGate.decide(result.result.verdict),
+    };
+    // Gate mode: issue a signed resultToken the page's own server can verify
+    // with its secret key. It proves the check happened; it never authorises a
+    // charge on its own and is single-use.
+    if (gate === true && resultSecret()) {
+      body.resultToken = resultGate.issue(
+        {
+          accountId: Number(req.apiAccount.id),
+          checkType: 'phone',
+          subject,
+          verdict: result.result.verdict,
+        },
+        resultSecret()
+      );
+    }
+    res.setHeader('X-Request-Id', requestId);
+    res.json(body);
   } catch (err) {
     const latency = Date.now() - start;
     console.error('widget check failed:', err);
@@ -364,6 +415,48 @@ router.post('/token/verify', apiKeyAuth, apiRateLimit, async (req, res) => {
 
   // consumed — return the stored verdict so a lost response is recoverable.
   return res.json({ status: 'consumed', verdict: gate.verdict, message: 'This check was already delivered. Gate a new check for a fresh verdict.' });
+});
+
+// POST /v1/result/verify — the integration's SERVER proves a check happened
+// (and what it decided) before starting the end user's payment. Secret key
+// only, no quota. A token works once, for one number, for one account, for
+// 10 minutes. This is NOT /v1/token/verify (that polls a payment token).
+router.post('/result/verify', apiKeyAuth, apiRateLimit, async (req, res) => {
+  const { resultToken, checkType, subject, acknowledged } = req.body;
+  if (!resultToken || !checkType || subject === undefined || subject === null || subject === '') {
+    return res.status(400).json({ error: 'missing_parameter', message: 'resultToken, checkType and subject are required.' });
+  }
+  const secret = resultSecret();
+  if (!secret) {
+    return res.status(503).json({ error: 'result_gate_unavailable', message: 'Result tokens are not configured on this deployment.' });
+  }
+
+  const consume = async (jti) => {
+    const { rowCount } = await pool.query(
+      'INSERT INTO used_result_tokens (jti) VALUES ($1) ON CONFLICT DO NOTHING',
+      [jti]
+    );
+    return rowCount === 1;
+  };
+
+  let outcome;
+  try {
+    outcome = await resultGate.verify(
+      resultToken,
+      { accountId: Number(req.apiAccount.id), checkType, subject, acknowledged: acknowledged === true },
+      secret,
+      consume
+    );
+  } catch (err) {
+    console.error('result verify failed:', err);
+    return res.status(500).json({ error: 'result_verify_failed', message: 'Could not verify the result token. Retry once.' });
+  }
+
+  if (!outcome.ok) {
+    // A rejected token is a client-side problem: never a 5xx, never a charge.
+    return res.status(400).json(outcome);
+  }
+  return res.json(outcome);
 });
 
 // Public report form endpoints (Section 11)
