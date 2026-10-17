@@ -105,10 +105,20 @@ function createStore(prefix) {
 }
 
 
+function rateLimitKey(req) {
+  // Behind Cloudflare + Render, `req.ip` can resolve to a rotating Cloudflare
+  // edge IP (trust-proxy hop count doesn't match the real chain), which splits
+  // one client's calls across many buckets and quietly defeats every limiter.
+  // Cloudflare sets CF-Connecting-IP to the real client on every edge-cached
+  // request, so prefer it; fall back to req.ip for local/off-CF runs.
+  return String(req.headers['cf-connecting-ip'] || req.headers['x-real-ip'] || req.ip || 'unknown-ip');
+}
+
 function makeLimiter(options, storePrefix) {
   return rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: rateLimitKey,
     store: createStore(storePrefix),
     ...options,
   });

@@ -63,14 +63,6 @@ echo "== 4. CORS (a foreign website must not be allowed) =="
 acao="$(curl -s -I --max-time 15 -X OPTIONS "$API/v1/widget/check" -H 'Origin: https://evil.example' -H 'Access-Control-Request-Method: POST' | grep -i '^access-control-allow-origin:' | tr -d '\r')"
 if [ -z "$acao" ]; then pass "no CORS allowance for a foreign origin"; elif echo "$acao" | grep -q '\*'; then fail "CORS allows any origin: $acao"; else warn "CORS answered: $acao"; fi
 
-echo "== 5. Rate limiting probe (30 quick calls with a bad key) =="
-codes=""
-for i in $(seq 1 30); do
-  codes="$codes $(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -X POST "$API/v1/check" -H "Authorization: Bearer $FAKE_KEY" -H 'Content-Type: application/json' -d '{}')"
-done
-echo "status codes:$codes"
-if echo "$codes" | grep -q 429; then pass "rate limit triggered"; else warn "no 429 seen in 30 calls (check limits for bad-key traffic)"; fi
-
 echo "== 6. Admin and private endpoints without a login (expect 401 or 403) =="
 for path in /api/admin/reports /api/admin/api-accounts /api/admin/audit /api/account/api/overview /api/account/api/keys; do
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$API$path")"
@@ -80,6 +72,24 @@ done
 echo "== 7. Error pages must not leak details =="
 body="$(curl -s --max-time 15 -X POST "$API/v1/check" -H 'Authorization: Bearer x' -H 'Content-Type: application/json' -d '{bad json')"
 if echo "$body" | grep -qiE "at .*\.js:[0-9]+|node_modules|stack|SyntaxError"; then fail "stack trace or internals visible in error output"; else pass "no internals visible in a bad-JSON error"; fi
+
+echo
+echo "== 8. Rate limiting probe (bad-key burst on one IP family — must run LAST) =="
+# Run last: a burst over the 120 req/min general limiter can briefly lock the
+# probe IP out of every endpoint for the remainder of the minute.
+# The xargs placeholder must NOT be "{}" — -I substitutes it into the request
+# body too, which turns every call into a bad-JSON 500. "ARG" is safe.
+# Pin IPv4 ("curl -4"): dual-stack splits the per-IP buckets so the burst
+# would otherwise never exceed one bucket's limit. Parallel (xargs -P) keeps
+# the burst inside one 60 s window.
+MAX_CALLS=260
+codes="$(seq 1 "$MAX_CALLS" | xargs -P 10 -I ARG curl -4 -s -o /dev/null -w '%{http_code} ' --max-time 20 -X POST "$API/v1/check" -H "Authorization: Bearer $FAKE_KEY" -H 'Content-Type: application/json' -d '{}' 2>/dev/null)"
+echo "status codes over $MAX_CALLS bad-key calls:$codes"
+if echo "$codes" | grep -q 429; then
+  pass "rate limit triggered (429 within $MAX_CALLS calls)"
+else
+  warn "no 429 within $MAX_CALLS bad-key calls — check the general limiter (expect 120 req/min per IP; if the backend runs multiple in-memory instances the burst splits across them)"
+fi
 
 echo
 echo "Done. PASS=$PASS  WARN=$WARN  FAIL=$FAIL"
