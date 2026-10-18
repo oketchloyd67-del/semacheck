@@ -7,115 +7,198 @@ const INTERPOL_ALERTS_URL = 'https://www.interpol.int/en/Crimes/Scams-and-fraud'
 
 const REQUEST_TIMEOUT = 15000;
 
+// These three are best-effort searches of public web pages, not official data
+// feeds. A source is only ever reported as a match when the subject itself
+// appears in a result row that page returned — see textMentions(). Reporting a
+// "match" because a page merely mentions the words fraud or scam (or because a
+// search box echoes the term back) is exactly the kind of overstated evidence a
+// trust product must not publish.
+const SOURCE_LABELS = {
+  bbb: 'BBB Scam Tracker search',
+  ftc: 'FTC consumer-fraud data',
+  interpol: 'INTERPOL public notices',
+};
+
 function normalizeQuery(value) {
   return (value || '').trim().toLowerCase();
 }
 
-async function lookupBBBScamTracker(queryValue) {
-  const normalized = normalizeQuery(queryValue);
-  if (normalized.length < 3) return { matched: false, results: [] };
+// The needles we look for inside a source's own result rows: the raw term, and
+// the digits only (so "0712 345 678" still matches "254712345678").
+function subjectNeedles(queryValue) {
+  const raw = String(queryValue == null ? '' : queryValue).trim();
+  const needles = [];
+  if (raw.length >= 3) needles.push(raw.toLowerCase());
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length >= 6 && !needles.includes(digits)) needles.push(digits);
+  return needles;
+}
+
+// Visible text only — tag attributes (a search box echoing ?q=…) must not count
+// as a mention of the subject.
+function visibleText(html) {
+  return String(html || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ');
+}
+
+function textMentions(text, needles) {
+  if (!needles.length) return false;
+  const plain = visibleText(text).toLowerCase();
+  const collapsed = plain.replace(/[^a-z0-9]/g, '');
+  return needles.some((needle) => (/^[0-9]+$/.test(needle) ? collapsed.includes(needle) : plain.includes(needle)));
+}
+
+// Keep only the rows that mention the subject; a row that merely mentions
+// "scam" is not evidence about this subject.
+function pickMatchedEntries(entries, needles) {
+  return (entries || [])
+    .filter((entry) => textMentions(`${entry.title || ''} ${entry.snippet || ''}`, needles))
+    .slice(0, 5);
+}
+
+function failed(err) {
+  return { matched: false, checked: false, results: [], error: err && err.message ? err.message : String(err) };
+}
+
+async function lookupBBBScamTracker(queryValue, http = axios) {
+  const needles = subjectNeedles(queryValue);
+  if (!needles.length) return { matched: false, checked: false, results: [], error: 'query too short' };
 
   try {
     const searchUrl = `${BBB_SEARCH_URL}?q=${encodeURIComponent(queryValue)}`;
-    const { data: html } = await axios.get(searchUrl, {
+    const { data: html } = await http.get(searchUrl, {
       timeout: REQUEST_TIMEOUT,
       headers: { 'User-Agent': 'SemaCheck/1.0 (scam-verification)' },
     });
 
-    const results = [];
+    const entries = [];
     const reportPattern = /class="scam-report[^"]*"[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/gi;
     let match;
     while ((match = reportPattern.exec(html)) !== null) {
-      const title = match[1].replace(/<[^>]+>/g, '').trim();
-      const snippet = match[2].replace(/<[^>]+>/g, '').trim();
-      if (title) results.push({ title, snippet, source: 'BBB Scam Tracker' });
+      const title = visibleText(match[1]).trim();
+      const snippet = visibleText(match[2]).trim();
+      if (title) entries.push({ title, snippet, source: SOURCE_LABELS.bbb });
     }
 
-    const hasScamMention = /scam|fraud|fake|beware|report/i.test(html) &&
-      (html.toLowerCase().includes(normalized) || results.length > 0);
-
-    return { matched: hasScamMention, results: results.slice(0, 5) };
+    const results = pickMatchedEntries(entries, needles);
+    return {
+      matched: results.length > 0,
+      checked: true,
+      results,
+      entries_seen: entries.length,
+      note: results.length ? 'public scam report naming this subject' : 'no public scam report on this page names this subject',
+    };
   } catch (err) {
-    return { matched: false, results: [], error: err.message };
+    return failed(err);
   }
 }
 
-async function lookupFTCFraudData(queryValue) {
-  const normalized = normalizeQuery(queryValue);
-  if (normalized.length < 3) return { matched: false, results: [] };
+async function lookupFTCFraudData(queryValue, http = axios) {
+  const needles = subjectNeedles(queryValue);
+  if (!needles.length) return { matched: false, checked: false, results: [], error: 'query too short' };
 
   try {
     const searchUrl = `https://www.ftc.gov/news-events/explore-data?search_api_fulltext=${encodeURIComponent(queryValue)}`;
-    const { data: html } = await axios.get(searchUrl, {
+    const { data: html } = await http.get(searchUrl, {
       timeout: REQUEST_TIMEOUT,
       headers: { 'User-Agent': 'SemaCheck/1.0 (scam-verification)' },
     });
 
-    const results = [];
+    const entries = [];
     const titlePattern = /<h[23][^>]*>[\s\S]*?<a[^>]+href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
     let match;
     while ((match = titlePattern.exec(html)) !== null) {
       const link = match[1];
-      const title = match[2].replace(/<[^>]+>/g, '').trim();
-      if (title && title.length > 5) results.push({ title, link, source: 'FTC' });
+      const title = visibleText(match[2]).trim();
+      if (title && title.length > 5) entries.push({ title, link, source: SOURCE_LABELS.ftc });
     }
 
-    const hasFraudMention = /fraud|scam|deceptive|fake/i.test(html) && results.length > 0;
-
-    return { matched: hasFraudMention, results: results.slice(0, 5) };
+    const results = pickMatchedEntries(entries, needles);
+    return {
+      matched: results.length > 0,
+      checked: true,
+      results,
+      entries_seen: entries.length,
+      note: results.length ? 'FTC page naming this subject' : 'no FTC page on this search names this subject',
+    };
   } catch (err) {
-    return { matched: false, results: [], error: err.message };
+    return failed(err);
   }
 }
 
-async function lookupInterpolAlerts(queryValue) {
-  const normalized = normalizeQuery(queryValue);
-  if (normalized.length < 3) return { matched: false, results: [] };
+async function lookupInterpolAlerts(queryValue, http = axios) {
+  const needles = subjectNeedles(queryValue);
+  if (!needles.length) return { matched: false, checked: false, results: [], error: 'query too short' };
 
   try {
     const searchUrl = `https://www.interpol.int/en/How-we-work/Databases/Notices/search-conditions?notice_type=warrants&q=${encodeURIComponent(queryValue)}`;
-    const { data: html } = await axios.get(searchUrl, {
+    const { data: html } = await http.get(searchUrl, {
       timeout: REQUEST_TIMEOUT,
       headers: { 'User-Agent': 'SemaCheck/1.0 (scam-verification)' },
     });
 
-    const results = [];
+    // INTERPOL publishes wanted-person notices, not consumer complaint records:
+    // only a returned notice row naming the subject counts as a match.
+    const entries = [];
     const namePattern = /class="[^"]*notice[^"]*"[^>]*>[\s\S]*?<(?:h[23]|a)[^>]*>([\s\S]*?)<\/(?:h[23]|a)>/gi;
     let match;
     while ((match = namePattern.exec(html)) !== null) {
-      const name = match[1].replace(/<[^>]+>/g, '').trim();
-      if (name && name.length > 2) results.push({ title: name, source: 'INTERPOL' });
+      const name = visibleText(match[1]).trim();
+      if (name && name.length > 2) entries.push({ title: name, source: SOURCE_LABELS.interpol });
     }
 
-    const hasMention = results.length > 0 || /fraud|scam/i.test(html);
-
-    return { matched: hasMention, results: results.slice(0, 5) };
+    const results = pickMatchedEntries(entries, needles);
+    return {
+      matched: results.length > 0,
+      checked: true,
+      results,
+      entries_seen: entries.length,
+      note: results.length ? 'INTERPOL public notice naming this subject' : 'no INTERPOL public notice names this subject',
+    };
   } catch (err) {
-    return { matched: false, results: [], error: err.message };
+    return failed(err);
   }
 }
 
-async function lookupAllInternationalDatabases(queryValue, queryType) {
+async function lookupAllInternationalDatabases(queryValue, queryType, http = axios) {
   const [bbb, ftc, interpol] = await Promise.allSettled([
-    lookupBBBScamTracker(queryValue),
-    lookupFTCFraudData(queryValue),
-    lookupInterpolAlerts(queryValue),
+    lookupBBBScamTracker(queryValue, http),
+    lookupFTCFraudData(queryValue, http),
+    lookupInterpolAlerts(queryValue, http),
   ]);
 
-  const bbbResult = bbb.status === 'fulfilled' ? bbb.value : { matched: false, results: [], error: bbb.reason?.message };
-  const ftcResult = ftc.status === 'fulfilled' ? ftc.value : { matched: false, results: [], error: ftc.reason?.message };
-  const interpolResult = interpol.status === 'fulfilled' ? interpol.value : { matched: false, results: [], error: interpol.reason?.message };
+  const bbbResult = bbb.status === 'fulfilled' ? bbb.value : failed(bbb.reason);
+  const ftcResult = ftc.status === 'fulfilled' ? ftc.value : failed(ftc.reason);
+  const interpolResult = interpol.status === 'fulfilled' ? interpol.value : failed(interpol.reason);
 
   const allMatched = bbbResult.matched || ftcResult.matched || interpolResult.matched;
   const totalResults = bbbResult.results.length + ftcResult.results.length + interpolResult.results.length;
+  const checkedSources = [bbbResult, ftcResult, interpolResult].filter((r) => r.checked).length;
 
   return {
     matched: allMatched,
     totalResults,
+    // How many of the three public pages actually answered. When it is zero, no
+    // cross-referencing happened and no result may be claimed from them.
+    checkedSources,
+    allChecked: checkedSources === 3,
     bbb: bbbResult,
     ftc: ftcResult,
     interpol: interpolResult,
   };
+}
+
+// Human-readable names of the sources that actually matched, for use in the
+// summary string. Never lists a source that did not match.
+function matchedSourceNames(result) {
+  if (!result) return [];
+  const names = [];
+  if (result.bbb && result.bbb.matched) names.push(SOURCE_LABELS.bbb);
+  if (result.ftc && result.ftc.matched) names.push(SOURCE_LABELS.ftc);
+  if (result.interpol && result.interpol.matched) names.push(SOURCE_LABELS.interpol);
+  return names;
 }
 
 async function cacheInternationalLookup(queryType, queryValue, lookupResult) {
@@ -160,6 +243,11 @@ async function internationalLookupStatus() {
 }
 
 module.exports = {
+  SOURCE_LABELS,
+  subjectNeedles,
+  textMentions,
+  pickMatchedEntries,
+  matchedSourceNames,
   lookupBBBScamTracker,
   lookupFTCFraudData,
   lookupInterpolAlerts,

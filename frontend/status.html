@@ -5,7 +5,7 @@
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SemaCheck — Service status</title>
-  <meta name="description" content="Live status of the SemaCheck website, Trust Check API and M-Pesa payments.">
+  <meta name="description" content="Live status and uptime history of the SemaCheck website, Trust Check API and M-Pesa payments.">
   <meta name="robots" content="index, follow">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -24,9 +24,9 @@
     </div>
   </header>
 
-  <main class="container" style="padding:32px 0 80px; max-width:760px;">
+  <main class="container" style="padding:32px 0 80px; max-width:820px;">
     <h1>Service status</h1>
-    <p class="hint">This page checks each component live from your browser when it loads — nothing here is a static claim.</p>
+    <p class="hint">Each component below is checked live from your browser when this page loads — nothing here is a static claim. The history further down is built from recorded probes, not from anything typed in by hand.</p>
 
     <div id="overallBanner" class="alert alert-ok" style="border-radius:10px; margin:16px 0;">Checking services…</div>
 
@@ -63,12 +63,41 @@
       </ul>
     </section>
 
-    <p class="hint" style="margin-top:16px;">
+    <h2 style="margin-top:36px;">Uptime history</h2>
+    <p class="hint" id="historySummary">Loading recorded uptime…</p>
+
+    <section id="windowCards" class="card" style="padding:18px; display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px;">
+      <div><div class="hint">Last 24 hours</div><div id="win-24h" style="font-weight:700; font-size:1.2rem;">—</div></div>
+      <div><div class="hint">Last 7 days</div><div id="win-7d" style="font-weight:700; font-size:1.2rem;">—</div></div>
+      <div><div class="hint">Last 30 days</div><div id="win-30d" style="font-weight:700; font-size:1.2rem;">—</div></div>
+    </section>
+
+    <section class="card" style="padding:18px; margin-top:14px;">
+      <div class="hint" style="margin-bottom:8px;">Last 90 days — one bar per day (hover for detail)</div>
+      <div id="bars" style="display:flex; align-items:flex-end; gap:2px; height:64px; overflow-x:auto; padding-bottom:4px;"></div>
+      <div class="hint" style="display:flex; gap:14px; flex-wrap:wrap; margin-top:10px;">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#1f9d55;border-radius:2px;"></span> full uptime</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#e8a33d;border-radius:2px;"></span> some failures or partial data</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#d64545;border-radius:2px;"></span> outage</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#c8d0da;border-radius:2px;"></span> no data</span>
+      </div>
+      <div id="historyNote" class="hint" style="margin-top:12px;"></div>
+    </section>
+
+    <h2 style="margin-top:36px;">Incidents</h2>
+    <div id="incidents" class="card" style="padding:18px;"><p class="hint">Loading incident history…</p></div>
+
+    <p class="hint" style="margin-top:20px;">
       <b>How this works:</b> the API, database and payments rows follow a live <code>/api/ping</code> probe against
-      <code>semacheck.onrender.com</code>; the website row is confirmed by this page loading. If a component is down,
-      the row turns red and the banner explains what is affected. During the API's cold start on free hosting a probe
-      can take up to a minute — a slow first response is not an outage. Historical uptime and incident history are
-      coming; for anything urgent use the <a href="index.html#contact" style="color:var(--teal);font-weight:600;">contact form</a>.
+      <code>semacheck.onrender.com</code> from your browser; the website row is confirmed by this page loading. If a component is down,
+      the row turns red and the banner explains what is affected.
+    </p>
+    <p class="hint">
+      Uptime comes from an external probe every few minutes (a GitHub Actions job) plus the API's own self-check, which is reported
+      separately because a process cannot report its own death. Probes that were not received are shown as <b>no data</b>, never as
+      uptime, and a day with thin coverage is marked as partial. The external prober's schedule can be delayed by GitHub and pauses
+      after prolonged repository inactivity — we would rather tell you that than promise a precision we do not have. For anything urgent use the
+      <a href="index.html#contact" style="color:var(--teal);font-weight:600;">contact form</a>.
     </p>
   </main>
 
@@ -115,9 +144,126 @@
         var b = document.getElementById('overallBanner');
         b.textContent = ok
           ? 'All systems operational.'
-          : 'The API did not answer a live probe just now. The website itself is up; API checks, webhooks and payments may be interrupted. We are likely waking from a cold start — retry in a minute before assuming an outage.';
+          : 'The API did not answer a live probe just now. The website itself is up; API checks, webhooks and payments may be interrupted. Check the history below before assuming an outage.';
         b.className = 'alert ' + (ok ? 'alert-ok' : 'alert-err');
       }
+
+      // ---- uptime history ----
+      function fmtPct(w) {
+        if (!w || !w.probes) return 'no data';
+        var text = w.uptimePct + '% uptime';
+        if (w.coveragePct !== null && w.coveragePct < 90) text += ' (' + w.coveragePct + '% coverage)';
+        return text;
+      }
+      function barColor(day) {
+        if (!day.probes) return '#c8d0da';
+        if (day.uptimePct === null) return '#c8d0da';
+        if (day.uptimePct >= 99) return day.coveragePct !== null && day.coveragePct < 50 ? '#e8a33d' : '#1f9d55';
+        if (day.uptimePct >= 90) return '#e8a33d';
+        return '#d64545';
+      }
+      function renderHistory(data) {
+        document.getElementById('win-24h').textContent = fmtPct(data.windows['24h']);
+        document.getElementById('win-7d').textContent = fmtPct(data.windows['7d']);
+        document.getElementById('win-30d').textContent = fmtPct(data.windows['30d']);
+
+        var bars = document.getElementById('bars');
+        bars.innerHTML = '';
+        data.days.forEach(function (day) {
+          var bar = document.createElement('div');
+          var height = !day.probes ? 20 : Math.max(12, Math.round((day.uptimePct / 100) * 60));
+          bar.style.cssText = 'width:7px;min-width:7px;height:' + height + 'px;background:' + barColor(day) + ';border-radius:2px;cursor:help;';
+          bar.title = day.date + ' — ' + (day.probes
+            ? day.ok + '/' + day.probes + ' probes ok' + (day.uptimePct !== null ? ' (' + day.uptimePct + '%)' : '') +
+              (day.coveragePct !== null ? ', coverage ' + day.coveragePct + '%' : '') +
+              (day.avgLatencyMs ? ', avg ' + day.avgLatencyMs + ' ms' : '') + (day.partial ? ' — day in progress' : '')
+            : 'no probes recorded');
+          bars.appendChild(bar);
+        });
+
+        var w30 = data.windows['30d'];
+        var latency = w30 && w30.latency && w30.latency.samples
+          ? ' Median response ' + w30.latency.p50 + ' ms, 95th percentile ' + w30.latency.p95 + ' ms over the last 30 days.'
+          : '';
+        document.getElementById('historySummary').textContent =
+          data.monitoring.probesInWindow
+            ? 'Uptime is measured from ' + data.monitoring.probesInWindow + ' external probes over the last ' + data.windowDays + ' days.' + latency
+            : 'No external probes have been recorded yet, so we are not claiming any uptime figure.';
+        document.getElementById('historyNote').textContent = data.note || '';
+      }
+
+      function renderIncidents(data) {
+        var el = document.getElementById('incidents');
+        el.innerHTML = '';
+        var items = [];
+
+        (data.incidents || []).forEach(function (inc) {
+          items.push({
+            at: inc.startedAt,
+            title: (inc.ongoing ? 'Ongoing outage' : 'Outage') + ' — ' + inc.durationMinutes + ' min',
+            detail: inc.failedProbes + ' failed probe(s)' +
+              (inc.resolvedAt ? ', resolved ' + new Date(inc.resolvedAt).toLocaleString() : ', not resolved yet') +
+              (inc.noDataGap ? '. Monitoring also stopped answering, so the end time is a lower bound.' : '.') +
+              ' Detected automatically from probe records.',
+            tone: 'var(--scam-red)',
+          });
+        });
+        (data.notices || []).forEach(function (n) {
+          items.push({
+            at: n.startedAt,
+            title: (n.severity === 'maintenance' ? 'Maintenance' : 'Notice') + ' — ' + n.title,
+            detail: (n.body || '') + (n.resolvedAt ? ' (resolved ' + new Date(n.resolvedAt).toLocaleString() + ')' : n.severity === 'resolved' ? '' : ' (open)'),
+            tone: n.severity === 'maintenance' ? '#e8a33d' : 'var(--teal)',
+          });
+        });
+
+        if (!items.length) {
+          var quiet = document.createElement('p');
+          quiet.className = 'hint';
+          quiet.textContent = data.monitoring.historyStartsAt
+            ? 'No incidents recorded since monitoring started on ' + new Date(data.monitoring.historyStartsAt).toLocaleDateString() + '.'
+            : 'No incidents to show yet — external monitoring has not recorded any probes.';
+          el.appendChild(quiet);
+        } else {
+          items.sort(function (a, b) { return a.at < b.at ? 1 : -1; });
+          items.slice(0, 20).forEach(function (item) {
+            var row = document.createElement('div');
+            row.style.cssText = 'border-left:3px solid ' + item.tone + '; padding:10px 12px; margin-bottom:10px; background:var(--bg); border-radius:8px;';
+            var t = document.createElement('div');
+            t.style.fontWeight = '700';
+            t.textContent = item.title;
+            var d = document.createElement('div');
+            d.className = 'hint';
+            d.textContent = new Date(item.at).toLocaleString() + ' — ' + item.detail;
+            row.appendChild(t);
+            row.appendChild(d);
+            el.appendChild(row);
+          });
+        }
+
+        var self = data.monitoring.selfCheck;
+        if (self && self.probes) {
+          var note = document.createElement('p');
+          note.className = 'hint';
+          note.style.marginTop = '10px';
+          note.textContent = 'Self-check: ' + self.probes + ' internal probe(s) recorded, ' + self.failed + ' failed. Not counted as uptime.';
+          el.appendChild(note);
+        }
+      }
+
+      fetch(API + '/status/history?days=90', { cache: 'no-store' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          renderHistory(data);
+          renderIncidents(data);
+        })
+        .catch(function (err) {
+          document.getElementById('historySummary').textContent = 'Recorded uptime is unavailable right now (' + err.message + ').';
+          document.getElementById('incidents').innerHTML = '<p class="hint">Incident history is unavailable right now. This is a failure to read our own monitoring, not a claim that everything is fine.</p>';
+        });
     })();
   </script>
 </body>

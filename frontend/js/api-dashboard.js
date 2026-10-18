@@ -499,15 +499,28 @@ function waitForPayment(paymentId, timeoutMs = 120000) {
   });
 }
 
+let plansNotOnSale = new Set();
+
 async function loadPlans() {
   try {
     const data = await api('/account/api/plans');
     const select = document.getElementById('plan-select');
     const plans = data.plans || [];
+    plansNotOnSale = new Set(plans.filter((p) => p.onSale === false).map((p) => p.code));
     if (plans.length && select) {
+      // A plan the deployment cannot serve yet (onSale === false) is shown but
+      // not selectable, so the pricing is honest and the money never moves.
       select.innerHTML = plans.map((p) =>
-        `<option value="${escapeHtml(p.code)}">${escapeHtml(p.name)} — ${p.priceKes ? `KES ${Number(p.priceKes).toLocaleString()}/mo` : 'sandbox keys only'}</option>`
+        `<option value="${escapeHtml(p.code)}"${p.onSale === false ? ' disabled' : ''}>${escapeHtml(p.name)} — ${p.priceKes ? `KES ${Number(p.priceKes).toLocaleString()}/mo` : 'sandbox keys only'}${p.onSale === false ? ' — opening soon' : ''}</option>`
       ).join('');
+      const blocked = plans.find((p) => p.onSale === false);
+      const note = document.getElementById('plan-sale-note');
+      if (note) {
+        note.textContent = blocked ? blocked.onSaleNote || '' : '';
+        note.style.display = blocked ? '' : 'none';
+      }
+      const currentOption = select.options[select.selectedIndex];
+      if (currentOption && currentOption.disabled) select.value = 'free';
     }
   } catch { /* plan list is non-critical */ }
 }
@@ -523,7 +536,15 @@ function initPlanPicker() {
     if (n <= 10000) return 'Growth (KES 20,000/mo) — 10,000 live checks, webhooks and batch.';
     return 'Scale (KES 75,000/mo) — 100,000 live checks, 600 req/min. Contact us for higher volume.';
   };
-  const update = () => { out.textContent = `${Number(slider.value).toLocaleString()} checks/month → ${recommend(Number(slider.value))}`; };
+  // Do not steer anyone to a plan the deployment cannot serve yet.
+  const planFor = (n) => (n <= 2000 ? 'starter' : n <= 10000 ? 'growth' : 'scale');
+  const label = (n, text) => (n > 2000 && plansNotOnSale.has(planFor(n))
+    ? `${text} Not on sale yet — see the note under the plan picker.`
+    : text);
+  const update = () => {
+    const n = Number(slider.value);
+    out.textContent = `${n.toLocaleString()} checks/month → ${label(n, recommend(n))}`;
+  };
   slider.addEventListener('input', update);
   update();
 }

@@ -52,6 +52,7 @@ anything else                             → verdict: registered (confidence 55
       <div style="padding:12px; border:1px solid var(--border); border-radius:10px;"><span class="label-pill" style="background:var(--legit-green); color:#fff;">scale</span> <span style="font-weight:600;">Scale — KES 75,000/mo</span> — 100,000 live checks, 600 requests/min, webhooks and batch. Higher volume: contact us.</div>
     </div>
     <p style="margin-top:10px;">The dashboard has a volume slider that recommends a plan from your expected monthly checks. Sandbox (test) calls are always free.</p>
+    <p class="hint"><b>Growth and Scale need always-on hosting.</b> Both are aimed at checks that run inside live payment flows, and a host that sleeps when idle can take up to a minute to answer a first request. Until the API runs on an always-on instance those two plans show as <b>opening soon</b> in the dashboard and <code>POST /api/account/api/plan</code> answers <code>503 infrastructure_not_ready</code> instead of starting an M-Pesa charge — we would rather decline the sale than take KES 75,000 for an API that stalls your checkout.</p>
 
     <h2 id="check">Check</h2>
     <p>POST <code>/v1/check</code>. Returns a verdict, confidence, and reasons.</p>
@@ -204,6 +205,7 @@ X-SemaCheck-Signature: t=1760000000,v1=9f2b…e41c
 
     <h2 id="changelog">Changelog</h2>
     <ul style="padding-left:20px; line-height:1.8;">
+      <li><b>2026-10-18</b> — <b>Status page now shows real uptime and incident history</b> recorded from an external probe every few minutes, with days that have no probes reported as no data rather than as uptime. <b>Growth and Scale are held off sale</b> until the API runs on an always-on instance (HTTP 503 <code>infrastructure_not_ready</code>); the dashboard shows them as opening soon. Worldwide checks no longer name a source unless the subject itself appeared in that source's results, and a lookup that did not answer says so instead of counting as a match. Renewal-reminder wording on the API terms page now matches the 14/7/3/1 + grace schedule documented here.</li>
       <li><b>2026-10-17</b> — Added result tokens: <code>gate: true</code> on <code>/v1/check</code> returns <code>decision</code> and <code>resultToken</code>, and <code>POST /v1/result/verify</code> proves the check on your server. Added the widget gate attributes. Renewal reminders now follow the full 14/7/3/1 + grace schedule.</li>
       <li><b>2026-10-17</b> — The payment-prompt abuse limit now answers <b>HTTP 429</b> <code>payment_prompt_limited</code> (with <code>Retry-After</code>) instead of 402 <code>rate_limited</code>. HTTP 402 is now used only for "pay or wait".</li>
     </ul>

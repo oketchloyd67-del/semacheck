@@ -1,0 +1,78 @@
+name: Uptime probe
+
+# Records an API probe every ~5 minutes so the status page can show real uptime
+# history (GET /api/status/history). This runs OUTSIDE the API on purpose: a
+# process cannot observe itself being down, and an internal probe would report a
+# flattering 100% while the service was unreachable.
+#
+# Honest limits of this prober, which the status page also states:
+#   * GitHub's scheduled workflows are best-effort — runs can be delayed by
+#     several minutes under load, so treat resolution as "roughly five minutes".
+#   * GitHub disables scheduled workflows in a repository after ~60 days of no
+#     activity, which would silently stop the history. If that becomes a risk,
+#     point a paid uptime monitor at POST /api/status/probe instead.
+#
+# Setup: add a repository secret STATUS_PROBE_SECRET with the same value as the
+# API's STATUS_PROBE_SECRET (Render → Environment). Optionally set a repository
+# variable STATUS_API_BASE to override the target URL.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uptime-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe the API from outside Render and record the result
+        env:
+          API_BASE: ${{ vars.STATUS_API_BASE || 'https://semacheck.onrender.com' }}
+          STATUS_PROBE_SECRET: ${{ secrets.STATUS_PROBE_SECRET }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${STATUS_PROBE_SECRET:-}" ]; then
+            echo "STATUS_PROBE_SECRET is not set — nothing to record." >&2
+            exit 1
+          fi
+
+          start=$(date +%s%3N)
+          code=$(curl -sS -o /tmp/ping.json -w '%{http_code}' --max-time 90 "$API_BASE/api/ping" 2>/tmp/curl.err) || code=000
+          end=$(date +%s%3N)
+          latency=$((end - start))
+
+          ok=false
+          err=""
+          if [ "$code" = "200" ] && grep -q '"pong":true' /tmp/ping.json; then
+            ok=true
+          else
+            err="HTTP ${code} after ${latency}ms $(head -c 160 /tmp/curl.err 2>/dev/null | tr -d '\n')"
+          fi
+          code_num=$((10#$code))
+
+          jq -n \
+            --argjson ok "$ok" \
+            --argjson latency "$latency" \
+            --argjson code "$code_num" \
+            --arg err "$err" \
+            '{ok: $ok, latencyMs: $latency, statusCode: $code, error: ($err | if . == "" then null else . end), source: "github-actions", component: "api"}' \
+            > /tmp/probe.json
+
+          echo "Probe: $(cat /tmp/probe.json)"
+
+          # The probe above is the measurement; a failure to store it is a
+          # separate problem and is reported as such rather than swallowed.
+          curl -sS --max-time 30 -X POST "$API_BASE/api/status/probe" \
+            -H 'content-type: application/json' \
+            -H "x-status-probe-secret: $STATUS_PROBE_SECRET" \
+            --data @/tmp/probe.json -o /tmp/record.json -w 'record http %{http_code}\n'
+
+          cat /tmp/record.json

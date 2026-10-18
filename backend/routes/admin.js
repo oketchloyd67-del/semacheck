@@ -39,6 +39,7 @@ function requireInt(paramName) {
 }
 const { registryStatus, refreshCbkRegistry } = require('../services/cbkRegistryService');
 const internationalDb = require('../services/internationalScamDatabases');
+const statusHistory = require('../services/statusHistory');
 
 const router = express.Router();
 
@@ -488,6 +489,47 @@ router.post('/international-databases/lookup', requireAdmin, async (req, res) =>
     const result = await internationalDb.lookupAllInternationalDatabases(queryValue.trim(), queryType || 'phone');
     await internationalDb.cacheInternationalLookup(queryType || 'phone', queryValue.trim(), result);
     res.json({ result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- Status page incidents ----
+// Probe-derived outages are computed from status_probes and cannot be edited;
+// these endpoints publish the human context a customer needs (planned
+// maintenance, a known upstream fault, a post-mortem note).
+router.get('/status/notices', requireAdmin, async (req, res) => {
+  try {
+    const notices = await statusHistory.listNotices(Number(req.query.days) || 90);
+    res.json({ notices });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/status/notices', requireAdmin, async (req, res) => {
+  const { component, severity, title, body, startedAt } = req.body || {};
+  if (!title || !String(title).trim()) return res.status(400).json({ error: 'title is required.' });
+  try {
+    const notice = await statusHistory.createNotice({
+      component,
+      severity,
+      title: String(title).trim(),
+      body,
+      startedAt,
+      createdBy: req.admin && req.admin.email,
+    });
+    res.status(201).json({ notice });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/status/notices/:id/resolve', requireAdmin, async (req, res) => {
+  try {
+    const notice = await statusHistory.resolveNotice(req.params.id, { resolvedAt: req.body && req.body.resolvedAt });
+    if (!notice) return res.status(404).json({ error: 'No open notice with that id.' });
+    res.json({ notice });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

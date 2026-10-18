@@ -10,6 +10,7 @@ const { encrypt, decrypt } = require('../services/cryptoService');
 const { changePlan } = require('../services/billingService');
 const { getMonthUsage } = require('../services/usageService');
 const checkService = require('../services/checkService');
+const infrastructure = require('../config/infrastructure');
 
 const router = express.Router();
 
@@ -132,16 +133,22 @@ router.get('/plans', requireAuth, ensureVerified, async (req, res) => {
      FROM api_plans WHERE is_active=TRUE ORDER BY monthly_price_kes ASC`
   );
   res.json({
-    plans: rows.map((p) => ({
-      code: p.code,
-      name: p.name,
-      priceKes: p.monthly_price_kes,
-      quota: p.monthly_quota,
-      rateLimitPerMin: p.rate_limit_per_min,
-      webhooks: p.webhooks_enabled,
-      batch: p.batch_enabled,
-      sandboxOnly: p.code === 'free',
-    })),
+    plans: rows.map((p) => {
+      // Growth and Scale need an always-on instance (see config/infrastructure).
+      const sale = infrastructure.planSaleState(p.code);
+      return {
+        code: p.code,
+        name: p.name,
+        priceKes: p.monthly_price_kes,
+        quota: p.monthly_quota,
+        rateLimitPerMin: p.rate_limit_per_min,
+        webhooks: p.webhooks_enabled,
+        batch: p.batch_enabled,
+        sandboxOnly: p.code === 'free',
+        onSale: sale.onSale,
+        onSaleNote: sale.onSaleNote,
+      };
+    }),
   });
 });
 
@@ -267,6 +274,16 @@ router.post('/plan', requireAuth, ensureVerified, loadApiAccount, requireAccount
     );
     if (!planRows[0]) return res.status(400).json({ error: 'Plan not found or inactive.' });
     const plan = planRows[0];
+
+    // Never take money for a plan this deployment cannot serve: the Growth and
+    // Scale plans are withheld until the API is on always-on hosting.
+    if (infrastructure.planBlockedByHosting(plan.code)) {
+      return res.status(503).json({
+        error: 'infrastructure_not_ready',
+        message: infrastructure.BLOCKED_REASON,
+        plan: plan.code,
+      });
+    }
 
     if (!plan.monthly_price_kes) {
       const freePlan = await changePlan(Number(req.apiAccount.id), plan.code);

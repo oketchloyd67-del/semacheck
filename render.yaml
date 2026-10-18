@@ -1,0 +1,84 @@
+# Render Blueprint for the SemaCheck API.
+#
+# Why this file exists: the API currently runs on Render's FREE web service,
+# which spins down after 15 minutes without traffic and can take about a minute
+# to answer the next request. Growth (KES 20,000/mo) and SemaCheck's payment
+# checks cannot wait on that, so the paid `starter` plan (US$7/month) removes the
+# cold start and this file records that decision in the repo.
+#
+# HOW TO APPLY — read this before pressing anything:
+#   1. IF the API already has a Render service, the simplest option is to open
+#      that service → Settings → Instance Type → Starter. No blueprint needed,
+#      the URL and env vars stay as they are.
+#   2. To let Render manage it from this file (Blueprint → New → point at this
+#      repo), set `name:` below to the EXISTING service's exact name, otherwise
+#      Render creates a SECOND service with a new URL — which silently breaks
+#      the Tuma payment callback URL and every customer's webhook.
+#   3. Render asks for every variable marked `sync: false`. Paste the same values
+#      the current service uses (Render dashboard → Environment).
+#   4. Only after the paid instance is live, set ALWAYS_ON_HOST=true. Until then
+#      the Growth and Scale plans are deliberately not on sale (see
+#      backend/config/infrastructure.js) so nobody pays for a plan this
+#      deployment cannot serve.
+services:
+  - type: web
+    name: semacheck-api           # <-- must match the existing service name (see above)
+    runtime: node
+    plan: starter                 # paid, always on — no idle spin-down
+    region: frankfurt             # closest documented region to Nairobi
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/ready   # touches the database, unlike /api/ping
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: ALLOWED_ORIGIN
+        value: https://semacheck.vercel.app,https://contsemacheck.vercel.app,https://semacheck-admin.vercel.app
+      # Set this to true ONLY once the paid instance is running.
+      - key: ALWAYS_ON_HOST
+        value: "false"
+      # Everything below is a secret: Render prompts for the value and does not
+      # store it in this file. Never commit real values here.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_JWT_SECRET
+        sync: false
+      - key: API_KEY_HASH_SECRET
+        sync: false
+      - key: REPORT_HASH_SALT
+        sync: false
+      - key: WEBHOOK_SECRET_ENC_KEY
+        sync: false
+      - key: TUMA_API_KEY
+        sync: false
+      - key: TUMA_EMAIL
+        sync: false
+      - key: TUMA_CALLBACK_URL
+        sync: false
+      - key: SEARCH_PROVIDER_KEY
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MANAGEMENT_EMAIL
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: STATUS_PROBE_SECRET
+        sync: false
+# The Postgres database is NOT managed from this file on purpose: it already
+# exists, and re-declaring it would create an empty second database. Upgrade the
+# existing database in the Render dashboard instead — free Render Postgres
+# expires 30 days after creation (plus a 14-day grace period), so check its
+# status, and keep DATABASE_URL pointed at the same instance.

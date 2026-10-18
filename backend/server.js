@@ -27,6 +27,7 @@ const contactRoutes = require('./routes/contact');
 const forensicsRoutes = require('./routes/forensics');
 const notificationsRoutes = require('./routes/notifications');
 const feedbackRoutes = require('./routes/feedback');
+const statusRoutes = require('./routes/status');
 
 const app = express();
 
@@ -145,6 +146,20 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/ping', (req, res) => res.json({ pong: true, time: Date.now() }));
 
+// Readiness probe for the host's health check (Render healthCheckPath).
+// Unlike /api/ping it touches the database, so a deploy that is listening but
+// cannot serve is reported unhealthy instead of green.
+app.get('/api/ready', async (req, res) => {
+  const started = Date.now();
+  try {
+    await require('./db/pool').query('SELECT 1');
+    res.json({ ready: true, db: 'ok', latencyMs: Date.now() - started });
+  } catch (err) {
+    console.error('Readiness check failed:', err.message);
+    res.status(503).json({ ready: false, db: 'unreachable', error: 'Database not reachable.' });
+  }
+});
+
 // ---- Trust Check API ----
 // /v1/* — API-key authenticated
 app.use('/v1', apiV1Routes);
@@ -185,6 +200,9 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/forensics', forensicsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/feedback', feedbackRoutes);
+
+// Public status history + probe ingest (POST /api/status/probe).
+app.use('/api/status', statusRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Not found.' }));
 
@@ -247,6 +265,15 @@ if (process.env.DISABLE_IN_PROCESS_SCHEDULER !== 'true') {
   const { run: runIdFileCleanup } = require('./jobs/idFileCleanup');
   setTimeout(() => runIdFileCleanup().catch((e) => console.error('ID document cleanup failed:', e.message)), 120_000);
   setInterval(() => runIdFileCleanup().catch((e) => console.error('ID document cleanup failed:', e.message)), 24 * 60 * 60 * 1000);
+
+  // Status page self-check, every STATUS_PROBE_CADENCE_MINUTES (default 5).
+  // The authoritative uptime series comes from the external prober instead;
+  // this one only proves the API + database answered from inside.
+  const statusProbe = require('./jobs/statusProbe');
+  const statusProbeRun = () => statusProbe.run().catch((e) => console.error('Status self-check failed:', e.message));
+  setTimeout(statusProbeRun, 150_000);
+  setInterval(statusProbeRun, require('./services/statusHistory').CADENCE_MINUTES * 60 * 1000);
+  setInterval(() => statusProbe.prune().catch((e) => console.error('Status probe prune failed:', e.message)), 24 * 60 * 60 * 1000);
 }
 
 module.exports = app;

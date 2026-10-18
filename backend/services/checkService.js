@@ -4,6 +4,7 @@ const normalize = require('./normalizeService');
 const verdictMapper = require('./verdictMapper');
 const cbk = require('./cbkRegistryService');
 const searchService = require('./searchService');
+const internationalDb = require('./internationalScamDatabases');
 const { notifySearchResults } = require('./pushNotificationService');
 
 const CACHE_TTL_HOURS = parseInt(process.env.API_CACHE_TTL_HOURS || '6', 10);
@@ -133,7 +134,14 @@ async function checkInternational(checkType, value, region) {
     if (result.matched) score = 20;
     if (result.bbb?.matched) score += 5;
     if (result.interpol?.matched) score += 15;
-    return { internationalScamScore: score, matched: result.matched, bbb: result.bbb, ftc: result.ftc, interpol: result.interpol };
+    return {
+      internationalScamScore: score,
+      matched: result.matched,
+      checkedSources: Number.isFinite(result.checkedSources) ? result.checkedSources : null,
+      bbb: result.bbb,
+      ftc: result.ftc,
+      interpol: result.interpol,
+    };
   } catch {
     return { internationalScamScore: 0 };
   }
@@ -153,12 +161,15 @@ function buildSummary({ checkType, value, dbSignal, external, cbkMatch, internat
   let summary;
   if (external && external.available) {
     if (region === 'international') {
-      const dbNames = [];
-      if (internationalResult.bbb?.matched) dbNames.push('BBB Scam Tracker');
-      if (internationalResult.ftc?.matched) dbNames.push('FTC fraud data');
-      if (internationalResult.interpol?.matched) dbNames.push('INTERPOL alerts');
-      const dbText = dbNames.length ? `, plus cross-referenced against ${dbNames.join(', ')}` : '';
+      const dbNames = internationalDb.matchedSourceNames(internationalResult);
+      const checkedSources = Number.isFinite(internationalResult && internationalResult.checkedSources)
+        ? internationalResult.checkedSources
+        : 0;
+      const dbText = dbNames.length ? `, plus a public-page match naming this exact subject on ${dbNames.join(', ')}` : '';
       summary = `Checked against SemaCheck's report database and current worldwide web results (${govHits} official government/regulator source(s), ${newsHits} news/outlet source(s), ${generalHits} general web source(s))${dbText}.`;
+      summary += checkedSources === 0
+        ? ' The public scam-page searches (BBB Scam Tracker, FTC, INTERPOL) did not answer for this check, so no match is claimed from them.'
+        : ' Public-page tests are best-effort page lookups, not official data feeds, and a source is named only when the subject itself appeared in what that page returned.';
     } else {
       summary = `Checked against SemaCheck's report database, the CBK licensed-lender registry, and current web results (${govHits} official Kenyan government/regulator source(s), ${newsHits} Kenyan news source(s), ${generalHits} general web source(s)).`;
     }
@@ -171,7 +182,17 @@ function buildSummary({ checkType, value, dbSignal, external, cbkMatch, internat
       summary += ` Matches a CBK-licensed digital lender on file: "${entry.company_name}"${entry.date_licensed_raw ? ` (licensed ${entry.date_licensed_raw})` : ''}.`;
     }
   }
-  return { summary, sourcesData: { db_signal: dbSignal, external_sources: external && external.available ? external.snippets : [], cbk_registry_match: cbkMatch, international_databases: internationalResult } };
+  return {
+    summary,
+    sourcesData: {
+      db_signal: dbSignal,
+      external_sources: external && external.available ? external.snippets : [],
+      cbk_registry_match: cbkMatch,
+      international_databases: internationalResult,
+      evidence_note:
+        'Verdicts combine SemaCheck\'s own report database with a live web search. BBB Scam Tracker, FTC and INTERPOL pages are searched for worldwide checks only, and a source is reported only when the subject itself appears in what that page returned — they are not official data feeds and we are not affiliated with or endorsed by them.',
+    },
+  };
 }
 
 async function persistSearch({ userId, checkType, value, hash, region, verdict, confidence, summary, sourcesData, tier, amountPaid }) {

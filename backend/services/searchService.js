@@ -271,12 +271,17 @@ async function performSearch({ userId, queryType, queryValue, tier, amountPaid, 
   let summary;
   if (external.available) {
     if (isInternational) {
-      const dbNames = [];
-      if (internationalMatch?.bbb?.matched) dbNames.push('BBB Scam Tracker');
-      if (internationalMatch?.ftc?.matched) dbNames.push('FTC fraud data');
-      if (internationalMatch?.interpol?.matched) dbNames.push('INTERPOL alerts');
-      const dbText = dbNames.length > 0 ? `, plus cross-referenced against ${dbNames.join(', ')}` : '';
+      const dbNames = internationalDb.matchedSourceNames(internationalMatch);
+      const checkedSources = internationalMatch && Number.isFinite(internationalMatch.checkedSources)
+        ? internationalMatch.checkedSources
+        : internationalMatch ? 3 : 0;
+      const dbText = dbNames.length > 0
+        ? `, plus a public-page match naming this exact subject on ${dbNames.join(', ')}`
+        : '';
       summary = `Checked against SemaCheck's report database and current worldwide web results (${govHits} official government/regulator source(s), ${newsHits} news/outlet source(s), ${generalHits} general web source(s))${dbText}.`;
+      summary += checkedSources === 0
+        ? ' The public scam-page searches (BBB Scam Tracker, FTC, INTERPOL) did not answer for this check, so no match is claimed from them.'
+        : ` Public-page tests are best-effort page lookups, not official data feeds, and a source is named only when the subject itself appeared in what that page returned.`;
     } else {
       summary = `Checked against SemaCheck's report database, the CBK licensed-lender registry, and current web results (${govHits} official Kenyan government/regulator source(s), ${newsHits} Kenyan news source(s), ${generalHits} general web source(s)).`;
     }
@@ -299,6 +304,8 @@ async function performSearch({ userId, queryType, queryValue, tier, amountPaid, 
     db_signal: dbSignal,
     external_sources: external.snippets,
     cbk_registry_match: cbkMatch,
+    evidence_note:
+      'Verdicts combine SemaCheck\'s own report database with a live web search. BBB Scam Tracker, FTC and INTERPOL pages are searched for worldwide checks only, and a source is reported only when the subject itself appears in what that page returned — they are not official data feeds and we are not affiliated with or endorsed by them.',
   };
   if (internationalMatch) {
     sourcesData.international_databases = {
