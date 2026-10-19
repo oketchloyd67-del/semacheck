@@ -35,7 +35,7 @@ services:
       - key: NODE_VERSION
         value: "20"
       - key: ALLOWED_ORIGIN
-        value: https://semacheck.vercel.app,https://contsemacheck.vercel.app,https://semacheck-admin.vercel.app
+        value: https://semacheck.vercel.app,https://contsemacheck.vercel.app
       # Set this to true ONLY once the paid instance is running.
       - key: ALWAYS_ON_HOST
         value: "false"

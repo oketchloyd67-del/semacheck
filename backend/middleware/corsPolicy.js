@@ -3,10 +3,12 @@
 // unit-tested: a wildcard in ALLOWED_ORIGIN must never turn the credentialed
 // /api into an any-website endpoint.
 
+// The admin panel is deployed at contsemacheck.vercel.app. Do NOT re-add
+// semacheck-admin.vercel.app: that hostname answers DEPLOYMENT_NOT_FOUND, so a
+// third party could claim it and inherit this credentialed allowlist.
 const FIRST_PARTY_ORIGINS = [
   'https://contsemacheck.vercel.app',
   'https://semacheck.vercel.app',
-  'https://semacheck-admin.vercel.app',
   'https://semacheck.onrender.com',
 ];
 

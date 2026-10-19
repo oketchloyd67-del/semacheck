@@ -8,7 +8,7 @@ const prod = { NODE_ENV: 'production', ALLOWED_ORIGIN: '' };
 
 test('first-party origins are allowed on /api', () => {
   assert.equal(apiOriginAllowed('https://semacheck.vercel.app', prod), true);
-  assert.equal(apiOriginAllowed('https://semacheck-admin.vercel.app', prod), true);
+  assert.equal(apiOriginAllowed('https://contsemacheck.vercel.app', prod), true);
   assert.equal(apiOriginAllowed('https://semacheck.onrender.com', prod), true);
 });
 
@@ -16,6 +16,9 @@ test('an unknown website is rejected in production', () => {
   assert.equal(apiOriginAllowed('https://evil.example', prod), false);
   assert.equal(apiOriginAllowed('https://semacheck.vercel.app.evil.example', prod), false);
   assert.equal(apiOriginAllowed('null', prod), false);
+  // That hostname is unclaimed (DEPLOYMENT_NOT_FOUND), so allowing it would let
+  // whoever registers it call the credentialed API.
+  assert.equal(apiOriginAllowed('https://semacheck-admin.vercel.app', prod), false);
 });
 
 test('a wildcard in ALLOWED_ORIGIN does not open /api', () => {

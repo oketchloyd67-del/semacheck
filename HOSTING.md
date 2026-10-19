@@ -121,9 +121,11 @@ re-enrol an authenticator.
 
 ### Deploying the admin panel
 
-The panel is served from `admin-deploy/` on Vercel (`https://semacheck-admin.vercel.app`). The
-API-side changes go out with the Render service; the login/dashboard changes need the admin
-Vercel project to redeploy from `main`.
+The panel is served from `admin-deploy/` on Vercel at
+**`https://contsemacheck.vercel.app`** (not `semacheck-admin.vercel.app`, which answers
+`DEPLOYMENT_NOT_FOUND` and has therefore been removed from the credentialed API allowlist). The
+API-side changes go out with the Render service; the login/dashboard changes need the
+`contsemacheck` Vercel project to redeploy from `main`.
 
 ## Verification limits of this research
 
