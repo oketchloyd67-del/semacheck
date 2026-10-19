@@ -2,7 +2,7 @@
   "id": "https://semacheck.vercel.app",
   "name": "SemaCheck — Verify Before You Trust It",
   "short_name": "SemaCheck",
-  "description": "Verify phone numbers, Paybills, and job offers against community reports and worldwide scam databases.",
+  "description": "Check phone numbers, Paybills, websites and job offers against SemaCheck community reports, the CBK digital credit registry and public scam warnings.",
   "start_url": "https://semacheck.vercel.app/",
   "scope": "/",
   "display": "standalone",

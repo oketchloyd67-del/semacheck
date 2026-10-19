@@ -115,12 +115,21 @@ function rateLimitKey(req) {
 }
 
 function makeLimiter(options, storePrefix) {
+  const { handler: customHandler, ...rest } = options;
   return rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: rateLimitKey,
     store: createStore(storePrefix),
-    ...options,
+    ...rest,
+    // RFC 9110: a 429 should tell the client when it may retry. express-rate-limit
+    // emits RateLimit-* but not Retry-After, so set it explicitly. Feature
+    // limiters may supply their own handler (and their own error vocabulary).
+    handler: customHandler || ((req, res, next, opts) => {
+      const seconds = Math.max(1, Math.ceil((opts.windowMs || 60000) / 1000));
+      res.setHeader('Retry-After', String(seconds));
+      res.status(opts.statusCode || 429).json(opts.message || { error: 'Too many requests — please slow down.' });
+    }),
   });
 }
 

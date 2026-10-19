@@ -62,6 +62,8 @@ async function migrate(options) {
   const trustApiStatements = await readStatements(trustApiSqlPath);
   const statusSqlPath = path.join(__dirname, 'schema-status.sql');
   const statusStatements = await readStatements(statusSqlPath);
+  const adminSqlPath = path.join(__dirname, 'schema-admin.sql');
+  const adminStatements = await readStatements(adminSqlPath);
 
   const client = await pool.connect();
 
@@ -71,11 +73,13 @@ async function migrate(options) {
     console.log('Found', schemaStatements.length, 'SQL statements in schema.sql.');
     console.log('Found', trustApiStatements.length, 'SQL statements in schema-trust-api.sql.');
     console.log('Found', statusStatements.length, 'SQL statements in schema-status.sql.');
+    console.log('Found', adminStatements.length, 'SQL statements in schema-admin.sql.');
 
     await client.query('BEGIN');
     await runStatements(client, schemaStatements, 'schema');
     await runStatements(client, trustApiStatements, 'trust-api');
     await runStatements(client, statusStatements, 'status');
+    await runStatements(client, adminStatements, 'admin');
     await client.query('COMMIT');
     console.log('Schema migration completed successfully.');
   } catch (err) {

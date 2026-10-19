@@ -68,8 +68,35 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---- login page ----
   const loginBtn = document.getElementById('adminLoginBtn');
   if (loginBtn) {
-    loginBtn.addEventListener('click', async () => {
-      const alertBox = document.getElementById('loginAlert');
+    const alertBox = document.getElementById('loginAlert');
+    const loginStep = document.getElementById('loginStep');
+    const twoFactorStep = document.getElementById('twoFactorStep');
+    const enrollBox = document.getElementById('enrollBox');
+    let pending2fa = null;
+
+    const showTwoFactor = (data) => {
+      pending2fa = data.twoFactorSetupRequired
+        ? { kind: 'enable', token: data.setupToken }
+        : { kind: 'verify', token: data.challengeToken };
+      const card = document.querySelector('.modal');
+      if (card) card.style.maxWidth = '440px';
+      loginStep.style.display = 'none';
+      twoFactorStep.style.display = 'block';
+      document.getElementById('twoFactorHint').textContent = data.message || 'Enter the 6-digit code from your authenticator app.';
+      if (data.twoFactorSetupRequired) {
+        enrollBox.style.display = 'block';
+        document.getElementById('totpSecret').textContent = data.secret || '';
+        document.getElementById('totpLink').href = data.otpauthUrl || '#';
+      } else {
+        enrollBox.style.display = 'none';
+      }
+      document.getElementById('totpCode').value = '';
+      document.getElementById('totpCode').focus();
+    };
+
+    const submitLogin = async () => {
+      alertBox.innerHTML = '';
+      loginBtn.disabled = true;
       try {
         const r = await adminApi('/admin/login', {
           method: 'POST',
@@ -78,11 +105,46 @@ document.addEventListener('DOMContentLoaded', () => {
             password: document.getElementById('adminPassword').value,
           }),
         });
+        if (r.twoFactorSetupRequired || r.twoFactorRequired) { showTwoFactor(r); return; }
         setAdminToken(r.token);
         window.location.href = 'dashboard.html';
       } catch (err) {
-        alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+        alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+      } finally {
+        loginBtn.disabled = false;
       }
+    };
+
+    loginBtn.addEventListener('click', submitLogin);
+    document.getElementById('adminPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin(); });
+
+    const submitCode = async () => {
+      const code = document.getElementById('totpCode').value.trim();
+      if (!pending2fa) { alertBox.innerHTML = '<div class="alert alert-err">Start again from the email and password step.</div>'; return; }
+      if (!/^\d{6}$/.test(code)) { alertBox.innerHTML = '<div class="alert alert-err">Enter the 6-digit code from your authenticator app.</div>'; return; }
+      try {
+        const path = pending2fa.kind === 'enable' ? '/admin/2fa/enable' : '/admin/2fa/verify';
+        const body = pending2fa.kind === 'enable'
+          ? { setupToken: pending2fa.token, code }
+          : { challengeToken: pending2fa.token, code };
+        const r = await adminApi(path, { method: 'POST', body: JSON.stringify(body) });
+        setAdminToken(r.token);
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+        document.getElementById('totpCode').select();
+      }
+    };
+    document.getElementById('verify2faBtn').addEventListener('click', submitCode);
+    document.getElementById('totpCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitCode(); });
+    document.getElementById('restartLoginBtn').addEventListener('click', () => {
+      pending2fa = null;
+      const card = document.querySelector('.modal');
+      if (card) card.style.maxWidth = '';
+      twoFactorStep.style.display = 'none';
+      loginStep.style.display = 'block';
+      document.getElementById('adminPassword').value = '';
+      alertBox.innerHTML = '';
     });
   }
 
@@ -126,13 +188,15 @@ document.addEventListener('DOMContentLoaded', () => {
   on('forensicsStatusFilter', 'change', (e) => loadForensicsCases(e.target.value));
   on('userFilterBtn', 'click', loadUsers);
   on('userSearchInput', 'keydown', (e) => { if (e.key === 'Enter') loadUsers(); });
+  on('apiAccountFilter', 'change', loadApiAccounts);
 
   on('saveSettingsBtn', 'click', saveSettings);
 
-  document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { closeDocModal(); closeUserDetailModal(); }));
+  document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { closeDocModal(); closeUserDetailModal(); closeApiDetail(); }));
   on('docPreviewOverlay', 'click', (e) => { if (e.target.id === 'docPreviewOverlay') closeDocModal(); });
   document.getElementById('userDetailOverlay')?.addEventListener('click', (e) => { if (e.target.id === 'userDetailOverlay') closeUserDetailModal(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDocModal(); closeUserDetailModal(); } });
+  document.getElementById('apiDetailOverlay')?.addEventListener('click', (e) => { if (e.target.id === 'apiDetailOverlay') closeApiDetail(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDocModal(); closeUserDetailModal(); closeApiDetail(); } });
 
   document.getElementById('mobileMenuToggle')?.addEventListener('click', () => {
     document.getElementById('adminSidebar').classList.toggle('open');
@@ -161,9 +225,14 @@ function switchTab(tab) {
 async function loadMe() {
   try {
     const r = await adminApi('/admin/settings/me');
-    document.getElementById('adminNameLabel').textContent = `Hi, ${r.admin.fullName}`;
+    const roleLabel = { super_admin: 'Super admin', reviewer: 'Reviewer', support: 'Support' }[r.admin.role] || r.admin.role || 'Admin';
+    document.getElementById('adminNameLabel').textContent = `Hi, ${r.admin.fullName} · ${roleLabel}`;
     document.getElementById('setFullName').placeholder = r.admin.fullName;
     document.getElementById('setEmail').placeholder = r.admin.email;
+    const security = document.getElementById('securityInfo');
+    if (security) {
+      security.textContent = `Signed in as ${roleLabel}. Two-factor authentication: ${r.admin.twoFactorEnabled ? 'enabled' : 'not enabled'}. Sessions expire after 4 hours; changing your password signs out every other session.`;
+    }
   } catch (err) { handleAuthError(err); }
 }
 
@@ -629,6 +698,13 @@ async function saveSettings() {
     document.getElementById('setNewPassword').value = '';
     document.getElementById('setFullName').value = '';
     document.getElementById('setEmail').value = '';
+    if (r.reauthenticate) {
+      // The server bumped session_version, so this token is already dead.
+      clearAdminToken();
+      sessionStorage.clear();
+      setTimeout(() => { window.location.replace('login.html'); }, 1800);
+      return;
+    }
     loadMe();
   } catch (err) {
     alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
@@ -685,8 +761,11 @@ function initBroadcast() {
 
 // ---------------- shared ----------------
 function handleAuthError(err) {
-  if (err.message.includes('token') || err.message.includes('authenticated')) window.location.href = 'login.html';
-  else document.getElementById('globalAlert').innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+  if (/token|authenticated|sign in again|session/i.test(err.message)) window.location.replace('login.html');
+  else {
+    const box = document.getElementById('globalAlert');
+    if (box) box.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+  }
 }
 
 // ---------------- Trust API admin tabs ----------------
@@ -694,18 +773,30 @@ function handleAuthError(err) {
 async function loadApiAccounts() {
   try {
     const data = await adminApi('/admin/api-accounts');
-    const rows = data.accounts || [];
+    const allRows = data.accounts || [];
     const el = document.getElementById('apiAccounts');
-    const pending = rows.filter((a) => a.status === 'pending').length;
-    const pendingOrg = rows.filter((a) => a.verificationStatus === 'documents_submitted').length;
+    const pending = allRows.filter((a) => a.status === 'pending').length;
+    const pendingOrg = allRows.filter((a) => a.verificationStatus === 'documents_submitted').length;
     const badge = document.getElementById('badgeApiAccounts');
     if (badge) {
       const n = pending + pendingOrg;
       badge.textContent = String(n);
       badge.style.display = n ? 'inline-block' : 'none';
     }
+    const filter = document.getElementById('apiAccountFilter')?.value || 'all';
+    const rows = allRows.filter((a) => {
+      if (filter === 'org') return a.verificationStatus === 'documents_submitted';
+      if (filter === 'pending') return a.status === 'pending';
+      if (filter === 'active') return a.status === 'active';
+      if (filter === 'suspended') return a.status === 'suspended' || a.status === 'past_due';
+      return true;
+    });
+    const summary = document.getElementById('apiOrgQueueSummary');
+    if (summary) {
+      summary.textContent = `${pendingOrg} organisation document${pendingOrg === 1 ? '' : 's'} awaiting review · ${pending} account${pending === 1 ? '' : 's'} awaiting approval · ${allRows.length} in total.`;
+    }
     if (!rows.length) {
-      el.innerHTML = '<p class="hint">No developer (API) accounts yet.</p>';
+      el.innerHTML = '<p class="hint">Nothing matches this filter.</p>';
       return;
     }
     const statusLabel = { pending: 'Awaiting approval', active: 'Active', past_due: 'Past due', suspended: 'Suspended', closed: 'Closed' };
@@ -727,6 +818,7 @@ async function loadApiAccounts() {
         ${a.orgRegistrationNo ? `<div class="hint">Reg. number: <b>${escapeHtml(a.orgRegistrationNo)}</b>${a.verifiedAt ? ' · verified ' + new Date(a.verifiedAt).toLocaleDateString() : ''}</div>` : ''}
         ${a.website ? `<div class="hint">${escapeHtml(a.website)}</div>` : ''}
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-ghost" data-api-view="${a.id}">View customer</button>
           ${a.hasBusinessDoc ? `<button class="btn btn-ghost" data-view-bizdoc="${a.id}">View registration doc</button>` : ''}
           ${vs === 'documents_submitted' || vs === 'rejected' ? `<button class="icon-btn" data-org-action="approve" data-id="${a.id}" title="Verify organisation" aria-label="Verify organisation">${TICK_ICON}</button><button class="btn btn-ghost" data-org-action="reject" data-id="${a.id}">Reject org</button>` : ''}
           ${a.status === 'pending' && vs !== 'documents_submitted' ? `<button class="icon-btn" data-api-action="approve" data-id="${a.id}" title="Approve API account" aria-label="Approve API account">${TICK_ICON}</button><button class="btn btn-ghost" data-api-action="reject" data-id="${a.id}">Reject</button>` : ''}
@@ -748,18 +840,25 @@ async function loadApiAccounts() {
     // Organisation verification: one-step review — approving the business
     // registration document also activates a pending developer account.
     el.querySelectorAll('[data-org-action]').forEach((b) => b.addEventListener('click', async () => {
+      let note;
+      if (b.dataset.orgAction === 'reject') {
+        note = prompt('Reason for rejecting this organisation (required — the partner sees it):', '');
+        if (note === null) return;
+        if (!note.trim()) { showToast('A rejection reason is required.', true); return; }
+      }
       try {
         const r = await adminApi(`/admin/api-accounts/${b.dataset.id}/verify-org`, {
           method: 'POST',
-          body: JSON.stringify({ action: b.dataset.orgAction }),
+          body: JSON.stringify({ action: b.dataset.orgAction, note: note || undefined }),
         });
         showToast(r.message || 'Done.');
         await loadApiAccounts();
       } catch (err) {
-        el.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+        showToast(err.message, true);
       }
     }));
     el.querySelectorAll('[data-view-bizdoc]').forEach((b) => b.addEventListener('click', () => viewBusinessDoc(b.dataset.viewBizdoc)));
+    el.querySelectorAll('[data-api-view]').forEach((b) => b.addEventListener('click', () => viewApiAccount(b.dataset.apiView)));
   } catch (err) { document.getElementById('apiAccounts').innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`; }
 }
 
@@ -784,6 +883,239 @@ async function viewBusinessDoc(accountId) {
       : `<img src="${url}" style="max-width:100%;border-radius:8px;border:1px solid var(--border);">`;
   } catch (err) {
     body.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+  }
+}
+
+// ---------------- one API customer ----------------
+let adminPlansCache = null;
+async function ensurePlans() {
+  if (adminPlansCache) return adminPlansCache;
+  const r = await adminApi('/admin/plans');
+  adminPlansCache = r.plans || [];
+  return adminPlansCache;
+}
+
+function fmtDateTime(value) {
+  return value ? new Date(value).toLocaleString() : '—';
+}
+
+function renewalText(days) {
+  if (days === null || days === undefined) return 'No renewal date set';
+  if (days < 0) return `overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}`;
+  if (days === 0) return 'renews today';
+  return `renews in ${days} day${days === 1 ? '' : 's'}`;
+}
+
+async function viewApiAccount(accountId) {
+  const overlay = document.getElementById('apiDetailOverlay');
+  const body = document.getElementById('apiDetailBody');
+  if (!overlay || !body) return;
+  body.innerHTML = '<p class="hint">Loading…</p>';
+  overlay.classList.add('open');
+  try {
+    const [detail, plans] = await Promise.all([
+      adminApi(`/admin/api-accounts/${accountId}`),
+      ensurePlans(),
+    ]);
+    renderApiDetail(detail.account, plans);
+  } catch (err) {
+    body.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderApiDetail(a, plans) {
+  const body = document.getElementById('apiDetailBody');
+  const quota = Number(a.monthlyQuota || 0);
+  const used = Number(a.usageThisMonth || 0);
+  const pct = quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : null;
+  const verifLabel = {
+    unverified: 'not submitted',
+    documents_submitted: 'documents under review',
+    verified: 'verified',
+    rejected: 'rejected',
+  }[a.verificationStatus] || a.verificationStatus || 'unverified';
+  const keys = a.keys || [];
+
+  body.innerHTML = `
+    <h3 style="margin-bottom:2px;">${escapeHtml(a.companyName)}</h3>
+    <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;">
+      <span class="pill pill-${a.status === 'active' ? 'approved' : a.status === 'suspended' || a.status === 'closed' ? 'rejected' : 'pending'}">${escapeHtml(a.status)}</span>
+      <span class="pill pill-${a.verificationStatus === 'verified' ? 'approved' : a.verificationStatus === 'rejected' ? 'rejected' : 'pending'}">Org: ${escapeHtml(verifLabel)}</span>
+    </div>
+    <p class="hint">Owner: <b>${escapeHtml(a.ownerName || '—')}</b> · ${escapeHtml(a.ownerEmail || '')}${a.ownerPhone ? ' · ' + escapeHtml(a.ownerPhone) : ''}</p>
+    ${a.website ? `<p class="hint">Website: ${escapeHtml(a.website)}</p>` : ''}
+    ${a.useCase ? `<p class="hint">Use case: ${escapeHtml(a.useCase)}</p>` : ''}
+    ${a.orgRegistrationNo ? `<p class="hint">Registration no: <b>${escapeHtml(a.orgRegistrationNo)}</b>${a.verifiedAt ? ' · verified ' + new Date(a.verifiedAt).toLocaleDateString() : ''}</p>` : ''}
+    ${a.verificationNote ? `<p class="hint" style="color:var(--scam-red);">Review note: ${escapeHtml(a.verificationNote)}</p>` : ''}
+
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-top:12px;">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div><div class="hint">Plan</div><b>${escapeHtml(a.planName || a.planCode)}</b> · KES ${Number(a.planPriceKes || 0).toLocaleString()}/mo</div>
+        <div style="text-align:right;"><div class="hint">Renewal</div><b>${a.planRenewsOn ? new Date(a.planRenewsOn).toLocaleDateString() : '—'}</b> · ${renewalText(a.daysUntilRenewal)}</div>
+      </div>
+      <div style="margin-top:10px;">
+        <div class="hint">Quota used: ${used.toLocaleString()} / ${quota ? quota.toLocaleString() : '—'}${pct === null ? '' : ` (${pct}%)`}</div>
+        ${pct === null ? '' : `<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:5px;"><div style="height:100%;width:${pct}%;background:${pct >= 90 ? 'var(--scam-red)' : '#0FA3A3'};"></div></div>`}
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <select id="apiPlanSelect" style="max-width:260px;">
+          ${plans.map((p) => `<option value="${escapeHtml(p.code)}" ${p.code === a.planCode ? 'selected' : ''}>${escapeHtml(p.name)} — KES ${Number(p.priceKes || 0).toLocaleString()}/mo</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost" data-api-plan-save>Change plan</button>
+      </div>
+    </div>
+
+    <div class="action-btns" style="margin-top:12px;">
+      ${a.hasBusinessDoc ? `<button class="btn btn-ghost" data-api-doc>View registration doc</button>` : ''}
+      ${a.status === 'active' || a.status === 'past_due' ? `<button class="btn btn-ghost" data-api-status="suspend">Suspend</button>` : ''}
+      ${a.status === 'suspended' || a.status === 'closed' || a.status === 'past_due' ? `<button class="btn btn-ghost" data-api-status="reactivate">Reactivate</button>` : ''}
+      ${a.status !== 'closed' ? `<button class="btn btn-ghost" data-api-status="close">Close account</button>` : ''}
+    </div>
+
+    <h3 style="margin-top:18px;">Active keys — prefix only</h3>
+    ${keys.length ? `<div class="table-scroll"><table class="data-table"><thead><tr><th>Label</th><th>Type</th><th>Prefix</th><th>Status</th><th>Last used</th></tr></thead><tbody>
+      ${keys.map((k) => `<tr>
+        <td data-label="Label">${escapeHtml(k.label)}</td>
+        <td data-label="Type">${escapeHtml(k.keyType)} · ${escapeHtml(k.mode || '')}</td>
+        <td data-label="Prefix" style="font-family:monospace;">${escapeHtml(k.keyPrefix)}…</td>
+        <td data-label="Status">${escapeHtml(k.status)}</td>
+        <td data-label="Last used">${fmtDateTime(k.lastUsedAt)}</td>
+      </tr>`).join('')}
+    </tbody></table></div>` : '<p class="hint">No keys created yet.</p>'}
+    <p class="hint" style="margin-top:8px;">Keys are stored as hashes. Only the prefix is kept for display, so a full key can never be recovered here — the customer must rotate it.</p>
+  `;
+
+  body.querySelector('[data-api-plan-save]')?.addEventListener('click', async () => {
+    const next = document.getElementById('apiPlanSelect').value;
+    if (next === a.planCode) { showToast('That is already the plan.'); return; }
+    if (!confirm(`Change ${a.companyName} to the ${next} plan immediately?`)) return;
+    try {
+      await adminApi(`/admin/api-accounts/${a.id}/plan`, { method: 'POST', body: JSON.stringify({ planCode: next }) });
+      showToast('Plan changed.');
+      await viewApiAccount(a.id);
+      await loadApiAccounts();
+    } catch (err) { showToast(err.message, true); }
+  });
+
+  body.querySelectorAll('[data-api-status]').forEach((btn) => btn.addEventListener('click', async () => {
+    const action = btn.dataset.apiStatus;
+    let reason = null;
+    if (action === 'close') {
+      reason = prompt('Reason for closing this account (optional):', '');
+      if (reason === null) return;
+    }
+    if (!confirm(`${action === 'suspend' ? 'Suspend' : action === 'close' ? 'Close' : 'Reactivate'} ${a.companyName}?`)) return;
+    try {
+      const r = await adminApi(`/admin/api-accounts/${a.id}/${action}`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason || undefined }),
+      });
+      showToast(r.message || 'Done.');
+      await viewApiAccount(a.id);
+      await loadApiAccounts();
+    } catch (err) { showToast(err.message, true); }
+  }));
+
+  body.querySelector('[data-api-doc]')?.addEventListener('click', () => viewBusinessDoc(a.id));
+}
+
+function closeApiDetail() {
+  document.getElementById('apiDetailOverlay')?.classList.remove('open');
+}
+
+// ---------------- payment reconciliation ----------------
+async function loadPaymentsRecon() {
+  const stuckBox = document.getElementById('stuckPaymentsList');
+  const failedBox = document.getElementById('failedPaymentsList');
+  try {
+    const r = await adminApi('/admin/payments/reconciliation');
+    const summary = r.summary || {};
+    document.getElementById('stuckPaymentsCount').textContent = summary.stuckCount || 0;
+    document.getElementById('stuckPaymentsValue').textContent = `KES ${Number(summary.stuckValueKes || 0).toLocaleString()}`;
+    document.getElementById('failedPaymentsCount').textContent = summary.failedLast7dCount || 0;
+    const badge = document.getElementById('badgeStuckPayments');
+    if (badge) {
+      badge.textContent = String(summary.stuckCount || 0);
+      badge.style.display = summary.stuckCount ? 'inline-block' : 'none';
+    }
+
+    const rows = (list, withRequery) => {
+      if (!list.length) return '<p class="hint">Nothing here.</p>';
+      return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Created</th><th>Purpose</th><th>Amount</th><th>Phone</th><th>Customer</th><th>Status</th><th>Checkout</th>${withRequery ? '<th>Action</th>' : ''}</tr></thead><tbody>
+        ${list.map((p) => `<tr>
+          <td data-label="Created">${new Date(p.createdAt).toLocaleString()}<div class="hint">${p.ageMinutes} min ago</div></td>
+          <td data-label="Purpose">${escapeHtml(p.purpose)}</td>
+          <td data-label="Amount" style="font-weight:700;">KES ${Number(p.amount).toLocaleString()}</td>
+          <td data-label="Phone">${escapeHtml(p.phone)}</td>
+          <td data-label="Customer">${escapeHtml(p.ownerName || '—')}<div class="hint">${escapeHtml(p.ownerEmail || '')}</div></td>
+          <td data-label="Status">${escapeHtml(p.status)}</td>
+          <td data-label="Checkout" style="font-family:monospace;font-size:0.76rem;">${escapeHtml(p.checkoutRequestId || '—')}</td>
+          ${withRequery ? `<td data-label="Action">${p.hasCheckoutId ? `<button class="btn btn-ghost" data-requery="${p.id}">Re-query</button>` : '<span class="hint">No checkout ID</span>'}</td>` : ''}
+        </tr>`).join('')}
+      </tbody></table></div>`;
+    };
+
+    stuckBox.innerHTML = rows(r.stuck || [], true);
+    failedBox.innerHTML = rows(r.failed || [], false);
+
+    stuckBox.querySelectorAll('[data-requery]').forEach((btn) => btn.addEventListener('click', async () => {
+      if (!confirm('Ask Tuma for the live status of this payment and apply it?')) return;
+      btn.disabled = true;
+      try {
+        const out = await adminApi(`/admin/payments/${btn.dataset.requery}/requery`, { method: 'POST' });
+        showToast(out.message || 'Re-queried.');
+        await loadPaymentsRecon();
+      } catch (err) {
+        showToast(err.message, true);
+        btn.disabled = false;
+      }
+    }));
+  } catch (err) {
+    if (stuckBox) stuckBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+    if (failedBox) failedBox.innerHTML = '';
+  }
+}
+
+// ---------------- staff audit log ----------------
+async function loadAuditLog() {
+  const box = document.getElementById('auditLogList');
+  const attemptsBox = document.getElementById('loginAttemptsList');
+  try {
+    const r = await adminApi('/admin/audit-log');
+    const entries = r.entries || [];
+    const attempts = r.loginAttempts || [];
+    if (!entries.length) {
+      box.innerHTML = '<p class="hint">No admin actions recorded yet.</p>';
+    } else {
+      box.innerHTML = `<div class="table-scroll"><table class="data-table"><thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th></tr></thead><tbody>
+        ${entries.map((e) => `<tr>
+          <td data-label="When">${new Date(e.created_at).toLocaleString()}</td>
+          <td data-label="Admin">${escapeHtml(e.admin_email || '—')}</td>
+          <td data-label="Action" style="font-family:monospace;font-size:0.8rem;">${escapeHtml(e.action)}</td>
+          <td data-label="Target">${escapeHtml(e.target_type || '')}${e.target_id ? ':' + escapeHtml(e.target_id) : ''}</td>
+          <td data-label="Detail" style="font-size:0.78rem;">${escapeHtml(e.detail ? JSON.stringify(e.detail).slice(0, 160) : '')}</td>
+          <td data-label="IP" style="font-family:monospace;font-size:0.78rem;">${escapeHtml(e.ip || '—')}</td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
+    }
+
+    if (!attempts.length) {
+      attemptsBox.innerHTML = '<p class="hint">No sign-in attempts recorded yet.</p>';
+    } else {
+      attemptsBox.innerHTML = `<div class="table-scroll"><table class="data-table"><thead><tr><th>When</th><th>Email</th><th>Result</th><th>Reason</th><th>IP</th></tr></thead><tbody>
+        ${attempts.map((a) => `<tr>
+          <td data-label="When">${new Date(a.created_at).toLocaleString()}</td>
+          <td data-label="Email">${escapeHtml(a.email || '—')}</td>
+          <td data-label="Result">${a.ok ? '<span class="pill pill-approved">Success</span>' : '<span class="pill pill-rejected">Failed</span>'}</td>
+          <td data-label="Reason">${escapeHtml(a.reason || '')}</td>
+          <td data-label="IP" style="font-family:monospace;font-size:0.78rem;">${escapeHtml(a.ip || '—')}</td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
+    }
+  } catch (err) {
+    const msg = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+    box.innerHTML = msg;
+    attemptsBox.innerHTML = '';
   }
 }
 
@@ -1038,6 +1370,8 @@ async function loadTab(tab) {
     else if (tab === 'users') { await loadUsers(); }
     else if (tab === 'jobs') { await loadJobs(document.getElementById('jobStatusFilter')?.value || 'pending'); }
     else if (tab === 'api-accounts') { await loadApiAccounts(); }
+    else if (tab === 'payments') { await loadPaymentsRecon(); }
+    else if (tab === 'audit') { await loadAuditLog(); }
     else if (tab === 'webhook-failures') { await loadWebhookFailures(); }
     else if (tab === 'reports') { await loadReportsQueue(); }
     else if (tab === 'disputes') { await loadDisputes(); }

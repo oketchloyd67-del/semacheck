@@ -84,6 +84,47 @@ Two things to check while you are in the dashboard:
    acking, and reconcile payment status so a missed callback never leaves a customer charged
    without a result.
 
+## Admin panel security (19 October 2026)
+
+- **The shared admin password was rotated in the production database.** The new value was
+  handed over once outside this repository; it is not in code, docs or git. If it is lost, use
+  the recovery command below rather than a seed run (seeding refuses to change an existing
+  admin's password).
+- **Two-factor authentication is mandatory.** The first sign-in after this deploy asks the
+  admin to add the account to an authenticator app and confirm a 6-digit code. Every later
+  sign-in needs that code. Sessions last **4 hours**, and changing a password increments
+  `admins.session_version`, which immediately invalidates every other token — including one
+  that leaked.
+- **Roles:** `super_admin` (everything), `reviewer` (ID/organisation verification, jobs,
+  reports, disputes — no plans or settings), `support` (read-only plus webhook retry and status
+  notices). Enforced server-side by `requireRole`, not just hidden in the UI.
+- **Audit trail:** `admin_audit_log` records logins, credential changes, approvals, rejections,
+  suspensions, plan changes, document views, payment re-queries and every other privileged
+  action; `admin_login_attempts` records failed sign-ins with the reason. The Audit log tab is
+  super-admin only and has no delete endpoint.
+- **Payment reconciliation:** the Payments tab lists payments stuck in initiated/pending for
+  more than 2 minutes and failures from the last 7 days, and can re-query Tuma for the live
+  status. A confirmed success applies the same side effects as a normal callback.
+
+### If an admin is locked out
+
+From the backend directory, against the database in `DATABASE_URL`:
+
+```bash
+node db/admin-recovery.js --email you@example.com --disable-2fa
+node db/admin-recovery.js --email you@example.com --reset-password
+```
+
+Both sign out every existing session. The new password is printed once to that console and is
+never written to disk or the database in clear text. `--disable-2fa` makes the next sign-in
+re-enrol an authenticator.
+
+### Deploying the admin panel
+
+The panel is served from `admin-deploy/` on Vercel (`https://semacheck-admin.vercel.app`). The
+API-side changes go out with the Render service; the login/dashboard changes need the admin
+Vercel project to redeploy from `main`.
+
 ## Verification limits of this research
 
 - Render's pricing page did not render its full price table during extraction — confirm the

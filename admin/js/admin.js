@@ -52,8 +52,35 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---- login page ----
   const loginBtn = document.getElementById('adminLoginBtn');
   if (loginBtn) {
-    loginBtn.addEventListener('click', async () => {
-      const alertBox = document.getElementById('loginAlert');
+    const alertBox = document.getElementById('loginAlert');
+    const loginStep = document.getElementById('loginStep');
+    const twoFactorStep = document.getElementById('twoFactorStep');
+    const enrollBox = document.getElementById('enrollBox');
+    let pending2fa = null;
+
+    const showTwoFactor = (data) => {
+      pending2fa = data.twoFactorSetupRequired
+        ? { kind: 'enable', token: data.setupToken }
+        : { kind: 'verify', token: data.challengeToken };
+      const card = document.querySelector('.modal');
+      if (card) card.style.maxWidth = '440px';
+      loginStep.style.display = 'none';
+      twoFactorStep.style.display = 'block';
+      document.getElementById('twoFactorHint').textContent = data.message || 'Enter the 6-digit code from your authenticator app.';
+      if (data.twoFactorSetupRequired) {
+        enrollBox.style.display = 'block';
+        document.getElementById('totpSecret').textContent = data.secret || '';
+        document.getElementById('totpLink').href = data.otpauthUrl || '#';
+      } else {
+        enrollBox.style.display = 'none';
+      }
+      document.getElementById('totpCode').value = '';
+      document.getElementById('totpCode').focus();
+    };
+
+    const submitLogin = async () => {
+      alertBox.innerHTML = '';
+      loginBtn.disabled = true;
       try {
         const r = await adminApi('/admin/login', {
           method: 'POST',
@@ -62,11 +89,46 @@ document.addEventListener('DOMContentLoaded', () => {
             password: document.getElementById('adminPassword').value,
           }),
         });
+        if (r.twoFactorSetupRequired || r.twoFactorRequired) { showTwoFactor(r); return; }
         setAdminToken(r.token);
         window.location.href = 'dashboard.html';
       } catch (err) {
-        alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+        alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+      } finally {
+        loginBtn.disabled = false;
       }
+    };
+
+    loginBtn.addEventListener('click', submitLogin);
+    document.getElementById('adminPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin(); });
+
+    const submitCode = async () => {
+      const code = document.getElementById('totpCode').value.trim();
+      if (!pending2fa) { alertBox.innerHTML = '<div class="alert alert-err">Start again from the email and password step.</div>'; return; }
+      if (!/^\d{6}$/.test(code)) { alertBox.innerHTML = '<div class="alert alert-err">Enter the 6-digit code from your authenticator app.</div>'; return; }
+      try {
+        const path = pending2fa.kind === 'enable' ? '/admin/2fa/enable' : '/admin/2fa/verify';
+        const body = pending2fa.kind === 'enable'
+          ? { setupToken: pending2fa.token, code }
+          : { challengeToken: pending2fa.token, code };
+        const r = await adminApi(path, { method: 'POST', body: JSON.stringify(body) });
+        setAdminToken(r.token);
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        alertBox.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+        document.getElementById('totpCode').select();
+      }
+    };
+    document.getElementById('verify2faBtn').addEventListener('click', submitCode);
+    document.getElementById('totpCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitCode(); });
+    document.getElementById('restartLoginBtn').addEventListener('click', () => {
+      pending2fa = null;
+      const card = document.querySelector('.modal');
+      if (card) card.style.maxWidth = '';
+      twoFactorStep.style.display = 'none';
+      loginStep.style.display = 'block';
+      document.getElementById('adminPassword').value = '';
+      alertBox.innerHTML = '';
     });
   }
 
@@ -441,6 +503,12 @@ async function saveSettings() {
     document.getElementById('setNewPassword').value = '';
     document.getElementById('setFullName').value = '';
     document.getElementById('setEmail').value = '';
+    if (r.reauthenticate) {
+      clearAdminToken();
+      sessionStorage.clear();
+      setTimeout(() => { window.location.replace('login.html'); }, 1800);
+      return;
+    }
     loadMe();
   } catch (err) {
     alertBox.innerHTML = `<div class="alert alert-err">${err.message}</div>`;
@@ -449,6 +517,9 @@ async function saveSettings() {
 
 // ---------------- shared ----------------
 function handleAuthError(err) {
-  if (err.message.includes('token') || err.message.includes('authenticated')) window.location.href = 'login.html';
-  else document.getElementById('globalAlert').innerHTML = `<div class="alert alert-err">${err.message}</div>`;
+  if (/token|authenticated|sign in again|session/i.test(err.message)) window.location.replace('login.html');
+  else {
+    const box = document.getElementById('globalAlert');
+    if (box) box.innerHTML = `<div class="alert alert-err">${escapeHtml(err.message)}</div>`;
+  }
 }

@@ -11,6 +11,7 @@ const { apiKeyAuth } = require('./middleware/apiKeyAuth');
 const { apiRateLimit } = require('./middleware/apiRateLimit');
 const { quotaMeter } = require('./middleware/quotaMeter');
 const { widgetOrigin } = require('./middleware/widgetOrigin');
+const { apiOriginAllowed } = require('./middleware/corsPolicy');
 const { reportAbuseGuard } = require('./middleware/reportAbuseGuard');
 const apiV1Routes = require('./routes/apiV1');
 const reportsRoutes = require('./routes/reports');
@@ -98,29 +99,26 @@ app.use((req, res, next) => {
   next();
 });
 app.use(compression());
-const allowedOrigins = (process.env.ALLOWED_ORIGIN || '*').split(',').map((s) => s.trim()).filter(Boolean);
-// Always allow the first-party deployments, regardless of what is (or isn't)
-// set in ALLOWED_ORIGIN — a missing env var used to turn every cross-origin
-// request into a CORS failure.
-const firstPartyOrigins = [
-  'https://contsemacheck.vercel.app',
-  'https://semacheck.vercel.app',
-  'https://semacheck-admin.vercel.app',
-  'https://semacheck.onrender.com',
-];
-app.use(cors({
+// /api is first-party only (site, customer dashboard, admin panel). Origin-less
+// requests are allowed so server-to-server callers such as the Tuma callback
+// keep working. A wildcard in ALLOWED_ORIGIN is deliberately ignored here.
+app.use('/api', cors({
   origin: (origin, callback) => {
-    const allowed = !origin
-      || allowedOrigins.includes('*')
-      || allowedOrigins.includes(origin)
-      || firstPartyOrigins.includes(origin);
-    if (!allowed) console.warn(`[cors] Blocked origin: ${origin}`);
+    const allowed = apiOriginAllowed(origin);
+    if (!allowed) console.warn(`[cors] Blocked /api origin: ${origin}`);
     // Never throw here — an exception in this callback skips the CORS headers
     // and surfaces to the browser as an unreadable "CORS error".
     callback(null, allowed);
   },
   credentials: true,
+  maxAge: 600,
 }));
+
+// /v1 deliberately stays open to any origin: the publishable widget runs on
+// customers' own sites. Per-key allowed_domains (widgetOrigin) and the API key
+// itself are the access control there, not an origin allowlist. Credentials
+// are not used by /v1, so cookies are not reflected to arbitrary sites.
+app.use('/v1', cors({ origin: true, credentials: false, maxAge: 600 }));
 
 
 app.use('/api/payments/tuma/callback', express.json({ limit: '50kb' }));
