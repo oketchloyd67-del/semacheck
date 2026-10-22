@@ -571,6 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let searchTier = 50;
   let searchRegion = 'kenya';
   let lastConsumerTier = 50;
+  let receiptRenderToken = 0;
 
   const regionRow = document.getElementById('regionRow');
 
@@ -782,8 +783,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderSearchResult(payload, queryValue) {
     const r = payload.result;
+    const stage = document.getElementById('receiptStage');
     const outer = document.getElementById('receiptOuter');
     const slot = document.getElementById('receiptPaperSlot');
+    const printerLabel = document.getElementById('receiptPrinterLabel');
 
     const verdictLabels = { reported: 'REPORTED', caution: 'CAUTION', registered: 'REGISTERED', unverified: 'UNVERIFIED' };
     const now = new Date();
@@ -866,11 +869,48 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    outer.classList.remove('open');
-   
+    // Print the receipt: the printer slot slides in, then the paper feeds out
+    // of it. The open height is measured from the rendered content rather than
+    // capped at a fixed value, so a long summary or the extra action rows can
+    // never be clipped. Once the feed finishes we drop the cap entirely.
+    if (!stage) {
+      // Older cached markup without the printer stage: show the receipt plainly.
+      outer.classList.add('open');
+      outer.style.maxHeight = 'none';
+      return;
+    }
+    const token = ++receiptRenderToken;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const slotDelay = reduceMotion ? 0 : 140;
+
+    outer.classList.remove('open', 'printed');
+    stage.classList.remove('open', 'printing');
+    outer.style.maxHeight = '0px';
     void outer.offsetHeight;
-    requestAnimationFrame(() => outer.classList.add('open'));
-    setTimeout(() => outer.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 250);
+    const targetHeight = Math.ceil(slot.getBoundingClientRect().height);
+
+    if (printerLabel) printerLabel.textContent = reduceMotion ? 'Receipt ready' : 'Printing receipt…';
+    stage.classList.add('open', 'printing');
+
+    const finishPrint = () => {
+      if (token !== receiptRenderToken || !outer.classList.contains('open')) return;
+      outer.style.maxHeight = 'none';
+      outer.classList.add('printed');
+      stage.classList.remove('printing');
+      if (printerLabel) printerLabel.textContent = 'Receipt ready';
+    };
+
+    // Runs after the slot delay plus the 0.95s feed. A timer beats transitionend
+    // here because closing the previous receipt also animates max-height and
+    // would otherwise report the new print as finished early.
+    setTimeout(finishPrint, reduceMotion ? 80 : 1200);
+
+    setTimeout(() => {
+      if (token !== receiptRenderToken) return;
+      outer.classList.add('open');
+      outer.style.maxHeight = `${targetHeight}px`;
+      stage.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+    }, slotDelay);
   }
 
   loadRecentScamsTicker();

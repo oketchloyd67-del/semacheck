@@ -121,14 +121,52 @@ button { font-family: inherit; cursor: pointer; }
 .pp-hint { font-size: 0.82rem; color: var(--text-muted); }
 
 
-.receipt-outer { max-height: 0; overflow: hidden; margin-top: 0; transition: max-height 0.9s cubic-bezier(0.22, 1, 0.36, 1), margin-top 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
-.receipt-outer.open { max-height: 950px; margin-top: 18px; }
-.receipt-outer.open .receipt-paper { animation: printReveal 0.8s ease-out forwards; }
-@keyframes printReveal {
-  0% { opacity: 0; transform: translateY(-20px) scaleY(0.3); }
-  40% { opacity: 1; transform: translateY(0) scaleY(0.3); }
-  100% { opacity: 1; transform: translateY(0) scaleY(1); }
+/* Receipt printer: a fixed slot sits above the paper and the paper is revealed
+   as the stage's measured height grows. Height is measured in JS so a long
+   receipt is never clipped and nothing is squashed on the way in. */
+.receipt-stage { position: relative; max-width: 640px; }
+.receipt-printer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 0;
+  margin-top: 0;
+  opacity: 0;
+  overflow: hidden;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(180deg, #2e4159 0%, #17283e 58%, #0a1626 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 10px 24px rgba(6,16,30,0.35);
+  transition: height 0.5s cubic-bezier(0.22, 1, 0.36, 1), margin-top 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease;
 }
+.receipt-stage.open .receipt-printer { height: 34px; margin-top: 24px; opacity: 1; }
+.receipt-printer::after {
+  content: '';
+  position: absolute;
+  left: 10px; right: 10px; bottom: 0; height: 7px;
+  border-radius: 0 0 5px 5px;
+  background: linear-gradient(180deg, #04101d, #182a41);
+  box-shadow: 0 7px 12px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+.receipt-printer-led { width: 7px; height: 7px; border-radius: 50%; background: #35c98a; box-shadow: 0 0 0 3px rgba(53,201,138,0.18); flex-shrink: 0; }
+.receipt-stage.printing .receipt-printer-led { animation: printerPulse 0.55s ease-in-out infinite alternate; }
+@keyframes printerPulse { from { opacity: 0.4; box-shadow: 0 0 0 2px rgba(53,201,138,0.14); } to { opacity: 1; box-shadow: 0 0 9px 3px rgba(53,201,138,0.55); } }
+.receipt-printer-label { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #a9c0d6; }
+
+.receipt-outer {
+  max-height: 0;
+  overflow: hidden;
+  margin-top: 0;
+  /* Near-linear feed: a printer pulls paper at a steady speed, so easeOut's
+     instant first frame would read as a pop rather than a print. */
+  transition: max-height 0.95s cubic-bezier(0.3, 0, 0.3, 1);
+}
+.receipt-outer.open { max-height: 950px; }
+.receipt-stage.open .receipt-outer.open { margin-top: 0; }
+.receipt-outer.printed { overflow: visible; }
 .receipt-paper {
   position: relative;
   background: #fdfdf7;
@@ -136,11 +174,23 @@ button { font-family: inherit; cursor: pointer; }
   font-family: 'Courier New', Courier, monospace;
   padding: 24px 22px 26px;
   box-shadow: 0 14px 34px rgba(0,0,0,0.22);
-  transform: translateY(-16px);
-  opacity: 0;
-  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.15s, opacity 0.5s ease 0.15s;
+  transform: translateY(-10px);
+  transition: transform 0.95s cubic-bezier(0.3, 0, 0.3, 1);
 }
-.receipt-outer.open .receipt-paper { transform: translateY(0); opacity: 1; }
+.receipt-outer.open .receipt-paper { transform: translateY(0); }
+/* The controls are not printed, so they arrive after the paper has fed out. */
+.receipt-outer.open .receipt-actions,
+.receipt-outer.open .reclaim-money-box { animation: receiptControlsIn 0.3s ease-out 0.55s both; }
+@keyframes receiptControlsIn {
+  /* visibility keeps the still-invisible buttons out of the tab order until
+     the paper has finished feeding. */
+  from { opacity: 0; transform: translateY(6px); visibility: hidden; }
+  to { opacity: 1; transform: translateY(0); visibility: visible; }
+}
+/* Once printing is reported done, the controls must be usable even if their
+   entrance animation was skipped (frozen tab, animations turned off). */
+.receipt-outer.printed .receipt-actions,
+.receipt-outer.printed .reclaim-money-box { animation: none; opacity: 1; transform: none; visibility: visible; }
 .receipt-paper::after {
   content: '';
   position: absolute; left: 0; right: 0; bottom: -11px; height: 12px;
@@ -442,7 +492,7 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0 28px; font-size: 0
 .reclaim-money-box p { font-size: 0.86rem; color: #5a2230; margin-bottom: 10px; }
 .reclaim-money-box .btn { white-space: nowrap; }
 
-.receipt-actions { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
+.receipt-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; align-items: center; }
 .receipt-actions .btn { white-space: nowrap; }
 
 .ticker-container { display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
@@ -467,6 +517,8 @@ footer { background: #081428; color: #8fa1bf; padding: 36px 0 28px; font-size: 0
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
   .pp-circular { animation: none !important; }
   .receipt-paper { transition: none !important; transform: none !important; opacity: 1 !important; }
+  .receipt-printer, .receipt-outer { transition: none !important; }
+  .receipt-actions, .reclaim-money-box { animation: none !important; opacity: 1 !important; transform: none !important; }
   .ticker-item { animation: none !important; opacity: 1; }
 }
 

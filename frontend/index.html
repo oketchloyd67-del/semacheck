@@ -136,7 +136,13 @@
       </div>
     </div>
 
-    <div class="receipt-outer" id="receiptOuter"><div id="receiptPaperSlot"></div></div>
+    <div class="receipt-stage" id="receiptStage">
+      <div class="receipt-printer" id="receiptPrinter">
+        <span class="receipt-printer-led" aria-hidden="true"></span>
+        <span class="receipt-printer-label" id="receiptPrinterLabel" role="status" aria-live="polite"></span>
+      </div>
+      <div class="receipt-outer" id="receiptOuter"><div id="receiptPaperSlot"></div></div>
+    </div>
   </div>
 </header>
 </main>

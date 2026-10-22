@@ -1,4 +1,4 @@
-const CACHE_NAME = 'semacheck-v4';
+const CACHE_NAME = 'semacheck-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
